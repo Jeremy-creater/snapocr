@@ -1,0 +1,2 @@
+使用Python3截图识别，自动复制到剪贴板。
+Hello World, snapocr 123 test.

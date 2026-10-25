@@ -190,3 +190,15 @@ def test_error_message_is_bounded_and_leaks_no_bytes():
 def test_error_message_is_bounded_for_any_garbage(data):
     err = reject(data)
     assert_message_safe(data, str(err))
+
+
+# --- WI-6: real fixture (moved here from WI-3, needs tests/fixtures/mixed.png) --
+
+
+def test_fixture_png_returns_size():
+    path = Path(__file__).resolve().parent.parent / "fixtures" / "mixed.png"
+    data = path.read_bytes()
+    expected = struct.unpack(">II", data[16:24])
+    assert expected == (900, 200)
+    assert check_png_bytes(data) == expected
+    assert check_png_bytes(bytearray(data)) == expected

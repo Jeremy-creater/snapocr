@@ -1,0 +1,4 @@
+# Fixture ground-truth text must stay byte-exact (LF) on every checkout.
+tests/fixtures/*.txt text eol=lf
+*.png binary
+*.ico binary
