@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Test / coverage
+.pytest_cache/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.json
+coverage.xml
+htmlcov/
+
+# Local config & runtime data (keep .claude/tdd-guardian/config.json tracked)
+/config.local.toml
+/runtime/
+
+# tdd-guardian local state
+.claude/tdd-guardian/state.json
+.claude/tdd-guardian/receipts.json
+.claude/settings.local.json
+
+# IDE / OS
+.idea/
+.vscode/
+Thumbs.db
