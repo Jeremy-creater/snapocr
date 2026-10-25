@@ -13,7 +13,7 @@ from hypothesis import strategies as st
 
 from snapocr.engines.types import TextBlock
 from snapocr.postprocess.chars import is_cjk, is_cjk_punct
-from snapocr.postprocess.layout import PARAGRAPH_GAP
+from snapocr.postprocess.layout import PARAGRAPH_GAP, Line
 
 # L10: unified ideographs (start and end of the block) plus extension A.
 cjk = st.one_of(
@@ -179,3 +179,112 @@ def arbitrary_layouts(draw) -> tuple[TextBlock, ...]:
         if draw(st.integers(0, 9)) == 0:  # ~10% exact copy of an earlier block
             blocks[i] = blocks[draw(st.integers(0, i - 1))]
     return tuple(blocks)
+
+
+# ---------------------------------------------------------------------------
+# WI-3 paragraph generators (matrix "共享生成器": labeled_paragraph_lines,
+# rev 1 M4 end kinds). The expected merge result is computed from the LABELS
+# drawn here -- never by calling the production regexes or ``seam_join``.
+# ---------------------------------------------------------------------------
+
+SENTENCE_END_PUNCT = "。！？!?.：:；;…"
+_LABEL_CLOSERS = "」”\"）"  # closers drawn after sentence-end punctuation
+_M4_CLOSERS = "》」）"  # closers drawn after a Han char: NOT a sentence end (M4)
+_letters = st.sampled_from(ascii_letters)
+
+
+def paragraph_seam_join(left: str, right: str) -> str:
+    """Test-side F2-3 seam: Q11 plus "ASCII letter + '-' at the end: no separator"."""
+    if len(left) >= 2 and left[-1] == "-" and left[-2] in ascii_letters:
+        return left + right
+    return _seam_join(left, right)
+
+
+def _start_kinds() -> st.SearchStrategy[tuple[str, bool]]:
+    """``(line prefix, is_list_item)`` per the matrix ``start_kind`` labels (Q7)."""
+    fixed_lists = ["- ", "* ", "•", "1. ", "1) ", "1、", "(1)", "（1）", "一、"]
+    return st.one_of(
+        cjk.map(lambda c: (c, False)),
+        _letters.map(lambda c: (c, False)),
+        st.sampled_from(fixed_lists).map(lambda s: (s, True)),
+        st.integers(0, 19).map(lambda n: (chr(0x2460 + n), True)),  # circled 1..20
+        st.just(("1.5倍", False)),
+    )
+
+
+def _end_kinds() -> st.SearchStrategy[tuple[str, bool]]:
+    """``(line suffix, is_sentence_end)`` per the matrix ``end_kind`` labels (Q7, M4)."""
+    closers = st.lists(st.sampled_from(_LABEL_CLOSERS), min_size=1, max_size=2).map("".join)
+    return st.one_of(
+        cjk.map(lambda c: (c, False)),
+        _letters.map(lambda c: (c, False)),
+        _letters.map(lambda c: (c + "-", False)),
+        st.just(("，", False)),
+        st.sampled_from(digits).map(lambda c: (c, False)),
+        st.sampled_from(SENTENCE_END_PUNCT).map(lambda p: (p, True)),
+        st.tuples(st.sampled_from(SENTENCE_END_PUNCT), closers).map(lambda t: (t[0] + t[1], True)),
+        st.tuples(cjk, st.sampled_from(_M4_CLOSERS)).map(lambda t: (t[0] + t[1], False)),
+    )
+
+
+@st.composite
+def _middle(draw) -> str:
+    """1-6 cjk / latin tokens with optional single spaces; head and tail are Han or a letter."""
+    edge = st.one_of(cjk, _letters)
+    inner = st.lists(st.one_of(cjk, latin), max_size=4)
+    tokens = [draw(edge), *draw(inner)]
+    if draw(st.booleans()):
+        tokens.append(draw(edge))
+    out = tokens[0]
+    for t in tokens[1:]:
+        out += (" " if draw(st.booleans()) else "") + t
+    return out
+
+
+@st.composite
+def labeled_paragraph_lines(draw, W: float = 512.0, ratio: float = 0.85):
+    """``(lines, expected)`` for region ``(0, W)`` and ``full_ratio=ratio``.
+
+    1-8 lines, ``left=0``. ``right_kind``: full ``W``, critical ``ratio*W``,
+    just short ``ratio*W - 0.25``, short ``0.5*W``. ``expected`` is the merge
+    result derived from the labels: a new group starts at line 0 and at every
+    i with ``gap_i or list(start_i) or sentence_end(end_{i-1}) or not
+    full(right_{i-1})``.
+    """
+    n = draw(st.integers(1, 8))
+    rights = [(W, True), (ratio * W, True), (ratio * W - 0.25, False), (0.5 * W, False)]
+    lines, labels = [], []
+    for i in range(n):
+        start, is_list = draw(_start_kinds())
+        end, is_end = draw(_end_kinds())
+        right, is_full = draw(st.sampled_from(rights))
+        gap = draw(st.integers(0, 9)) < 3
+        text = start + draw(_middle()) + end
+        lines.append(Line(text, 0.0, right, 20.0 * i, 20.0 * i + 16, gap))
+        labels.append((is_list, is_end, is_full))
+    groups: list[list[Line]] = []
+    for i, line in enumerate(lines):
+        split = i == 0 or line.gap_before or labels[i][0] or labels[i - 1][1] or not labels[i - 1][2]
+        if split:
+            groups.append([line])
+        else:
+            groups[-1].append(line)
+    expected = []
+    for g in groups:
+        text = g[0].text
+        for member in g[1:]:
+            text = paragraph_seam_join(text, member.text)
+        expected.append(Line(text, g[0].left, g[-1].right, g[0].top, g[-1].bottom, g[0].gap_before))
+    return tuple(lines), tuple(expected)
+
+
+@st.composite
+def free_right_lines(draw, W: int = 512):
+    """Labeled lines whose ``right`` is, per line, either kept or any integer in [1, W]."""
+    lines, _ = draw(labeled_paragraph_lines(float(W)))
+    out = []
+    for line in lines:
+        if draw(st.booleans()):
+            line = Line(line.text, line.left, float(draw(st.integers(1, W))), line.top, line.bottom, line.gap_before)
+        out.append(line)
+    return tuple(out)
