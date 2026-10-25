@@ -89,3 +89,46 @@ def test_build_params_callable_without_loading_runtime():
         "print(json.dumps([m for m in heavy if m in sys.modules]))\n"
     )
     assert _run_isolated(code) == []
+
+
+# --- F2 A4: postprocess depends only on the stdlib and engines.types ---------
+
+POSTPROCESS = SRC / "postprocess"
+POSTPROCESS_ALLOWED = {"snapocr.engines.types"}
+
+
+def _imported_modules(tree: ast.AST) -> set[str]:
+    modules = set()
+    for node in ast.walk(tree):  # includes imports inside function bodies
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            assert node.level == 0, "relative imports are not used in snapocr"
+            modules.add(node.module)
+    return modules
+
+
+def test_postprocess_imports_only_stdlib_and_types():
+    files = sorted(POSTPROCESS.glob("*.py"))
+    assert len(files) >= 6
+
+    offending: dict[str, set[str]] = {}
+    for path in files:
+        tree = ast.parse(path.read_text(encoding="utf-8"), str(path))
+        for module in _imported_modules(tree):
+            root = module.split(".")[0]
+            if root in sys.stdlib_module_names:
+                continue
+            if module in POSTPROCESS_ALLOWED or module.startswith("snapocr.postprocess."):
+                continue
+            offending.setdefault(path.name, set()).add(module)
+    assert offending == {}
+
+    code = (
+        "import json, sys\n"
+        "import snapocr.postprocess\n"
+        "from snapocr.postprocess import postprocess, PostprocessOptions, RULE_ORDER\n"
+        f"heavy = {HEAVY!r}\n"
+        "print(json.dumps([m for m in heavy if m in sys.modules]))\n"
+    )
+    assert _run_isolated(code) == []
