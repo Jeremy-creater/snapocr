@@ -23,7 +23,11 @@ from snapocr.engines.config import (
 from snapocr.engines.convert import output_to_result
 from snapocr.engines.errors import EngineLoadError, InvalidImageError, InvalidImageReason
 from snapocr.engines.image_check import check_png_bytes
+from snapocr.engines.offline import OFFLINE_HINT, DownloadBlockedError, block_downloads
 from snapocr.engines.types import OcrResult
+
+NEEDS_DOWNLOAD_HINT = "this model needs a downloaded character dictionary"
+EMBEDDED_DICT_FIX = f"use a rec model with an embedded character dictionary ({FIX_HINT})"
 
 
 def build_rapidocr_params(paths: ModelPaths) -> dict[str, object]:
@@ -62,24 +66,36 @@ class RapidOcrEngine:
         check_model_files(paths)
 
         from rapidocr import RapidOCR
+        from rapidocr.utils.download_file import DownloadFile
 
-        ocr = RapidOCR(params=build_rapidocr_params(paths))
-        # Private loaders of rapidocr 3.10.x (version pinned in pyproject). They
-        # only create the sessions and change no recognition settings. Loading
-        # them one by one is what lets a failure name the exact broken model.
-        for loader, path in (
-            (ocr._load_det_model, paths.det),
-            (ocr._load_cls_model, paths.cls),
-            (ocr._load_rec_model, paths.rec),
-        ):
-            try:
-                loader()
-            except Exception as exc:
-                raise EngineLoadError(
-                    (path,),
-                    f"the model file is corrupt or not a usable ONNX model; {FIX_HINT}",
-                    detail=f"{type(exc).__name__}: {exc}",
-                ) from exc
+        # Backstop: rapidocr downloads a character dictionary (no SHA check)
+        # inside the rec loader when the rec model has none embedded. Every
+        # importer shares this class object, so blocking ``DownloadFile.run``
+        # turns any download attempt during load into a load failure.
+        with block_downloads(DownloadFile):
+            ocr = RapidOCR(params=build_rapidocr_params(paths))
+            # Private loaders of rapidocr 3.10.x (version pinned in pyproject). They
+            # only create the sessions and change no recognition settings. Loading
+            # them one by one is what lets a failure name the exact broken model.
+            for loader, path in (
+                (ocr._load_det_model, paths.det),
+                (ocr._load_cls_model, paths.cls),
+                (ocr._load_rec_model, paths.rec),
+            ):
+                try:
+                    loader()
+                except DownloadBlockedError as exc:
+                    raise EngineLoadError(
+                        (path,),
+                        f"{NEEDS_DOWNLOAD_HINT}; {OFFLINE_HINT}; {EMBEDDED_DICT_FIX}",
+                        detail=exc.detail,
+                    ) from exc
+                except Exception as exc:
+                    raise EngineLoadError(
+                        (path,),
+                        f"the model file is corrupt or not a usable ONNX model; {FIX_HINT}",
+                        detail=f"{type(exc).__name__}: {exc}",
+                    ) from exc
         self._ocr = ocr
         return self
 
