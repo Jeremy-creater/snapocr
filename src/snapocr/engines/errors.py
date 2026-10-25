@@ -37,11 +37,21 @@ class InvalidImageError(OcrError):
 class EngineLoadError(OcrError):
     """The OCR engine could not be loaded; lists the offending model files and a fix."""
 
-    def __init__(self, model_paths: Iterable[str | os.PathLike[str]], hint: str) -> None:
+    def __init__(
+        self,
+        model_paths: Iterable[str | os.PathLike[str]],
+        hint: str,
+        *,
+        detail: str = "",
+    ) -> None:
         self.model_paths = tuple(model_paths)
         self.hint = hint
+        self.detail = detail
         listed = "; ".join(os.fspath(p) for p in self.model_paths)
-        super().__init__(f"failed to load OCR engine; model files: {listed}; fix: {hint}")
+        message = f"failed to load OCR engine; model files: {listed}; fix: {hint}"
+        if detail:
+            message = f"{message}; cause: {detail}"
+        super().__init__(message)
 
 
 class EngineRuntimeError(OcrError):
