@@ -33,7 +33,31 @@ def test_every_reference_has_its_image(name):
 
 def test_at_least_the_known_pngs_exist():
     names = {p.stem for p in PNGS}
-    assert {"zh", "en", "mixed", "blank", "lowconf"} <= names
+    assert {"zh", "en", "mixed", "blank", "lowconf", "wrap"} <= names
+
+
+_FOLD = str.maketrans("，；：？！。", ",;:?!.")
+
+
+def _nonws_fold(text: str) -> str:
+    return "".join(text.translate(_FOLD).split())
+
+
+def test_wrap_fixture_consistent():
+    """F2 WI-8 / Q15: wrap.txt (rendered lines) and wrap.expected.txt agree."""
+    raw = {}
+    for name in ("wrap.txt", "wrap.expected.txt"):
+        data = _read(FIXTURES / name)
+        assert not data.startswith(b"\xef\xbb\xbf"), name
+        assert b"\r" not in data, name
+        raw[name] = data.decode("utf-8")
+    txt, expected = raw["wrap.txt"], raw["wrap.expected.txt"]
+    assert _nonws_fold(expected) == _nonws_fold(txt)
+    assert normalize_for_cer(txt) != ""
+    assert expected.splitlines().count("") == 1
+    data = _read(FIXTURES / "wrap.png")
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    assert (data[24], data[25]) == (8, 2)
 
 
 @pytest.mark.parametrize("path", PNGS, ids=lambda p: p.name)

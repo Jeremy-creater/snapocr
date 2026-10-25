@@ -15,7 +15,12 @@
 #
 # Every image: white background, Microsoft YaHei, 24bpp RGB (no alpha).
 # Every ground-truth .txt: UTF-8 without BOM, LF line endings, one line per
-# rendered text line. All text is synthetic and privacy-free.
+# rendered text line (an empty string renders as an empty line and is kept
+# as an empty line in the .txt). All text is synthetic and privacy-free.
+#
+# -Expected writes <Name>.expected.txt (same encoding rules): the exact text
+# post-processing must produce from the image (F2, plan WI-8), one line per
+# output line. It is skipped together with the .png.
 
 param(
     [string]$OutDir = $PSScriptRoot,
@@ -38,6 +43,7 @@ function New-TextImage {
         [int]$Left = 24,
         [int]$Top = 22,
         [int]$LineStep = 82,
+        [string[]]$Expected = @(),
         [switch]$NoTruth
     )
     $png = Join-Path $OutDir "$Name.png"
@@ -68,6 +74,11 @@ function New-TextImage {
         $txt = Join-Path $OutDir "$Name.txt"
         $utf8 = New-Object System.Text.UTF8Encoding($false)
         [System.IO.File]::WriteAllText($txt, (($Lines -join "`n") + "`n"), $utf8)
+    }
+    if ($Expected.Count -gt 0) {
+        $exp = Join-Path $OutDir "$Name.expected.txt"
+        $utf8 = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($exp, (($Expected -join "`n") + "`n"), $utf8)
     }
     Write-Output "wrote $png"
 }
@@ -123,4 +134,32 @@ New-TextImage -Name 'perf_1080p' -Width 1920 -Height 1080 -NoTruth -Lines @(
     'This sample page measures how long a full HD screenshot takes end to end.',
     '数字和符号也会出现：版本 0.1，端口 11434，日期 2026-10-25。',
     'Numbers and symbols appear too: version 0.1, port 11434, date 2026-10-25.'
+)
+
+# Paragraph layout for F2 post-processing (plan WI-8, matrix rev 1), 1200x680.
+# Line by line, each merge decision has exactly one blocking reason:
+#   title            -> not merged only because it is not a full line;
+#   lines 2+3        -> merged (full line, ends with a comma);
+#   line 3 / line 4  -> not merged only because line 3 ends with a full stop;
+#   line 4 / "第二段" -> not merged only because of the paragraph gap (the
+#                       empty rendered line); line 4 is full and ends with a comma;
+#   list 1 / list 2  -> not merged only because the next line is a list item.
+# Lines 2, 3, 4 and 6 must render full: right - min left >= 0.85 * region width.
+New-TextImage -Name 'wrap' -Width 1200 -Height 680 -Lines @(
+    '第一章 概述',
+    '截图识别工具在后台常驻，按下快捷键后选择屏幕上的一块区域，',
+    '程序会识别其中的文字并自动复制到剪贴板，整个过程不需要联网。',
+    '识别结果也可以在浮动窗口里查看，原文也可以随时用快捷键找回来，',
+    '',
+    '第二段正文从这里开始。',
+    '1. 支持中文和英文混排的截图识别，结果自动进入剪贴板并保留段落',
+    '2. 支持一键翻译'
+) -Expected @(
+    '第一章 概述',
+    '截图识别工具在后台常驻，按下快捷键后选择屏幕上的一块区域，程序会识别其中的文字并自动复制到剪贴板，整个过程不需要联网。',
+    '识别结果也可以在浮动窗口里查看，原文也可以随时用快捷键找回来，',
+    '',
+    '第二段正文从这里开始。',
+    '1. 支持中文和英文混排的截图识别，结果自动进入剪贴板并保留段落',
+    '2. 支持一键翻译'
 )
