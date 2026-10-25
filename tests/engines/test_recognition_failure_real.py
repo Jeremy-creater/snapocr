@@ -11,11 +11,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from rapidocr.ch_ppocr_cls import TextClsOutput
-from rapidocr.ch_ppocr_det import TextDetOutput
-from rapidocr.ch_ppocr_rec import TextRecOutput
-from rapidocr.main import RapidOCRError
-from rapidocr.utils.output import RapidOCROutput
 
 from snapocr.engines.convert import output_to_result
 from snapocr.engines.errors import EngineRuntimeError
@@ -25,6 +20,29 @@ pytestmark = pytest.mark.engine
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 BOX = [[1.0, 2.0], [30.0, 2.0], [30.0, 12.0], [1.0, 12.0]]
+
+
+@pytest.fixture(autouse=True)
+def _rapidocr_names():
+    """Bind the rapidocr 3.10 names used below, lazily.
+
+    pytest imports this module even when the unit lane deselects it, so a
+    module-level ``import rapidocr`` would load rapidocr / onnxruntime into
+    every unit run (guarded by ``tests/test_unit_lane_collection.py``).
+    """
+    from rapidocr.ch_ppocr_cls import TextClsOutput
+    from rapidocr.ch_ppocr_det import TextDetOutput
+    from rapidocr.ch_ppocr_rec import TextRecOutput
+    from rapidocr.main import RapidOCRError
+    from rapidocr.utils.output import RapidOCROutput
+
+    globals().update(
+        TextClsOutput=TextClsOutput,
+        TextDetOutput=TextDetOutput,
+        TextRecOutput=TextRecOutput,
+        RapidOCRError=RapidOCRError,
+        RapidOCROutput=RapidOCROutput,
+    )
 
 
 def _read(path: Path) -> bytes:

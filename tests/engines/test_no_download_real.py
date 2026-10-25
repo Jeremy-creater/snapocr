@@ -18,15 +18,31 @@ import shutil
 from pathlib import Path
 
 import pytest
-from rapidocr.ch_ppocr_rec.main import DEFAULT_DICT_URL
-from rapidocr.inference_engine.onnxruntime.main import OrtInferSession
-from rapidocr.utils.download_file import DownloadFile
 
 from snapocr.engines.config import REC_MODEL, OcrEngineConfig
 from snapocr.engines.errors import EngineLoadError
 from snapocr.engines.rapidocr_engine import RapidOcrEngine
 
 pytestmark = pytest.mark.engine
+
+
+@pytest.fixture(autouse=True)
+def _rapidocr_names():
+    """Bind the rapidocr 3.10 names used below, lazily.
+
+    pytest imports this module even when the unit lane deselects it, so a
+    module-level ``import rapidocr`` would load rapidocr / onnxruntime into
+    every unit run (guarded by ``tests/test_unit_lane_collection.py``).
+    """
+    from rapidocr.ch_ppocr_rec.main import DEFAULT_DICT_URL
+    from rapidocr.inference_engine.onnxruntime.main import OrtInferSession
+    from rapidocr.utils.download_file import DownloadFile
+
+    globals().update(
+        DEFAULT_DICT_URL=DEFAULT_DICT_URL,
+        OrtInferSession=OrtInferSession,
+        DownloadFile=DownloadFile,
+    )
 
 
 def _sha256_tree(root: Path) -> dict[str, str]:

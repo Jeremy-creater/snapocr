@@ -21,7 +21,13 @@ from snapocr.engines.config import (
     resolve_model_paths,
 )
 from snapocr.engines.convert import output_to_result
-from snapocr.engines.errors import EngineLoadError, InvalidImageError, InvalidImageReason
+from snapocr.engines.errors import (
+    EngineLoadError,
+    EngineRuntimeError,
+    InvalidImageError,
+    InvalidImageReason,
+    OcrError,
+)
 from snapocr.engines.image_check import check_png_bytes
 from snapocr.engines.offline import OFFLINE_HINT, DownloadBlockedError, block_downloads
 from snapocr.engines.types import OcrResult
@@ -109,4 +115,13 @@ class RapidOcrEngine:
         if image is None:
             raise InvalidImageError(InvalidImageReason.DECODE_FAILED, "cv2.imdecode returned no image")
 
-        return output_to_result(self._ocr(image), self._config.min_score)
+        # rapidocr only catches its own RapidOCRError; onnxruntime, cv2 or numpy
+        # errors would otherwise escape the OcrError hierarchy. The message names
+        # only the type: the original text may contain recognized content.
+        try:
+            output = self._ocr(image)
+        except OcrError:
+            raise
+        except Exception as exc:
+            raise EngineRuntimeError(f"OCR engine failed: {type(exc).__name__}") from exc
+        return output_to_result(output, self._config.min_score)
