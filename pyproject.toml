@@ -23,6 +23,8 @@ packages = ["src/snapocr"]
 testpaths = ["tests"]
 markers = [
     "integration: requires a running local model service (Ollama)",
+    "engine: loads the real in-process RapidOCR models (no external service)",
+    "perf: latency measurements; manual only, never part of a gate",
 ]
 addopts = "--strict-markers"
 

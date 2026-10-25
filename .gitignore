@@ -12,6 +12,7 @@ dist/
 .coverage
 .coverage.*
 coverage.json
+coverage-engine.json
 coverage.xml
 htmlcov/
 

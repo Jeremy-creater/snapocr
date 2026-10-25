@@ -56,13 +56,15 @@
 
 | 车道 | 内容 | 命令 | 触发 |
 |---|---|---|---|
-| `unit` | 纯逻辑 + 假实现，不需要任何外部服务 | `python -m pytest -m "not integration" --cov=snapocr --cov-branch --cov-report=json` | taskCompleted、commit |
+| `unit` | 纯逻辑 + 假实现，不需要任何外部服务，不加载 OCR 模型 | `python -m pytest -m "not integration and not engine and not perf" --cov=snapocr --cov-branch --cov-report=json` | taskCompleted、commit |
+| `engine` | 进程内真实 RapidOCR 模型（`@pytest.mark.engine`），不需要外部服务、不联网 | `python -m pytest -m "engine and not perf" --cov=snapocr --cov-branch --cov-report=json:coverage-engine.json` | taskCompleted、commit |
 | `integration` | 连真实运行中的本地模型服务（Ollama，`@pytest.mark.integration`） | `python -m pytest -m integration` | manual |
 
 - 覆盖率模式：`no-decrease`。
 - 初期不开 `blockCommitWithoutFreshGate`；熟悉流程后再开。
 - integration 测试在 Ollama 未运行或模型未导入时必须**明确失败并提示**，不得静默跳过后报绿。
-- 用真实 RapidOCR 模型跑样例图的测试（PRD F1-7）不需要外部服务；归 `unit` 还是 `integration`，在 F1 计划里按实测耗时决定，定下后先改本表。
+- engine 测试在模型文件缺失或损坏时必须**明确失败并提示**，不能跳过。归为独立车道的依据：冒烟实测加载 + 识别约 1–2 s，不需要外部服务，适合每次提交跑，但不该混进毫秒级的 unit。
+- `perf`（`@pytest.mark.perf`，延迟实测）只能手动跑：`python -m pytest -m perf -s`，不参与任何 gate。
 - GUI 层的自动化测试方式（如 pytest-qt + offscreen）在 M2 计划时再定，定下后先改本文件。
 
 ## 测试数据与隐私
@@ -72,5 +74,5 @@
 
 ## Git
 
-- 每个 WI 提交一次；提交前跑 `unit` 车道。
+- 每个 WI 提交一次；提交前跑 `unit` + `engine` 车道。
 - `git push`、rebase、reset --hard 前先问 Jeremy。
