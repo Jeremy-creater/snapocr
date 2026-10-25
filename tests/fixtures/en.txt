@@ -1,0 +1,3 @@
+The quick brown fox jumps over the lazy dog.
+Screenshots are recognized and copied to the clipboard.
+Sample text 2026, version 0.1, no private data.

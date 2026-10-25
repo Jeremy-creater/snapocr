@@ -6,14 +6,20 @@
 # engine lane after regenerating and review the diff before committing.
 #
 # Usage (PowerShell 7 on Windows):
-#   pwsh -NoProfile -File tests\fixtures\make_fixtures.ps1 [-OutDir <dir>]
+#   pwsh -NoProfile -File tests\fixtures\make_fixtures.ps1 [-OutDir <dir>] [-Force]
+#
+# By default an image whose .png already exists in -OutDir is SKIPPED (both
+# the .png and its .txt), so adding a new fixture never rewrites committed
+# ones. Pass -Force to regenerate everything, then check `git diff --stat`.
+# To compare without touching the repo, render into a scratch -OutDir.
 #
 # Every image: white background, Microsoft YaHei, 24bpp RGB (no alpha).
 # Every ground-truth .txt: UTF-8 without BOM, LF line endings, one line per
 # rendered text line. All text is synthetic and privacy-free.
 
 param(
-    [string]$OutDir = $PSScriptRoot
+    [string]$OutDir = $PSScriptRoot,
+    [switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,6 +40,11 @@ function New-TextImage {
         [int]$LineStep = 82,
         [switch]$NoTruth
     )
+    $png = Join-Path $OutDir "$Name.png"
+    if ((Test-Path -LiteralPath $png) -and -not $Force) {
+        Write-Output "skip $png (exists; use -Force to regenerate)"
+        return
+    }
     $bmp = New-Object System.Drawing.Bitmap($Width, $Height, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     try {
@@ -50,7 +61,6 @@ function New-TextImage {
     finally {
         $g.Dispose()
     }
-    $png = Join-Path $OutDir "$Name.png"
     $bmp.Save($png, [System.Drawing.Imaging.ImageFormat]::Png)
     $bmp.Dispose()
 
@@ -81,4 +91,18 @@ New-TextImage -Name 'lowconf' -Width 900 -Height 200 -FontPt 3 -LineStep 40 -NoT
     'Hello World, snapocr 123 test.',
     '极小号文字用于测试置信度阈值。',
     'Tiny text for the 0.5 threshold.'
+)
+
+# Pure Chinese, three lines, 1000x280. Synthetic, privacy-free text.
+New-TextImage -Name 'zh' -Width 1000 -Height 280 -Lines @(
+    '今天天气晴朗，适合在公园里散步和读书。',
+    '截图识别的文字会自动复制到剪贴板中。',
+    '样例图片统一放在测试目录下管理。'
+)
+
+# Pure English, three lines, 1120x280 (line 2 is ~1050px wide). Synthetic, privacy-free text.
+New-TextImage -Name 'en' -Width 1120 -Height 280 -Lines @(
+    'The quick brown fox jumps over the lazy dog.',
+    'Screenshots are recognized and copied to the clipboard.',
+    'Sample text 2026, version 0.1, no private data.'
 )
