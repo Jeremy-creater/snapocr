@@ -36,7 +36,7 @@ from support.pp_strategies import (
 )
 
 # Q3: every character str.splitlines treats as a line boundary.
-LINE_BREAK_CHARS = ["\n", "\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "]
+LINE_BREAK_CHARS = ["\n", "\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"]
 
 
 def _lines(*blocks: TextBlock) -> tuple[Line, ...]:
@@ -183,7 +183,7 @@ def test_paragraph_gap_uses_median_line_height():
 
 
 def test_linebreak_inside_block_text():
-    lines = _lines(rect("ab\ncd\r\nef g", 0, 0, 100, 16))
+    lines = _lines(rect("ab\ncd\r\nef\u2028g", 0, 0, 100, 16))
     assert _texts(lines) == ["ab cd  ef g"]
     assert lines[0].text.splitlines() == [lines[0].text]
 
