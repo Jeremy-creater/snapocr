@@ -19,7 +19,7 @@ from snapocr.engines.rapidocr_engine import RapidOcrEngine
 
 pytestmark = [pytest.mark.engine, pytest.mark.perf]
 
-BUDGET_S = 1.5
+BUDGET_S = 2.0  # PRD §8, revised from 1.5 s on 2026-10-25 after WI-10 measurement
 RUNS = 5
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "perf_1080p.png"
 

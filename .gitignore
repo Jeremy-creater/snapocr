@@ -29,3 +29,6 @@ htmlcov/
 .idea/
 .vscode/
 Thumbs.db
+
+# Candidate icon kept locally only (compare with assets/icon-source.png in M2, F5-6)
+/assets/Blue OCR Scanner App Icon.png
