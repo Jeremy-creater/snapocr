@@ -1,6 +1,6 @@
 # snapocr — 项目规则
 
-个人定制的截图文字识别工具。以本机已安装的 Umi-OCR 作为 OCR 后端，snapocr 负责调用、后处理和输出编排。
+个人定制的托盘常驻 GUI 截图工具（截图 / OCR / 翻译，结果进剪贴板）。独立运行，不依赖 Umi-OCR：OCR 引擎内置（RapidOCR，进程内），翻译调用本地模型（默认 Ollama）。
 
 需求见 `docs/PRD.md`。本文件只规定"怎么做"，不规定"做什么"。
 
@@ -17,8 +17,9 @@
 |---|---|
 | 源码 | `D:\LLM\workspace\snapocr`（用户指定，例外于全局规则的 `D:\Sync\Projects`） |
 | 虚拟环境 | `D:\DevLocal\envs\snapocr` |
-| 运行数据（日志、临时截图、缓存） | `D:\DevLocal\runtime\snapocr` |
-| Umi-OCR 安装（只读参考） | `D:\ProgramData\Umi-OCR_Paddle_v2.1.5` |
+| 用户配置 | `D:\LLM\workspace\snapocr\config.local.toml`（不进 Git；不要放进 venv，重建环境会被删） |
+| 运行数据（日志、debug 截图） | `D:\DevLocal\runtime\snapocr`（只在需要写日志时创建） |
+| 本地模型（gguf、Ollama） | `D:\LLM`（只读使用；导入或下载模型前先问 Jeremy） |
 
 ## 环境
 
@@ -30,11 +31,14 @@
 
 ## 架构边界
 
-- **不修改 Umi-OCR 安装目录下的任何文件。** 只通过它的公开接口使用：
-  - HTTP：`POST http://127.0.0.1:1224/api/ocr`（`base64` + `options`），`GET /api/ocr/get_options`
-  - 命令行：`Umi-OCR.exe --screenshot / --clipboard / --path`
-- OCR 后端放在一个适配层后面（`snapocr.engines`），业务代码不直接拼 Umi 的 HTTP 请求，便于以后接 VLM 或别的引擎。
-- 纯逻辑（后处理、版面整理、配置解析）与 I/O（HTTP、剪贴板、截图、热键）分开，纯逻辑必须可在无 Umi、无 GUI 的环境下测试。
+- **不依赖 Umi-OCR**，不 fork、不调用它。截图由 snapocr 自己实现（PRD §5）。
+- OCR 引擎放在适配层后面（`snapocr.engines`），对外只暴露引擎无关的结果结构；业务代码不 import `rapidocr`，便于以后换 PaddleOCR 或 VLM。
+- OCR 运行时不联网：模型文件在本地，只读本地路径。
+- 翻译后端放在适配层后面（`snapocr.translators`），只走 OpenAI 兼容接口（`POST {base_url}/v1/chat/completions`），默认 `http://127.0.0.1:11434`（Ollama）。
+- **只访问 `127.0.0.1`。** 任何外网请求（云端模型等）必须先改 PRD，并做成默认关闭的显式开关。
+- GUI 层（`snapocr.gui`，PySide6）只做界面和 I/O（托盘、热键、遮罩、浮窗、剪贴板），不含业务规则；流程编排放 `snapocr.actions`，可用假引擎测试。
+- 纯逻辑（后处理、翻译方向判断、热键字符串解析、坐标换算、配置解析）与 I/O（HTTP、剪贴板、截图、热键注册）分开，纯逻辑必须可在无 OCR 模型、无翻译服务、无 GUI 的环境下测试。
+- 全局热键用 Win32 `RegisterHotKey`（`ctypes`），不引入第三方热键库。
 - 包结构：`src/snapocr/`（src layout）。
 
 ## TDD 规则
@@ -52,12 +56,14 @@
 
 | 车道 | 内容 | 命令 | 触发 |
 |---|---|---|---|
-| `unit` | 纯逻辑 + 假 HTTP，不需要 Umi 运行 | `python -m pytest -m "not integration" --cov=snapocr --cov-branch --cov-report=json` | taskCompleted、commit |
-| `integration` | 连真实运行中的 Umi-OCR（`@pytest.mark.integration`） | `python -m pytest -m integration` | manual |
+| `unit` | 纯逻辑 + 假实现，不需要任何外部服务 | `python -m pytest -m "not integration" --cov=snapocr --cov-branch --cov-report=json` | taskCompleted、commit |
+| `integration` | 连真实运行中的本地模型服务（Ollama，`@pytest.mark.integration`） | `python -m pytest -m integration` | manual |
 
 - 覆盖率模式：`no-decrease`。
 - 初期不开 `blockCommitWithoutFreshGate`；熟悉流程后再开。
-- integration 测试在 Umi 未运行时必须**明确失败并提示**，不得静默跳过后报绿。
+- integration 测试在 Ollama 未运行或模型未导入时必须**明确失败并提示**，不得静默跳过后报绿。
+- 用真实 RapidOCR 模型跑样例图的测试（PRD F1-7）不需要外部服务；归 `unit` 还是 `integration`，在 F1 计划里按实测耗时决定，定下后先改本表。
+- GUI 层的自动化测试方式（如 pytest-qt + offscreen）在 M2 计划时再定，定下后先改本文件。
 
 ## 测试数据与隐私
 

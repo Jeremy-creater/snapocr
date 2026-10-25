@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "snapocr"
 version = "0.0.1"
-description = "Personal screenshot OCR pipeline on top of Umi-OCR"
+description = "Personal tray screenshot tool: capture, OCR and local-LLM translation to clipboard"
 requires-python = ">=3.12,<3.13"
 dependencies = []
 
@@ -22,7 +22,7 @@ packages = ["src/snapocr"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "integration: requires a running Umi-OCR HTTP service",
+    "integration: requires a running local model service (Ollama)",
 ]
 addopts = "--strict-markers"
 

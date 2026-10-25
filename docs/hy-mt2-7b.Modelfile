@@ -1,0 +1,18 @@
+# Ollama Modelfile for Tencent HY-MT2-7B (local GGUF, not in the Ollama library).
+# Import:  ollama create hy-mt2:7b -f docs/hy-mt2-7b.Modelfile
+# Template is translated from the chat_template embedded in the GGUF:
+#   [system]  <|startoftext|>{system}<|extra_4|>
+#   user      <|startoftext|>{user}<|extra_0|>   (no leading token right after a system turn)
+#   assistant {assistant}<|eos|>
+FROM D:/LLM/gguf/tencent/Hy-MT2-7B/HY-MT2-7B-Q6_K.gguf
+
+TEMPLATE """{{- if .System }}<|startoftext|>{{ .System }}<|extra_4|>{{ .Prompt }}<|extra_0|>{{- else }}<|startoftext|>{{ .Prompt }}<|extra_0|>{{- end }}{{ .Response }}"""
+
+PARAMETER stop "<|eos|>"
+PARAMETER stop "<|startoftext|>"
+# Sampling defaults embedded in the GGUF; snapocr overrides temperature per request.
+PARAMETER temperature 0.7
+PARAMETER top_k 20
+PARAMETER top_p 0.8
+PARAMETER repeat_penalty 1.05
+PARAMETER num_ctx 8192
