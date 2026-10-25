@@ -18,6 +18,8 @@ from snapocr.engines.rapidocr_engine import RapidOcrEngine
 from support.engine_require import require_model_files
 from support.netguard import NetGuard
 
+pytest_plugins = ["pytester"]
+
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
