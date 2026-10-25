@@ -106,3 +106,21 @@ New-TextImage -Name 'en' -Width 1120 -Height 280 -Lines @(
     'Screenshots are recognized and copied to the clipboard.',
     'Sample text 2026, version 0.1, no private data.'
 )
+
+# Dense 1920x1080 page for the manual latency test (WI-10, PRD §8). Twelve
+# alternating zh / en lines, each well under 1870px wide. Only timing is
+# measured, so no ground-truth .txt is written. Synthetic, privacy-free text.
+New-TextImage -Name 'perf_1080p' -Width 1920 -Height 1080 -NoTruth -Lines @(
+    '截图识别工具在后台常驻，按下快捷键后选择区域，识别结果自动进入剪贴板。',
+    'The tray tool captures a region, recognizes the text and copies it to the clipboard.',
+    '识别引擎在本地运行，不需要联网，模型文件随安装包一起提供。',
+    'Recognition runs locally with bundled models and never touches the network.',
+    '翻译功能调用本机的模型服务，原文和译文显示在浮动窗口里。',
+    'Translation uses a local model service and shows source and result in a popup.',
+    '如果识别结果有误，可以调出最近一次的原始识别文本进行核对。',
+    'If a result looks wrong, the last raw recognition can be reopened for review.',
+    '样例页面用于测量一张全高清截图从解码到输出结果所需的时间。',
+    'This sample page measures how long a full HD screenshot takes end to end.',
+    '数字和符号也会出现：版本 0.1，端口 11434，日期 2026-10-25。',
+    'Numbers and symbols appear too: version 0.1, port 11434, date 2026-10-25.'
+)
