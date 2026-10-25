@@ -20,7 +20,7 @@ from snapocr.engines.config import (
     check_model_files,
     resolve_model_paths,
 )
-from snapocr.engines.convert import to_result
+from snapocr.engines.convert import output_to_result
 from snapocr.engines.errors import EngineLoadError, InvalidImageError, InvalidImageReason
 from snapocr.engines.image_check import check_png_bytes
 from snapocr.engines.types import OcrResult
@@ -93,5 +93,4 @@ class RapidOcrEngine:
         if image is None:
             raise InvalidImageError(InvalidImageReason.DECODE_FAILED, "cv2.imdecode returned no image")
 
-        output = self._ocr(image)
-        return to_result(output.boxes, output.txts, output.scores, self._config.min_score)
+        return output_to_result(self._ocr(image), self._config.min_score)
