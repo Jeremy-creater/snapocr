@@ -1,8 +1,9 @@
 """Write action results to the system clipboard (F7-1, F7-2; plan D6).
 
-A screenshot goes in as one QMimeData with two formats: the image itself (Qt
-turns it into CF_DIB / CF_DIBV5 on Windows) and the PNG bytes under
-"image/png" (registered format "PNG"), which Office and browsers prefer.
+A screenshot goes in as one QMimeData: the image itself (Qt turns it into
+CF_DIB / CF_DIBV5 on Windows) and the PNG bytes, both as "image/png" (for Qt
+programs) and as the registered Windows format "PNG", which Office and
+browsers prefer.
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ from PySide6.QtGui import QGuiApplication
 
 from snapocr.actions.outcomes import ClipboardAction, ClipboardPng, ClipboardText, NoClipboardChange
 from snapocr.gui.imageops import decode_png
+
+WINDOWS_PNG = 'application/x-qt-windows-mime;value="PNG"'
 
 
 def set_text(text: str) -> None:
@@ -24,6 +27,9 @@ def set_png(png: bytes) -> None:
     mime = QMimeData()
     mime.setImageData(image)
     mime.setData("image/png", QByteArray(png))
+    # Qt registers "image/png" under that literal name; Office and browsers read
+    # the registered format "PNG", which only this Windows-mime name produces (WI-21).
+    mime.setData(WINDOWS_PNG, QByteArray(png))
     QGuiApplication.clipboard().setMimeData(mime)  # the clipboard takes ownership
 
 

@@ -87,3 +87,16 @@ def test_apply_rejects_other_values(clipboard):
     with pytest.raises(TypeError):
         apply("abc")
     assert clipboard.text() == SENTINEL
+
+
+# --- WI-21: the registered Windows format "PNG" (what Office and browsers read) ----------
+
+WINDOWS_PNG = 'application/x-qt-windows-mime;value="PNG"'
+
+
+def test_set_png_also_offers_the_windows_png_format(clipboard):
+    png = encode_png(gradient(6, 5))
+    set_png(png)
+    mime = clipboard.mimeData()
+    assert WINDOWS_PNG in mime.formats()
+    assert bytes(mime.data(WINDOWS_PNG)) == png
