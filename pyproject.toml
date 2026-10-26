@@ -21,6 +21,10 @@ dependencies = [
     "PySide6-Essentials>=6.12,<6.13",
 ]
 
+# A console-less launcher (pythonw) in the venv: D:\DevLocal\envs\snapocr\Scripts\snapocr.exe (plan D12).
+[project.gui-scripts]
+snapocr = "snapocr.__main__:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8",

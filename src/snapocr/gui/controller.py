@@ -87,6 +87,10 @@ class AppController(QObject):
         self.history_window = LastResultWindow(self.history)
         self.menu = build_tray_menu(config.hotkeys, self._on_menu)
 
+    def registered_commands(self) -> tuple[Command, ...]:
+        """The commands whose hotkeys were registered by ``start()`` (in hotkey-id order)."""
+        return tuple(self._report.registered[i] for i in sorted(self._report.registered))
+
     @property
     def overlays(self) -> tuple[SelectionOverlay, ...]:
         """The overlays of the open capture session; empty when none is open."""

@@ -451,3 +451,13 @@ def test_outcome_without_notice_changes_clipboard_silently(make, clipboard):
     h.controller.bridge.post(OcrDone(99, Outcome(ClipboardText("quiet"), None, None)))
     h.qtbot.waitUntil(lambda: clipboard.text() == "quiet", timeout=WAIT)
     assert h.notifier.notices == []
+
+
+# --- WI-22: which hotkeys are live ------------------------------------------------------
+
+
+def test_registered_commands_lists_live_hotkeys(make):
+    h = make(preoccupy=["Alt+3"])
+    assert h.controller.registered_commands() == (Command.CAPTURE, Command.OCR, Command.LAST_RESULT)
+    h.controller.run(Command.QUIT)
+    assert h.controller.registered_commands() == (Command.CAPTURE, Command.OCR, Command.LAST_RESULT)  # what start() got
