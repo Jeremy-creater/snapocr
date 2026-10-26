@@ -132,3 +132,56 @@ def test_postprocess_imports_only_stdlib_and_types():
         "print(json.dumps([m for m in heavy if m in sys.modules]))\n"
     )
     assert _run_isolated(code) == []
+
+
+# --- F4 WI-6: only the translator transport speaks HTTP (D3) --------------------
+
+HTTP_TRANSPORT = "translators/http_transport.py"
+FORBIDDEN_HTTP = {"urllib.request", "requests", "httpx", "aiohttp", "urllib3"}
+
+
+def _imported_names(tree: ast.AST) -> set[str]:
+    """Absolute module names imported, including ``from pkg import mod`` as ``pkg.mod``."""
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            names.add(node.module)
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
+    return names
+
+
+def _src_imports() -> dict[str, set[str]]:
+    return {
+        path.relative_to(SRC).as_posix(): _imported_names(
+            ast.parse(path.read_text(encoding="utf-8"), str(path))
+        )
+        for path in sorted(SRC.rglob("*.py"))
+    }
+
+
+def _uses(names: set[str], module: str) -> bool:
+    return any(n == module or n.startswith(module + ".") for n in names)
+
+
+def test_only_http_transport_imports_http_client():
+    importers = {f for f, names in _src_imports().items() if _uses(names, "http.client")}
+    assert importers == {HTTP_TRANSPORT}
+
+
+def test_no_module_imports_urllib_request_or_http_libs():
+    offenders = {
+        f: sorted(m for m in FORBIDDEN_HTTP if _uses(names, m))
+        for f, names in _src_imports().items()
+    }
+    assert {f: m for f, m in offenders.items() if m} == {}
+
+
+def test_http_import_scan_positive_control():
+    for source in ["import http.client", "from http import client", "from http.client import HTTPConnection"]:
+        assert _uses(_imported_names(ast.parse(source)), "http.client"), source
+    for source in ["from urllib import request", "import urllib.request", "import requests"]:
+        names = _imported_names(ast.parse(source))
+        assert any(_uses(names, m) for m in FORBIDDEN_HTTP), source
+    assert not _uses(_imported_names(ast.parse("import http")), "http.client")
