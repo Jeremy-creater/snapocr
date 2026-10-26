@@ -666,3 +666,35 @@ def test_a_job_crashing_after_shutdown_delivers_nothing(make_runner):
     runner._thread.join(WAIT_S)
     assert not runner._thread.is_alive()
     assert col.events == []
+
+
+# --- FIX-3: a crash is logged (type and traceback, not the message) ---------------------
+
+
+def test_crash_is_logged_without_the_exception_message(make_runner, caplog):
+    runner, col = make_runner()
+
+    def leaky_crash():
+        yield from ()
+        raise ValueError("secret-ocr-text in the message")
+
+    with caplog.at_level("ERROR", logger="snapocr.actions.runner"):
+        runner.submit(leaky_crash)
+        assert col.wait_terminal(1) == [JobCrashed(1, "ValueError")]
+    records = [r for r in caplog.records if r.name == "snapocr.actions.runner"]
+    assert len(records) == 1
+    text = caplog.text
+    assert "job 1 crashed: ValueError" in records[0].getMessage()
+    assert "leaky_crash" in text  # the traceback names the frame
+    assert "secret-ocr-text" not in text
+    assert records[0].exc_info is None  # exc_info would print str(exc)
+
+
+def test_handled_failures_are_not_logged_as_crashes(make_runner, caplog):
+    runner, col = make_runner()
+    with caplog.at_level("ERROR", logger="snapocr.actions.runner"):
+        runner.submit(ocr_job(PNG, deps(load_error=LOAD_FAIL)))
+        runner.submit(translate_job(PNG, deps(), ScriptedTranslator(tr_error())))
+        runner.submit_warmup(holder_for(RESULT, load_error=LOAD_FAIL))
+        col.wait_terminal(3)
+    assert [r for r in caplog.records if r.name == "snapocr.actions.runner"] == []

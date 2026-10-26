@@ -18,6 +18,7 @@ import math
 import queue
 import threading
 import time
+import traceback
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
@@ -189,6 +190,9 @@ class JobRunner:
                 return
             raise IncompleteJobError("job ended without a terminal result")
         except Exception as exc:
+            # Type and frame locations only: the message may carry OCR text (CLAUDE.md privacy rule).
+            frames = "".join(f"  {f.filename}:{f.lineno} in {f.name}\n" for f in traceback.extract_tb(exc.__traceback__))
+            _log.error("job %d crashed: %s\n%s", job_id, type(exc).__name__, frames)
             self._deliver(JobCrashed(job_id, type(exc).__name__))
 
     def _deliver(self, event: Event) -> None:
