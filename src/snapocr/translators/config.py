@@ -1,7 +1,8 @@
 """Translator configuration and loopback-only base_url validation (F4-6, D2).
 
 Only ``http://127.0.0.1:<port>`` is accepted: there is no option that lets a
-request leave the machine (CLAUDE.md). Stdlib only.
+request leave the machine (CLAUDE.md). Ollama cloud model names are rejected
+too, since Ollama would forward the text (PRD F4-6, review C1). Stdlib only.
 """
 
 from __future__ import annotations
@@ -149,6 +150,13 @@ class TranslatorConfig:
         ):
             raise TranslatorConfigError(
                 "must be a non-empty str without surrounding whitespace or control characters",
+                key="model",
+            )
+        tag = m.rpartition(":")[2].lower() if ":" in m else ""
+        if tag == "cloud" or tag.endswith("-cloud"):
+            # Review C1: Ollama forwards cloud models' input to ollama.com.
+            raise TranslatorConfigError(
+                "Ollama cloud models (tag 'cloud' or '*-cloud') send text off this machine",
                 key="model",
             )
 

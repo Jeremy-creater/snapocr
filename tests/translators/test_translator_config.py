@@ -225,6 +225,23 @@ def test_model_rules():
         _config_rejects("model", model=bad)
 
 
+def test_model_rejects_ollama_cloud():
+    # Review C1: Ollama forwards "*-cloud" / ":cloud" models to ollama.com.
+    for bad in [
+        "gpt-oss:120b-cloud",
+        "glm-4.6:cloud",
+        "GPT-OSS:120B-CLOUD",
+        "m:Cloud",
+        "library/x:1b-cloud",
+    ]:
+        with pytest.raises(TranslatorConfigError) as info:
+            TranslatorConfig(model=bad)
+        assert info.value.key == "model"
+        assert "cloud" in str(info.value)
+    for ok in ["gpt-oss-cloud", "cloud", "cloudy:7b", "m:cloudy", "m:7b-cloudx", "m:cloud7b"]:
+        assert TranslatorConfig(model=ok).model == ok
+
+
 def test_target_lang_values():
     for ok in ["auto", "zh", "en"]:
         assert TranslatorConfig(target_lang=ok).target_lang == ok
