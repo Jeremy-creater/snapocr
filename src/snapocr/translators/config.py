@@ -51,6 +51,16 @@ def _is_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _is_finite_real(value: object) -> bool:
+    """A real number that is not inf or nan. TOML ints may be too large for a float (FIX-1)."""
+    if not _is_real(value):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:  # an exact number too large for a float is still finite
+        return True
+
+
 @dataclass(frozen=True)
 class Endpoint:
     """A validated loopback endpoint. Cannot be built or modified to point elsewhere (Q3)."""
@@ -105,7 +115,7 @@ def _check_sampling(sampling: object) -> Mapping[str, object]:
             )
         if name in _REAL_SAMPLING:
             lo, hi = _REAL_SAMPLING[name]
-            if not _is_real(value) or not math.isfinite(value) or not lo <= value <= hi:
+            if not _is_finite_real(value) or not lo <= value <= hi:
                 raise TranslatorConfigError(
                     f"{name} must be a real number in [{lo}, {hi}]", key="sampling"
                 )
@@ -161,14 +171,14 @@ class TranslatorConfig:
             )
 
         t = self.timeout_s
-        if not _is_real(t) or not math.isfinite(t) or not 0 < t <= 600:
+        if not _is_finite_real(t) or not 0 < t <= 600:
             raise TranslatorConfigError("must be a finite number with 0 < t <= 600", key="timeout_s")
 
         if not isinstance(self.target_lang, str) or self.target_lang not in _TARGET_LANGS:
             raise TranslatorConfigError("must be 'auto', 'zh' or 'en'", key="target_lang")
 
         th = self.direction_threshold
-        if not _is_real(th) or not math.isfinite(th) or not 0 < th <= 1:
+        if not _is_finite_real(th) or not 0 < th <= 1:
             raise TranslatorConfigError(
                 "must be a finite number with 0 < t <= 1", key="direction_threshold"
             )

@@ -406,3 +406,27 @@ def test_config_construction_total(data):
         with pytest.raises(TranslatorConfigError) as info:
             TranslatorConfig(**kw)
         assert info.value.key == bad_field
+
+
+# M2 FIX-1: TOML allows integers too large for a float; they must be rejected
+# as a config error, not crash with OverflowError (found while planning WI-6).
+@pytest.mark.parametrize(
+    ("kw", "key"),
+    [
+        ({"timeout_s": 10**400}, "timeout_s"),
+        ({"timeout_s": -(10**400)}, "timeout_s"),
+        ({"direction_threshold": 10**400}, "direction_threshold"),
+        ({"sampling": {"temperature": 10**400}}, "sampling"),
+        ({"sampling": {"top_p": -(10**400)}}, "sampling"),
+    ],
+    ids=["timeout", "-timeout", "threshold", "temperature", "-top_p"],
+)
+def test_huge_int_is_config_error(kw, key):
+    with pytest.raises(TranslatorConfigError) as info:
+        TranslatorConfig(**kw)
+    assert info.value.key == key
+
+
+def test_huge_int_sampling_int_fields_still_accepted():
+    # max_tokens and seed are ints with no upper bound in the OpenAI schema.
+    assert TranslatorConfig(sampling={"seed": 10**30}).sampling["seed"] == 10**30

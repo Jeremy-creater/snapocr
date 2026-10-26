@@ -8,7 +8,6 @@ executing ``import rapidocr``. Must stay free of heavy runtime deps
 from __future__ import annotations
 
 import importlib.util
-import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,7 +30,8 @@ class OcrEngineConfig:
     model_dir: Path | None = None
 
     def __post_init__(self) -> None:
-        if math.isnan(self.min_score) or not 0.0 <= self.min_score <= 1.0:
+        # nan fails both comparisons; no math.isnan, which overflows on huge TOML ints (FIX-1).
+        if not 0.0 <= self.min_score <= 1.0:
             raise ValueError(f"min_score must be within [0, 1], got {self.min_score!r}")
 
 

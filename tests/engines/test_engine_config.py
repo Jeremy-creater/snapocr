@@ -205,3 +205,10 @@ def test_config_module_imports_no_heavy_deps():
     )
     assert proc.returncode == 0, proc.stderr
     assert json.loads(proc.stdout.strip()) == []
+
+
+# M2 FIX-1: a TOML integer too large for a float is a range error, not OverflowError.
+@pytest.mark.parametrize("value", [10**400, -(10**400)], ids=["huge", "-huge"])
+def test_config_rejects_huge_int_min_score(value):
+    with pytest.raises(ValueError, match="min_score"):
+        OcrEngineConfig(min_score=value)
