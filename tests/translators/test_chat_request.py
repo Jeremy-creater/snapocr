@@ -102,7 +102,26 @@ def test_render_roundtrip_property(tps, lang, s):
     )
     assert render_prompt(t, lang, s) == expected
     req = build_chat_request(TranslatorConfig(prompt_template=t), lang, s)
-    assert _body(req)["messages"][0]["content"] == expected
+    assert _body(req)["messages"][0]["content"] == _json_canonical(expected)
+
+
+def _json_canonical(s: str) -> str:
+    """Join adjacent high+low lone surrogates into one astral character.
+
+    JSON writes the two code points "\\ud800\\udc00" and the single U+10000 as
+    the same escape pair, and decoding always joins it, so the round trip can
+    only hold up to this canonical form (matrix r1.1, Q5). The bytes sent are
+    identical either way.
+    """
+    return s.encode("utf-16-le", "surrogatepass").decode("utf-16-le", "surrogatepass")
+
+
+def test_json_canonical_joins_only_pairs():
+    assert _json_canonical("𐀀") == "\U00010000"
+    assert _json_canonical("\ud800x\udc00") == "\ud800x\udc00"
+    assert _json_canonical("\udc00\ud800") == "\udc00\ud800"
+    content = _body(build_chat_request(TranslatorConfig(), "en", "𐀀"))
+    assert content["messages"][0]["content"] == PREFIX_EN + "\U00010000"
 
 
 @given(langs, source_text(), source_text())
@@ -113,7 +132,7 @@ def test_only_content_depends_on_source(lang, s1, s2):
     c1 = b1["messages"][0].pop("content")
     c2 = b2["messages"][0].pop("content")
     assert b1 == b2
-    assert (c1 == c2) == (s1 == s2)
+    assert (c1 == c2) == (_json_canonical(s1) == _json_canonical(s2))
     assert dict(r1.headers) == dict(r2.headers)
     assert r1.path == r2.path
 
