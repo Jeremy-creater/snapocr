@@ -19,6 +19,9 @@ dependencies = [
     # GUI shell (PRD section 5). Essentials only: QtWidgets/QtGui cover tray,
     # overlay, clipboard and screens; the full PySide6 adds WebEngine/Addons.
     "PySide6-Essentials>=6.12,<6.13",
+    # Settings window (PRD F11-4): rewrites config.local.toml keeping comments and
+    # layout; tomllib can only read. Pure Python, used only in snapocr.config.
+    "tomlkit>=0.13,<0.14",
 ]
 
 # A console-less launcher (pythonw) in the venv: D:\DevLocal\envs\snapocr\Scripts\snapocr.exe (plan D12).
