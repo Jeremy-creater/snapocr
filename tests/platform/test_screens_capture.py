@@ -129,6 +129,17 @@ def test_real_overlays_cover_each_screen_and_take_esc(qtbot, qapp):
     session = OverlaySession(overlays)
     results = []
     session.result.connect(results.append)
+    # As on the real path, receive a hotkey first: that is what lets the process
+    # take the foreground from whatever program is in front (FIX-4).
+    from snapocr.gui.platform.hotkeys import NativeHotkeys
+    from snapocr.hotkeys import parse_hotkey
+
+    grant, trigger = NativeHotkeys(), parse_hotkey("Ctrl+Alt+Shift+F20")
+    assert grant.register(77, trigger.mods, trigger.vk) == 0
+    with qtbot.waitSignal(grant.activated, timeout=2000):
+        press_combo(trigger.mods, trigger.vk)
+    grant.unregister(77)
+    grant.close()
     try:
         session.start()
         for o, s in zip(overlays, cap.screens):
