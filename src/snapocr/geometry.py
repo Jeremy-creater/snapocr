@@ -194,3 +194,49 @@ def move(rect: Rect, dx: int, dy: int, screen: ScreenInfo) -> Rect:
         rect.w,
         rect.h,
     )
+
+
+def place_popup(anchor: Rect, size: tuple[int, int], available: Rect, gap: int = 8) -> Rect:
+    """Where the result popup goes (F8-1), in logical screen coordinates.
+
+    The popup is first shrunk to ``available``. It goes below the selection,
+    else above, else to the right, else to the left; below and above are
+    left-aligned with the selection, right and left top-aligned, then shifted
+    inside ``available``. If none fits it is pushed inside and may overlap.
+    """
+    if not (_is_int(size[0]) and _is_int(size[1])) or min(size) < 0:
+        raise ValueError(f"size must be two ints >= 0, got {size!r}")
+    if not _is_int(gap) or gap < 0:
+        raise ValueError(f"gap must be an int >= 0, got {gap!r}")
+    av = available
+    w, h = min(size[0], av.w), min(size[1], av.h)
+    left = _clamp(anchor.x, av.x, av.x + av.w - w)
+    top = _clamp(anchor.y, av.y, av.y + av.h - h)
+    candidates = [
+        (left, anchor.y + anchor.h + gap),  # below
+        (left, anchor.y - gap - h),  # above
+        (anchor.x + anchor.w + gap, top),  # right
+        (anchor.x - gap - w, top),  # left
+    ]
+    for x, y in candidates:
+        if av.x <= x and av.y <= y and x + w <= av.x + av.w and y + h <= av.y + av.h:
+            return Rect(x, y, w, h)
+    return Rect(left, _clamp(anchor.y + anchor.h + gap, av.y, av.y + av.h - h), w, h)
+
+
+def fit_size(src: tuple[int, int], max_box: tuple[int, int]) -> tuple[int, int]:
+    """Scale ``src`` down to fit ``max_box``, keeping the aspect ratio; never enlarge (F10-1)."""
+    if not all(_is_int(v) and v > 0 for v in (*src, *max_box)):
+        raise ValueError(f"sizes must be ints > 0, got {src!r} and {max_box!r}")
+    sw, sh = src
+    mw, mh = max_box
+    if sw <= mw and sh <= mh:
+        return sw, sh
+    if sw * mh >= sh * mw:  # width is the limit
+        return mw, max(1, _round_ratio(sh * mw, sw))
+    return max(1, _round_ratio(sw * mh, sh)), mh
+
+
+def _round_ratio(num: int, den: int) -> int:
+    """num / den rounded half up, in exact integer arithmetic."""
+    return (2 * num + den) // (2 * den)
