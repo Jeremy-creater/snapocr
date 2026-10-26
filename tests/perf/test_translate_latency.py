@@ -19,7 +19,7 @@ from snapocr.translators import OpenAICompatTranslator, TranslatorConfig
 
 pytestmark = [pytest.mark.integration, pytest.mark.perf, pytest.mark.usefixtures("require_ollama")]
 
-BUDGET_S = 5.0  # PRD §8 (pending confirmation): 200 characters in under 5 s
+BUDGET_S = 3.0  # PRD §8: 200 characters in under 3 s with the model loaded
 RUNS = 5
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "translators" / "perf_zh_200.txt"
 
