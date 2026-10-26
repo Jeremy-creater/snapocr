@@ -1,8 +1,9 @@
-"""Application controller: commands, capture sessions, jobs and what they show (F5, F7, F8, F9-3, F10).
+"""Application controller: commands, capture sessions, jobs and what they show (F5, F7, F8, F9-3, F10, F11).
 
 Everything here runs on the GUI thread. OCR and translation run as jobs on
 the ``JobRunner`` worker; their events come back through ``EventBridge``.
-Desktop access (capture, notices, hotkeys, opening files, quitting) goes
+Desktop access (capture, notices, hotkeys, start at login, opening files,
+quitting) goes
 through the injected boundary objects, so this class is tested offscreen
 with fakes. Business rules live in ``snapocr.actions``; this module only
 routes their results to the clipboard, the notices and the windows.
@@ -10,6 +11,7 @@ routes their results to the clipboard, the notices and the windows.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -31,16 +33,20 @@ from snapocr.actions.runner import (
 from snapocr.commands import Command
 from snapocr.config.files import load_config_file
 from snapocr.config.schema import AppConfig, ConfigIssue
+from snapocr.config.settings import Settings, apply, changes, check, settings_of
+from snapocr.config.writer import ConfigWriteError, write_changes
 from snapocr.geometry import Rect, crop_box, logical_rect, screen_containing
 from snapocr.gui import clipboard
-from snapocr.gui.boundaries import Capture, CaptureError, CaptureProvider, HotkeyBackend, Notifier
+from snapocr.gui.boundaries import Autostart, Capture, CaptureError, CaptureProvider, HotkeyBackend, Notifier
 from snapocr.gui.bridge import EventBridge
 from snapocr.gui.history_window import LastResultWindow
 from snapocr.gui.imageops import crop, encode_png
 from snapocr.gui.overlay import OverlaySession, SelectionOverlay
 from snapocr.gui.popup import TranslationPopup
-from snapocr.gui.tray_menu import build_tray_menu
+from snapocr.gui.settings_window import SettingsWindow
+from snapocr.gui.tray_menu import build_tray_menu, update_tray_menu
 from snapocr.hotkeys import RegistrationReport, register_all, unregister_all
+from snapocr.translators.config import TranslatorConfig
 from snapocr.translators.types import Translator
 
 _CAPTURE_COMMANDS = (Command.CAPTURE, Command.OCR, Command.TRANSLATE)
@@ -52,11 +58,12 @@ class AppController(QObject):
         config: AppConfig,
         config_path: Path,
         flow_deps: FlowDeps,
-        translator: Translator,
         *,
+        make_translator: Callable[[TranslatorConfig], Translator],
         capture_provider: CaptureProvider,
         notifier: Notifier,
         hotkey_backend: HotkeyBackend,
+        autostart: Autostart,
         open_file: Callable[[Path], None],
         quit_app: Callable[[], None],
         startup_issues: Sequence[ConfigIssue] = (),
@@ -66,10 +73,12 @@ class AppController(QObject):
         self._config = config
         self._config_path = config_path
         self._deps = flow_deps
-        self._translator = translator
+        self._make_translator = make_translator
+        self._translator = make_translator(config.translator)
         self._capture_provider = capture_provider
         self._notifier = notifier
         self._hotkeys = hotkey_backend
+        self._autostart = autostart
         self._open_file = open_file
         self._quit_app = quit_app
         self._startup_issues = list(startup_issues)
@@ -78,6 +87,7 @@ class AppController(QObject):
         self._overlays: tuple[SelectionOverlay, ...] = ()
         self._anchors: dict[int, tuple[Rect, Rect]] = {}  # translate job -> (anchor, available), logical
         self._quitting = False
+        self._paused = False  # hotkeys released while the settings window is open (plan D5)
 
         self.history = ResultHistory()
         self.bridge = EventBridge(self)
@@ -86,6 +96,10 @@ class AppController(QObject):
         self.popup = TranslationPopup()
         self.history_window = LastResultWindow(self.history)
         self.menu = build_tray_menu(config.hotkeys, self._on_menu)
+        self.settings_window = SettingsWindow()
+        self.settings_window.save_requested.connect(self._save_settings)
+        self.settings_window.advanced_requested.connect(lambda: self.run(Command.OPEN_CONFIG))
+        self.settings_window.closed.connect(self._settings_closed)
 
     def registered_commands(self) -> tuple[Command, ...]:
         """The commands whose hotkeys were registered by ``start()`` (in hotkey-id order)."""
@@ -126,6 +140,8 @@ class AppController(QObject):
             self._begin_capture(command)
         elif command is Command.LAST_RESULT:
             self.history_window.show_latest()
+        elif command is Command.SETTINGS:
+            self._open_settings()
         elif command is Command.OPEN_CONFIG:
             self._open_config()
         else:
@@ -201,6 +217,77 @@ class AppController(QObject):
                 self.popup.apply(event.job_id, Failed(state.source, messages.job_crashed_text(event.exc_type_name)))
         # WarmedUp: nothing to show (plan A10)
 
+    # --- settings window (F11) ------------------------------------------------------------
+
+    def _autostart_enabled(self) -> bool:
+        try:
+            return self._autostart.is_enabled()
+        except OSError:
+            return False
+
+    def _open_settings(self) -> None:
+        window = self.settings_window
+        if not window.isVisible():
+            # Plan D5: a registered combination reaches us as WM_HOTKEY, never as a key press.
+            unregister_all(self._report, self._hotkeys.unregister)
+            self._report = RegistrationReport()
+            self._paused = True
+            window.load(settings_of(self._config), self._autostart_enabled())
+            window.show()
+        window.raise_()
+        window.activateWindow()
+
+    def _save_settings(self, new: Settings, autostart: bool) -> None:
+        """Plan D11: check, try the hotkeys, start at login, file; then apply. Any failure undoes the rest."""
+        window = self.settings_window
+        problems = check(new)
+        if problems:
+            window.show_problems([messages.settings_problem_text(p) for p in problems])
+            return
+        trial = register_all(new.hotkeys, self._hotkeys.register)
+        if trial.failed:
+            unregister_all(trial, self._hotkeys.unregister)
+            window.show_problems([messages.hotkey_failure_line(f) for f in trial.failed])
+            return
+        was_on = self._autostart_enabled()
+        try:
+            if autostart != was_on:
+                self._autostart.set_enabled(autostart)
+        except OSError as err:
+            unregister_all(trial, self._hotkeys.unregister)
+            window.show_problems([messages.autostart_failed_text(err)])
+            return
+        delta = changes(settings_of(self._config), new)
+        try:
+            if delta:
+                write_changes(self._config_path, delta)
+        except ConfigWriteError as err:
+            unregister_all(trial, self._hotkeys.unregister)
+            if autostart != was_on:
+                try:
+                    self._autostart.set_enabled(was_on)
+                except OSError:
+                    pass  # the window reports the file problem; start at login stays as chosen
+            window.show_problems([str(err)])
+            return
+        self._config = apply(self._config, new)
+        self._deps = dataclasses.replace(self._deps, options=self._config.postprocess)
+        self._translator = self._make_translator(self._config.translator)
+        self._report = trial
+        self._paused = False
+        update_tray_menu(self.menu, self._config.hotkeys)
+        self._notifier.notify(messages.settings_saved_notice())
+        window.finish()
+
+    def _settings_closed(self) -> None:
+        """Closed without saving: the hotkeys from before come back (F5-3 if one cannot)."""
+        if not self._paused or self._quitting:
+            return
+        self._paused = False
+        self._report = register_all(self._config.hotkeys, self._hotkeys.register)
+        if self._report.failed:
+            self._notifier.notify(messages.hotkey_failed_notice(self._report.failed))
+
     # --- config and quit ----------------------------------------------------------------
 
     def _open_config(self) -> None:
@@ -225,4 +312,5 @@ class AppController(QObject):
         self._end_session()
         self.popup.hide()
         self.history_window.hide()
+        self.settings_window.hide()
         self._quit_app()

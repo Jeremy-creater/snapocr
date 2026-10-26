@@ -57,3 +57,23 @@ class RecordingNotifier:
 
     def notify(self, notice: Notice) -> None:
         self.notices.append(notice)
+
+
+@dataclass
+class FakeAutostart:
+    """Start at login. ``set_errors`` are raised by the next ``set_enabled`` calls, in order (None: succeed)."""
+
+    enabled: bool = False
+    read_error: OSError | None = None
+    set_errors: list[OSError | None] = field(default_factory=list)
+
+    def is_enabled(self) -> bool:
+        if self.read_error is not None:
+            raise self.read_error
+        return self.enabled
+
+    def set_enabled(self, enabled: bool) -> None:
+        error = self.set_errors.pop(0) if self.set_errors else None
+        if error is not None:
+            raise error
+        self.enabled = enabled

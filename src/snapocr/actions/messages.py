@@ -1,4 +1,4 @@
-"""User-facing texts for tray notices and the popup (PRD F5-3, F7-2 to F7-4, F8-4, F9-3).
+"""User-facing texts for tray notices, the popup and the settings window (PRD F5-3, F7-2 to F7-4, F8-4, F9-3, F11).
 
 None of these builders takes OCR or translated text except ``ocr_ok_notice``,
 which shows the 30-character preview that F7-2 asks for.
@@ -13,8 +13,9 @@ from types import MappingProxyType
 from snapocr.actions.outcomes import NOTICE_BODY_MAX, Notice
 from snapocr.commands import Command
 from snapocr.config.schema import ConfigIssue
+from snapocr.config.settings import BadModel, DuplicateHotkey, Problem
 from snapocr.engines.errors import EngineLoadError, OcrError
-from snapocr.hotkeys import ERROR_HOTKEY_ALREADY_REGISTERED, HotkeyFailure
+from snapocr.hotkeys import ERROR_HOTKEY_ALREADY_REGISTERED, HotkeyFailure, format_hotkey
 from snapocr.translators.errors import TranslationError
 
 COMMAND_LABELS: Mapping[Command, str] = MappingProxyType(
@@ -23,6 +24,7 @@ COMMAND_LABELS: Mapping[Command, str] = MappingProxyType(
         Command.OCR: "OCR",
         Command.TRANSLATE: "翻译",
         Command.LAST_RESULT: "上次结果",
+        Command.SETTINGS: "设置…",
         Command.OPEN_CONFIG: "打开配置文件",
         Command.QUIT: "退出",
     }
@@ -80,7 +82,7 @@ def translation_error_text(err: TranslationError) -> str:
     return f"翻译失败：{err}"
 
 
-def _hotkey_line(f: HotkeyFailure) -> str:
+def hotkey_failure_line(f: HotkeyFailure) -> str:
     if f.error_code == ERROR_HOTKEY_ALREADY_REGISTERED:
         why = "已被其他软件占用"
     else:
@@ -91,8 +93,8 @@ def _hotkey_line(f: HotkeyFailure) -> str:
 def hotkey_failed_notice(failures: Sequence[HotkeyFailure]) -> Notice:
     if not failures:
         raise ValueError("no hotkey failures to report")
-    lines = [_hotkey_line(f) for f in failures]
-    lines.append("其余热键照常工作。可以在 config.local.toml 的 [hotkeys] 里换一个组合。")
+    lines = [hotkey_failure_line(f) for f in failures]
+    lines.append("其余热键照常工作。可以在托盘菜单的“设置…”里换一个组合（或改 config.local.toml 的 [hotkeys]）。")
     return Notice(f"有 {len(failures)} 个热键注册失败", "\n".join(lines))
 
 
@@ -121,3 +123,20 @@ def config_opened_notice() -> Notice:
 
 def open_config_failed_notice(path: os.PathLike[str] | str, detail: str) -> Notice:
     return Notice("无法打开配置文件", f"{os.fspath(path)}\n{detail}")
+
+
+def settings_problem_text(p: Problem) -> str:
+    if isinstance(p, DuplicateHotkey):
+        first, second = COMMAND_LABELS[p.first], COMMAND_LABELS[p.second]
+        return f"「{first}」和「{second}」用了同一个热键 {format_hotkey(p.hotkey)}。"
+    if isinstance(p, BadModel):
+        return f"模型名不能用：{p.reason}"
+    return "目标语言只能是自动、中文或英文。"
+
+
+def autostart_failed_text(err: OSError) -> str:
+    return f"无法设置开机自启动：{err.strerror or err}"
+
+
+def settings_saved_notice() -> Notice:
+    return Notice("设置已保存", "新设置已经生效。")

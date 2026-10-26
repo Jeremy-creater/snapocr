@@ -144,7 +144,8 @@ def test_translation_error_text():
 def test_command_labels():
     assert COMMAND_LABELS == {
         Command.CAPTURE: "截图", Command.OCR: "OCR", Command.TRANSLATE: "翻译",
-        Command.LAST_RESULT: "上次结果", Command.OPEN_CONFIG: "打开配置文件", Command.QUIT: "退出",
+        Command.LAST_RESULT: "上次结果", Command.SETTINGS: "设置…", Command.OPEN_CONFIG: "打开配置文件",
+        Command.QUIT: "退出",
     }
 
 
@@ -253,3 +254,41 @@ def test_open_config_failed_notice():
 def test_new_notice_bodies_bounded(text):
     for n in (capture_failed_notice(text), job_crashed_notice(text), open_config_failed_notice(text, text)):
         assert len(n.body) <= NOTICE_BODY_MAX
+
+
+# --- M3 WI-6: settings window texts (PRD F11-3) ---------------------------------------------
+
+from snapocr.actions.messages import (  # noqa: E402
+    autostart_failed_text,
+    hotkey_failure_line,
+    settings_problem_text,
+    settings_saved_notice,
+)
+from snapocr.config.settings import BadModel, BadTargetLang, DuplicateHotkey  # noqa: E402
+from snapocr.hotkeys import parse_hotkey  # noqa: E402
+
+
+def test_hotkey_failed_notice_points_to_settings():
+    n = hotkey_failed_notice([HotkeyFailure(Command.OCR, "Alt+2", 1409)])
+    assert n.body.split("\n")[-1] == "其余热键照常工作。可以在托盘菜单的“设置…”里换一个组合（或改 config.local.toml 的 [hotkeys]）。"
+
+
+def test_hotkey_failure_line():
+    assert hotkey_failure_line(HotkeyFailure(Command.CAPTURE, "Ctrl+Q", 1409)) == "Ctrl+Q（截图）：已被其他软件占用"
+    assert hotkey_failure_line(HotkeyFailure(Command.TRANSLATE, "Ctrl+Q", 87)) == "Ctrl+Q（翻译）：注册失败，错误码 87"
+
+
+def test_settings_problem_texts():
+    dup = DuplicateHotkey(Command.CAPTURE, Command.LAST_RESULT, parse_hotkey("alt+1"))
+    assert settings_problem_text(dup) == "「截图」和「上次结果」用了同一个热键 Alt+1。"
+    assert settings_problem_text(BadModel("must be a non-empty str")) == "模型名不能用：must be a non-empty str"
+    assert settings_problem_text(BadTargetLang("fr")) == "目标语言只能是自动、中文或英文。"
+
+
+def test_autostart_failed_text():
+    assert autostart_failed_text(PermissionError(13, "Access is denied")) == "无法设置开机自启动：Access is denied"
+    assert autostart_failed_text(OSError("boom")) == "无法设置开机自启动：boom"
+
+
+def test_settings_saved_notice():
+    assert settings_saved_notice() == Notice("设置已保存", "新设置已经生效。")

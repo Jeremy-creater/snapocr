@@ -29,6 +29,7 @@ Pinned here:
   raising OSError -> "无法打开配置文件".
 - QUIT: hotkeys released, runner shut down, session / popup / window
   closed, ``quit_app()`` called; a second QUIT does nothing more.
+- SETTINGS (M3 WI-6, PRD F11): see the section at the end.
 """
 
 import threading
@@ -55,7 +56,7 @@ from snapocr.postprocess import PostprocessOptions, Replacements, postprocess
 from snapocr.translators.types import TranslationResult
 from support import qt_input as qi
 from support.fake_actions import ScriptedEngine, ScriptedTranslator, holder_for
-from support.fake_desktop import FakeCapture, RecordingNotifier, desktop_image
+from support.fake_desktop import FakeAutostart, FakeCapture, RecordingNotifier, desktop_image
 from support.fake_hotkeys import FakeHotkeyTable
 from support.pp_strategies import rect
 from support.qimages import pixels
@@ -80,7 +81,8 @@ def clipboard(qapp):
 
 class Harness:
     def __init__(self, qtbot, tmp_path, *, engine=RESULT, load_error=None, holder=None, translator=None,
-                 capture_error=None, issues=(), preoccupy=(), config_path=None):
+                 capture_error=None, issues=(), preoccupy=(), config_path=None, make_translator=None,
+                 autostart=None):
         self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error)
         self.notifier = RecordingNotifier()
         self.table = FakeHotkeyTable()
@@ -91,16 +93,18 @@ class Harness:
         self.open_error: OSError | None = None
         self.quits: list[bool] = []
         self.config_path = config_path or tmp_path / "config.local.toml"
+        self.autostart = autostart or FakeAutostart()
         config = AppConfig(replacements=TABLE)
         deps = FlowDeps(holder or holder_for(engine, load_error=load_error), config.postprocess, config.replacements)
         self.controller = AppController(
             config,
             self.config_path,
             deps,
-            translator or ScriptedTranslator(),
+            make_translator=make_translator or (lambda cfg: translator or ScriptedTranslator()),
             capture_provider=self.capture,
             notifier=self.notifier,
             hotkey_backend=self.table,
+            autostart=self.autostart,
             open_file=self._open,
             quit_app=lambda: self.quits.append(True),
             startup_issues=list(issues),
@@ -123,7 +127,7 @@ class Harness:
 
     def menu_action(self, command):
         labels = {Command.CAPTURE: "截图", Command.OCR: "OCR", Command.TRANSLATE: "翻译", Command.LAST_RESULT: "上次结果",
-                  Command.OPEN_CONFIG: "打开配置文件", Command.QUIT: "退出"}
+                  Command.SETTINGS: "设置…", Command.QUIT: "退出"}
         return next(a for a in self.controller.menu.actions() if a.text().split("\t")[0] == labels[command])
 
 
@@ -392,7 +396,7 @@ def test_open_config_never_overwrites(make, tmp_path):
     path = tmp_path / "mine.toml"
     path.write_text("# mine\n", encoding="utf-8")
     h = make(config_path=path)
-    h.menu_action(Command.OPEN_CONFIG).trigger()
+    h.controller.run(Command.OPEN_CONFIG)
     assert path.read_text(encoding="utf-8") == "# mine\n"
     assert h.opened == [path]
 
@@ -461,3 +465,264 @@ def test_registered_commands_lists_live_hotkeys(make):
     assert h.controller.registered_commands() == (Command.CAPTURE, Command.OCR, Command.LAST_RESULT)
     h.controller.run(Command.QUIT)
     assert h.controller.registered_commands() == (Command.CAPTURE, Command.OCR, Command.LAST_RESULT)  # what start() got
+
+
+
+# --- SETTINGS (M3 WI-6, PRD F11-1, F11-3, F11-5) --------------------------------------------------
+#
+# Pinned here (beyond the plan text):
+# - Opening releases every hotkey of ours; while the window is open no hotkey
+#   is registered. Opening again while it is open only raises it (values
+#   being edited are kept).
+# - Cancel / close re-registers the bindings from before; a failure then is
+#   reported like at start-up (F5-3).
+# - Save order and rollback follow plan D11. On any problem the window stays
+#   open with the problem text, none of our hotkeys is registered, the file
+#   and start-at-login are as before.
+# - Save with nothing changed writes no file.
+# - A successful save shows one notice "设置已保存" and closes the window
+#   without registering the hotkeys a second time.
+
+from snapocr.config.files import load_config_file  # noqa: E402
+from snapocr.config.settings import settings_of  # noqa: E402
+from snapocr.hotkeys import MOD_NOREPEAT  # noqa: E402
+from PySide6.QtCore import QEvent  # noqa: E402
+from PySide6.QtGui import QKeyEvent  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+M = Qt.KeyboardModifier
+DEFAULT_IDS = sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT))
+
+
+def record(edit, key, mods):
+    for kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+        QApplication.sendEvent(edit, QKeyEvent(kind, key, mods))
+
+
+def combo(text):
+    hk = parse_hotkey(text)
+    return (hk.mods | MOD_NOREPEAT, hk.vk)
+
+
+def model_translator(cfg):
+    """A translator whose output names the config it was built from."""
+    return ScriptedTranslator(TranslationResult(f"{cfg.model}/{cfg.target_lang}", "en", False))
+
+
+def open_settings(h):
+    h.controller.run(Command.SETTINGS)
+    window = h.controller.settings_window
+    h.qtbot.waitExposed(window)
+    return window
+
+
+def edit_and_save(h, window, *, capture="Ctrl+Q"):
+    record(window.hotkey_edits[Command.CAPTURE], getattr(Qt.Key, f"Key_{capture[-1]}"), M.ControlModifier)
+    assert window.hotkey_edits[Command.CAPTURE].text() == capture
+    window.switch_boxes["spacing"].setChecked(False)
+    window.target_lang_box.setCurrentIndex(window.target_lang_box.findData("zh"))
+    window.model_edit.setText("qwen3:8b")
+    window.autostart_box.setChecked(True)
+    window.save_button.click()
+
+
+def test_menu_opens_settings_with_current_values(make):
+    h = make(autostart=FakeAutostart(enabled=True))
+    h.menu_action(Command.SETTINGS).trigger()
+    window = h.controller.settings_window
+    h.qtbot.waitUntil(window.isVisible)
+    assert [window.hotkey_edits[c].text() for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE,
+                                                    Command.LAST_RESULT)] == ["Alt+1", "Alt+2", "Alt+3", "Alt+4"]
+    assert window.autostart_box.isChecked()
+    assert window.model_edit.text() == "hy-mt2:7b"
+    assert window.target_lang_box.currentData() == "auto"
+
+
+def test_hotkeys_paused_while_open(make):
+    h = make()
+    open_settings(h)
+    assert h.table.ours == {}
+    h.controller.handle_hotkey(hotkey_id(Command.CAPTURE))
+    assert h.controller.overlays == ()
+
+
+def test_open_again_keeps_edits(make):
+    h = make()
+    window = open_settings(h)
+    window.model_edit.setText("editing")
+    h.controller.run(Command.SETTINGS)
+    assert window.isVisible()
+    assert window.model_edit.text() == "editing"
+    assert h.table.ours == {}
+
+
+def test_autostart_read_error_shows_unchecked(make):
+    h = make(autostart=FakeAutostart(enabled=True, read_error=PermissionError(5, "denied")))
+    window = open_settings(h)
+    assert not window.autostart_box.isChecked()
+
+
+def test_cancel_restores_hotkeys_and_changes_nothing(make):
+    h = make()
+    before = h.table.snapshot()
+    window = open_settings(h)
+    window.model_edit.setText("qwen3:8b")
+    window.cancel_button.click()
+    assert not window.isVisible()
+    assert h.table.snapshot() == before
+    assert not h.config_path.exists()
+    assert h.notifier.notices == []
+    h.controller.handle_hotkey(hotkey_id(Command.CAPTURE))
+    assert len(h.controller.overlays) == 2
+
+
+def test_cancel_reports_hotkey_taken_meanwhile(make):
+    h = make()
+    window = open_settings(h)
+    hk = parse_hotkey("Alt+2")
+    h.table.preoccupy(hk.mods, hk.vk)
+    window.close()
+    assert h.titles() == ["有 1 个热键注册失败"]
+    assert sorted(h.table.ours) == [i for i in DEFAULT_IDS if i != hotkey_id(Command.OCR)]
+
+
+def test_save_applies_everything(make, clipboard):
+    h = make(make_translator=model_translator)
+    window = open_settings(h)
+    edit_and_save(h, window)
+    assert not window.isVisible()
+    assert h.titles() == ["设置已保存"]
+    assert sorted(h.table.ours) == DEFAULT_IDS
+    assert h.table.ours[hotkey_id(Command.CAPTURE)] == combo("Ctrl+Q")
+    assert h.menu_action(Command.CAPTURE).text() == "截图\tCtrl+Q"
+    assert h.autostart.enabled is True
+    loaded = load_config_file(h.config_path)
+    assert loaded.issues == []
+    s = settings_of(loaded.config)
+    assert (s.hotkeys[Command.CAPTURE], s.spacing, s.target_lang, s.model) == (
+        parse_hotkey("Ctrl+Q"), False, "zh", "qwen3:8b")
+    assert loaded.config.replacements == Replacements.EMPTY  # the file never had the harness's table
+
+
+def test_after_save_new_hotkey_and_options_are_used(make, clipboard):
+    h = make(make_translator=model_translator)
+    edit_and_save(h, open_settings(h))
+    h.controller.handle_hotkey(hotkey_id(Command.OCR))
+    h.select()
+    expected = postprocess(RESULT, PostprocessOptions(spacing=False), TABLE)
+    h.qtbot.waitUntil(lambda: clipboard.text() == expected, timeout=WAIT)
+    h.controller.handle_hotkey(hotkey_id(Command.TRANSLATE))
+    h.select()
+    h.qtbot.waitUntil(lambda: clipboard.text() == "qwen3:8b/zh", timeout=WAIT)
+
+
+def test_save_with_duplicate_hotkeys_is_refused(make):
+    h = make()
+    window = open_settings(h)
+    record(window.hotkey_edits[Command.OCR], Qt.Key.Key_1, M.AltModifier)
+    window.save_button.click()
+    assert window.isVisible()
+    assert window.problems_label.text() == "「截图」和「OCR」用了同一个热键 Alt+1。"
+    assert h.table.ours == {}
+    assert not h.config_path.exists()
+    assert h.notifier.notices == []
+
+
+def test_save_with_bad_model_is_refused(make):
+    h = make()
+    window = open_settings(h)
+    window.model_edit.setText("gpt-oss:120b-cloud")
+    window.save_button.click()
+    assert window.isVisible()
+    assert window.problems_label.text().startswith("模型名不能用：")
+    assert not h.config_path.exists()
+
+
+def test_save_with_taken_hotkey_is_refused_and_cancel_restores(make):
+    h = make()
+    before = h.table.snapshot()
+    hk = parse_hotkey("Ctrl+Q")
+    h.table.preoccupy(hk.mods, hk.vk)
+    window = open_settings(h)
+    edit_and_save(h, window)
+    assert window.isVisible()
+    assert window.problems_label.text() == "Ctrl+Q（截图）：已被其他软件占用"
+    assert h.table.ours == {}
+    assert h.autostart.enabled is False
+    assert not h.config_path.exists()
+    window.cancel_button.click()
+    assert {k: v for k, v in h.table.snapshot().items() if v != "other program"} == before
+
+
+def test_autostart_failure_is_refused(make):
+    h = make(autostart=FakeAutostart(set_errors=[PermissionError(5, "Access is denied")]))
+    window = open_settings(h)
+    edit_and_save(h, window)
+    assert window.isVisible()
+    assert window.problems_label.text() == "无法设置开机自启动：Access is denied"
+    assert h.table.ours == {}
+    assert not h.config_path.exists()
+
+
+def test_file_failure_rolls_back_autostart(make, tmp_path):
+    path = tmp_path / "broken.toml"
+    path.write_text("[postprocess\n", encoding="utf-8")
+    h = make(config_path=path)
+    window = open_settings(h)
+    edit_and_save(h, window)
+    assert window.isVisible()
+    assert "语法错误" in window.problems_label.text()
+    assert h.autostart.enabled is False
+    assert h.table.ours == {}
+    assert path.read_text(encoding="utf-8") == "[postprocess\n"
+
+
+def test_failed_rollback_still_reports_the_file_problem(make, tmp_path):
+    path = tmp_path / "broken.toml"
+    path.write_text("[postprocess\n", encoding="utf-8")
+    h = make(config_path=path, autostart=FakeAutostart(set_errors=[None, PermissionError(5, "denied")]))
+    window = open_settings(h)
+    edit_and_save(h, window)
+    assert "语法错误" in window.problems_label.text()
+    assert h.autostart.enabled is True  # the rollback failed; the window says what went wrong with the file
+
+
+def test_save_without_changes_writes_nothing(make):
+    h = make()
+    window = open_settings(h)
+    window.save_button.click()
+    assert not window.isVisible()
+    assert not h.config_path.exists()
+    assert h.titles() == ["设置已保存"]
+    assert sorted(h.table.ours) == DEFAULT_IDS
+
+
+def test_advanced_opens_config_file(make):
+    h = make()
+    window = open_settings(h)
+    window.advanced_button.click()
+    assert h.opened == [h.config_path]
+    assert h.titles() == ["已打开配置文件"]
+    assert window.isVisible()
+
+
+def test_quit_while_settings_open(make):
+    h = make()
+    window = open_settings(h)
+    h.controller.run(Command.QUIT)
+    assert not window.isVisible()
+    assert h.table.ours == {}
+    assert h.quits == [True]
+    assert h.notifier.notices == []
+
+
+def test_file_failure_without_autostart_change(make, tmp_path):
+    path = tmp_path / "broken.toml"
+    path.write_bytes(b"\xff")
+    h = make(config_path=path, autostart=FakeAutostart(enabled=True))
+    window = open_settings(h)
+    window.model_edit.setText("qwen3:8b")
+    window.save_button.click()
+    assert "UTF-8" in window.problems_label.text()
+    assert h.autostart.enabled is True
+    assert path.read_bytes() == b"\xff"

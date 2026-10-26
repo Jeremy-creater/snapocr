@@ -14,3 +14,4 @@ class Command(Enum):
     LAST_RESULT = "last_result"
     OPEN_CONFIG = "open_config"
     QUIT = "quit"
+    SETTINGS = "settings"  # M3: added last so the existing ids stay

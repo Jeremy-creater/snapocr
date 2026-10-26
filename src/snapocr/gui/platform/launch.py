@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from snapocr.actions.flows import FlowDeps
 from snapocr.actions.outcomes import Notice
 from snapocr.app import DEFAULT_LOG_DIR, install_excepthook, parse_args, setup_logging
+from snapocr.autostart import autostart_command
 from snapocr.commands import Command
 from snapocr.config.files import instance_name, load_config_file
 from snapocr.engines.holder import EngineHolder
@@ -25,6 +26,7 @@ from snapocr.engines.rapidocr_engine import RapidOcrEngine
 from snapocr.gui.controller import AppController
 from snapocr.gui.icons import app_icon
 from snapocr.gui.platform import native_clipboard, shell
+from snapocr.gui.platform.autostart import RegistryAutostart
 from snapocr.gui.platform.capture import DesktopCapture
 from snapocr.gui.platform.hotkeys import NativeHotkeys
 from snapocr.gui.platform.single_instance import InstanceLock, acquire
@@ -68,7 +70,8 @@ class RunningApp:
         # garbage collector they may die after it, or the tray after its menu,
         # and the process then crashes on exit (found in WI-22).
         self.tray.icon.setContextMenu(None)
-        for obj in (self.controller.popup, self.controller.history_window, self.controller.menu, self.controller):
+        c = self.controller
+        for obj in (c.popup, c.history_window, c.settings_window, c.menu, c):
             obj.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
@@ -101,10 +104,11 @@ def start(argv: list[str]) -> RunningApp | None:
         config,
         args.config,
         deps,
-        OpenAICompatTranslator(config.translator),
+        make_translator=OpenAICompatTranslator,
         capture_provider=DesktopCapture(),
         notifier=notifier,
         hotkey_backend=hotkeys,
+        autostart=RegistryAutostart(autostart_command(Path(sys.executable), args.config)),
         open_file=shell.open_file,
         quit_app=app.quit,
         startup_issues=loaded.issues,
