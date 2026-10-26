@@ -98,3 +98,55 @@ neutral = st.one_of(
 
 def script_text(max_size: int = 60) -> st.SearchStrategy[str]:
     return st.lists(st.one_of(cjk, latin, neutral), max_size=max_size).map("".join)
+
+
+# --- prompts (WI-4) -----------------------------------------------------------
+
+_SPECIAL_SOURCES = [
+    "{source_text}",
+    "{target_language}",
+    "{}",
+    "{0}",
+    "%s",
+    '"',
+    "\\",
+    "\n",
+    "\u2028",
+    "\x00",
+    "😀",
+]
+
+
+def source_text() -> st.SearchStrategy[str]:
+    """Arbitrary source text, including placeholders, escapes and lone surrogates (Q5)."""
+    piece = st.one_of(
+        st.text(),
+        script_text(),
+        st.sampled_from(_SPECIAL_SOURCES),
+        st.characters(categories=["Cs"]),
+    )
+    return st.lists(piece, max_size=5).map("".join)
+
+
+_TEMPLATE_ALPHABET = "{}ab 中文\n"
+
+
+def template() -> st.SearchStrategy[tuple[str, str, str]]:
+    """(T, P, S) with T = P + "{source_text}" + S and at most one {target_language}."""
+
+    def build(p, s, where, pos):
+        if where == "P":
+            p = p[: pos % (len(p) + 1)] + "{target_language}" + p[pos % (len(p) + 1):]
+        elif where == "S":
+            s = s[: pos % (len(s) + 1)] + "{target_language}" + s[pos % (len(s) + 1):]
+        return p + "{source_text}" + s, p, s
+
+    return st.builds(
+        build,
+        st.text(alphabet=_TEMPLATE_ALPHABET, max_size=12),
+        st.text(alphabet=_TEMPLATE_ALPHABET, max_size=12),
+        st.sampled_from(["P", "S", None, None]),
+        st.integers(0, 20),
+    ).filter(
+        lambda tps: tps[0].count("{source_text}") == 1 and tps[0].count("{target_language}") <= 1
+    )
