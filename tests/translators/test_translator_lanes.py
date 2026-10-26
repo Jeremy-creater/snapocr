@@ -24,8 +24,11 @@ INTEGRATION_IDS = [
     f"{REAL}::test_real_no_text_in_logs",
     f"{REAL}::test_real_loopback_only",
 ]
+PERF = "tests/perf/test_translate_latency.py"
+PERF_ID = f"{PERF}::test_translate_200_chars_warm_median_under_budget"
 EXPECTED = {
     REAL: {"unit": [], "engine": [], "integration": INTEGRATION_IDS, "perf": []},
+    PERF: {"unit": [], "engine": [], "integration": [], "perf": [PERF_ID]},
 }
 
 
