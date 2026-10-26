@@ -45,3 +45,6 @@ addopts = "--strict-markers"
 [tool.coverage.run]
 source = ["snapocr"]
 branch = true
+# snapocr.gui.platform needs the real desktop; it is covered by the manual gui lane
+# (coverage-gui.toml), not by unit/engine (CLAUDE.md, M2 plan D11).
+omit = ["*/snapocr/gui/platform/*"]

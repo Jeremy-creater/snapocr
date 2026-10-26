@@ -66,14 +66,15 @@
 - integration 测试在 Ollama 未运行或模型未导入时必须**明确失败并提示**，不得静默跳过后报绿。
 - engine 测试在模型文件缺失或损坏时必须**明确失败并提示**，不能跳过。归为独立车道的依据：冒烟实测加载 + 识别约 1–2 s，不需要外部服务，适合每次提交跑，但不该混进毫秒级的 unit。
 - `perf`（`@pytest.mark.perf`，延迟实测）只能手动跑：`python -m pytest -m perf -s`，不参与任何 gate。同时带 `integration` 和 `perf` 的测试（翻译延迟）也只能手动跑，同样需要 Ollama。
-- `gui`（`@pytest.mark.gui`，需要真实 Windows 桌面）只能手动跑：`python -m pytest -m gui --qt-desktop --cov=snapocr --cov-branch --cov-report=json:coverage-gui.json`。没有 `--qt-desktop` 时 `gui` 用例必须**明确失败并提示**，不能跳过。
+- `gui`（`@pytest.mark.gui`，需要真实 Windows 桌面）只能手动跑：`python -m pytest -m gui --qt-desktop --cov=snapocr.gui.platform --cov-config=coverage-gui.toml --cov-branch --cov-report=json:coverage-gui.json`。没有 `--qt-desktop` 时 `gui` 用例必须**明确失败并提示**，不能跳过。
 
 ### GUI 测试方式（2026-10-26 Jeremy 定）
 
 - 用 `pytest-qt`（只是开发依赖）。unit 车道里 Qt 一律用 `QT_QPA_PLATFORM=offscreen`，由 `tests/conftest.py` 在创建 `QApplication` 之前设置；不弹真实窗口，不碰真实剪贴板以外的桌面状态。
 - offscreen 下测窗口和控件的**真实状态**（文字、可见性、几何位置、按钮可用性）和**真实信号**（`qtbot.waitSignal`），不 mock Qt 类，不断言"某方法被调用"。
 - 依赖真实桌面的部分（托盘图标显示、`RegisterHotKey` 全局热键、真实屏幕截取、多显示器 / DPI、单实例互斥）集中放在 `snapocr.gui.platform` 下的薄封装里，只由 `gui` 车道覆盖；业务判断不得放进这些封装。M2 计划要列出这些模块。
-- `snapocr.gui` 其余代码和 `snapocr.actions` 必须由 unit 车道覆盖。`snapocr.actions` 不 import Qt，用假引擎、假翻译器、假剪贴板测试。
+- 覆盖率分工（2026-10-26，M2 计划 D11）：commit / taskCompleted 门禁只合并 unit 和 engine 的覆盖率，所以 `pyproject.toml` 让这两条车道不统计 `snapocr.gui.platform`（`omit`）。platform 的 100% 行和分支覆盖由 gui 车道负责（`coverage-gui.toml`，不 omit）：每个改动 platform 的 WI 提交前手动跑一次 gui 车道，把覆盖率结果写进计划。不用 `# pragma: no cover`。
+- `snapocr.gui` 其余代码和 `snapocr.actions` 必须由 unit 车道覆盖。`snapocr.actions` 不 import Qt，用假引擎、假翻译器测试；流程函数返回结果值（要放进剪贴板的内容、通知、浮窗状态、历史记录），剪贴板和通知以返回值断言，不需要假剪贴板（M2 计划 D2）。
 - `gui` 车道用例要用不会和日常使用冲突的热键（如 `Ctrl+Alt+Shift+F24`），跑完恢复剪贴板。
 
 ## 测试数据与隐私

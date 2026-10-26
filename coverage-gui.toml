@@ -1,0 +1,5 @@
+# Coverage settings for the manual gui lane only (CLAUDE.md, M2 plan D11).
+# Same as pyproject.toml but without the omit of snapocr.gui.platform.
+[tool.coverage.run]
+source = ["snapocr"]
+branch = true
