@@ -1,0 +1,8 @@
+{
+  "error": {
+    "message": "model \"hy-mt2:7b\" not found, try pulling it first",
+    "type": "api_error",
+    "param": null,
+    "code": null
+  }
+}

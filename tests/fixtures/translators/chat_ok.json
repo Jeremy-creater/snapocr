@@ -1,0 +1,22 @@
+{
+  "id": "chatcmpl-417",
+  "object": "chat.completion",
+  "created": 1761400000,
+  "model": "hy-mt2:7b",
+  "system_fingerprint": "fp_ollama",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The weather is very nice today."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 24,
+    "completion_tokens": 9,
+    "total_tokens": 33
+  }
+}

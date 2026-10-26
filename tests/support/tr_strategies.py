@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import string
 
 from hypothesis import strategies as st
@@ -149,4 +150,53 @@ def template() -> st.SearchStrategy[tuple[str, str, str]]:
         st.integers(0, 20),
     ).filter(
         lambda tps: tps[0].count("{source_text}") == 1 and tps[0].count("{target_language}") <= 1
+    )
+
+
+# --- responses (WI-5 / WI-7) ----------------------------------------------------
+
+
+def ok(content: object, finish_reason: object = "stop", **extra) -> bytes:
+    """Ollama-shaped 200 body (same shape as fixtures/translators/chat_ok.json)."""
+    choice = {"index": 0, "message": {"role": "assistant", "content": content}}
+    if finish_reason is not _MISSING:
+        choice["finish_reason"] = finish_reason
+    body = {
+        "id": "chatcmpl-417",
+        "object": "chat.completion",
+        "created": 1761400000,
+        "model": "hy-mt2:7b",
+        "choices": [choice],
+        **extra,
+    }
+    return json.dumps(body, ensure_ascii=False).encode("utf-8")
+
+
+_MISSING = object()
+MISSING = _MISSING
+
+
+def tag_soup() -> st.SearchStrategy[str]:
+    return st.lists(
+        st.sampled_from(
+            ["<think>", "</think>", "<thi", "nk>", "</th", "ink>", "<", ">", "/", " ", "\n",
+             "\t", "a", "Hi", "中文", "think"]
+        )
+    ).map("".join)
+
+
+def error_body(m: str) -> st.SearchStrategy[tuple[int, bytes]]:
+    """(status, body) pairs that embed marker m and must all be rejected."""
+    mb = m.encode()
+    return st.one_of(
+        st.just((404, json.dumps({"error": {"message": f"model {m} not found"}}).encode())),
+        st.just((404, json.dumps({"error": m}).encode())),
+        st.just((500, b"<h1>" + mb + b"</h1>")),
+        st.binary(max_size=50).map(lambda b: (500, b + mb)),
+        st.just((200, b"\xff\xfe" + mb)),
+        st.just((200, b'{"choices": "' + mb)),
+        st.just((200, ok(f"<think>{m}</think>"))),
+        st.just((200, ok(m, finish_reason="length"))),
+        st.just((200, ok([m]))),
+        st.just((301, mb)),
     )
