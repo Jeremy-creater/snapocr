@@ -16,6 +16,9 @@ dependencies = [
     # deps of rapidocr; declared because directly imported packages must be).
     "numpy>=2,<3",
     "opencv-python-headless>=4.5,<6",
+    # GUI shell (PRD section 5). Essentials only: QtWidgets/QtGui cover tray,
+    # overlay, clipboard and screens; the full PySide6 adds WebEngine/Addons.
+    "PySide6-Essentials>=6.12,<6.13",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +26,7 @@ dev = [
     "pytest>=8",
     "pytest-cov>=5",
     "hypothesis>=6",
+    "pytest-qt>=4.5",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -34,6 +38,7 @@ markers = [
     "integration: requires a running local model service (Ollama)",
     "engine: loads the real in-process RapidOCR models (no external service)",
     "perf: latency measurements; manual only, never part of a gate",
+    "gui: needs a real Windows desktop (tray, hotkeys, screen capture); manual, run with --qt-desktop",
 ]
 addopts = "--strict-markers"
 

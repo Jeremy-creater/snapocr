@@ -56,8 +56,9 @@
 
 | 车道 | 内容 | 命令 | 触发 |
 |---|---|---|---|
-| `unit` | 纯逻辑 + 假实现，不需要任何外部服务，不加载 OCR 模型 | `python -m pytest -m "not integration and not engine and not perf" --cov=snapocr --cov-branch --cov-report=json` | taskCompleted、commit |
-| `engine` | 进程内真实 RapidOCR 模型（`@pytest.mark.engine`），不需要外部服务、不联网 | `python -m pytest -m "engine and not perf" --cov=snapocr --cov-branch --cov-report=json:coverage-engine.json` | taskCompleted、commit |
+| `unit` | 纯逻辑 + 假实现 + offscreen Qt，不需要任何外部服务，不加载 OCR 模型 | `python -m pytest -m "not integration and not engine and not perf and not gui" --cov=snapocr --cov-branch --cov-report=json` | taskCompleted、commit |
+| `engine` | 进程内真实 RapidOCR 模型（`@pytest.mark.engine`），不需要外部服务、不联网 | `python -m pytest -m "engine and not perf and not gui" --cov=snapocr --cov-branch --cov-report=json:coverage-engine.json` | taskCompleted、commit |
+| `gui` | 真实 Windows 桌面（`@pytest.mark.gui`）：托盘、全局热键、屏幕截取、DPI | 见下 | manual |
 | `integration` | 连真实运行中的本地模型服务（Ollama，`@pytest.mark.integration`） | `python -m pytest -m "integration and not perf"` | manual |
 
 - 覆盖率模式：`no-decrease`。
@@ -65,7 +66,15 @@
 - integration 测试在 Ollama 未运行或模型未导入时必须**明确失败并提示**，不得静默跳过后报绿。
 - engine 测试在模型文件缺失或损坏时必须**明确失败并提示**，不能跳过。归为独立车道的依据：冒烟实测加载 + 识别约 1–2 s，不需要外部服务，适合每次提交跑，但不该混进毫秒级的 unit。
 - `perf`（`@pytest.mark.perf`，延迟实测）只能手动跑：`python -m pytest -m perf -s`，不参与任何 gate。同时带 `integration` 和 `perf` 的测试（翻译延迟）也只能手动跑，同样需要 Ollama。
-- GUI 层的自动化测试方式（如 pytest-qt + offscreen）在 M2 计划时再定，定下后先改本文件。
+- `gui`（`@pytest.mark.gui`，需要真实 Windows 桌面）只能手动跑：`python -m pytest -m gui --qt-desktop --cov=snapocr --cov-branch --cov-report=json:coverage-gui.json`。没有 `--qt-desktop` 时 `gui` 用例必须**明确失败并提示**，不能跳过。
+
+### GUI 测试方式（2026-10-26 Jeremy 定）
+
+- 用 `pytest-qt`（只是开发依赖）。unit 车道里 Qt 一律用 `QT_QPA_PLATFORM=offscreen`，由 `tests/conftest.py` 在创建 `QApplication` 之前设置；不弹真实窗口，不碰真实剪贴板以外的桌面状态。
+- offscreen 下测窗口和控件的**真实状态**（文字、可见性、几何位置、按钮可用性）和**真实信号**（`qtbot.waitSignal`），不 mock Qt 类，不断言"某方法被调用"。
+- 依赖真实桌面的部分（托盘图标显示、`RegisterHotKey` 全局热键、真实屏幕截取、多显示器 / DPI、单实例互斥）集中放在 `snapocr.gui.platform` 下的薄封装里，只由 `gui` 车道覆盖；业务判断不得放进这些封装。M2 计划要列出这些模块。
+- `snapocr.gui` 其余代码和 `snapocr.actions` 必须由 unit 车道覆盖。`snapocr.actions` 不 import Qt，用假引擎、假翻译器、假剪贴板测试。
+- `gui` 车道用例要用不会和日常使用冲突的热键（如 `Ctrl+Alt+Shift+F24`），跑完恢复剪贴板。
 
 ## 测试数据与隐私
 

@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-UNIT_MARKERS = "not integration and not engine and not perf"
+UNIT_MARKERS = "not integration and not engine and not perf and not gui"
 RUNTIME = ["rapidocr", "onnxruntime"]
 
 

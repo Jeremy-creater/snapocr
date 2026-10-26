@@ -9,10 +9,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPRESSIONS = {
-    "unit": "not integration and not engine and not perf",
-    "engine": "engine and not perf",
+    "unit": "not integration and not engine and not perf and not gui",
+    "engine": "engine and not perf and not gui",
     "integration": "integration and not perf",
     "perf": "perf",
+    "gui": "gui",
 }
 REAL = "tests/translators/test_ollama_real.py"
 INTEGRATION_IDS = [
@@ -27,8 +28,8 @@ INTEGRATION_IDS = [
 PERF = "tests/perf/test_translate_latency.py"
 PERF_ID = f"{PERF}::test_translate_200_chars_warm_median_under_budget"
 EXPECTED = {
-    REAL: {"unit": [], "engine": [], "integration": INTEGRATION_IDS, "perf": []},
-    PERF: {"unit": [], "engine": [], "integration": [], "perf": [PERF_ID]},
+    REAL: {"unit": [], "engine": [], "integration": INTEGRATION_IDS, "perf": [], "gui": []},
+    PERF: {"unit": [], "engine": [], "integration": [], "perf": [PERF_ID], "gui": []},
 }
 
 
