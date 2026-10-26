@@ -1,13 +1,19 @@
-"""Hotkey strings for the global hotkeys (PRD F5-2). Stdlib only, no ctypes.
+"""Global hotkeys (PRD F5-2, F5-3, F5-5) without the Win32 calls. Stdlib only, no ctypes.
 
 ``parse_hotkey("Ctrl+Shift+Q")`` gives the ``RegisterHotKey`` modifier mask and
 virtual-key code. Tokens are split on ``+``, stripped and matched without case;
 only ASCII names count, so look-alikes such as the Kelvin sign are rejected.
+
+``register_all`` / ``unregister_all`` take the RegisterHotKey / UnregisterHotKey
+wrappers as arguments, which return 0 or a Win32 error code.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+
+from snapocr.commands import Command
 
 MOD_ALT = 0x1
 MOD_CONTROL = 0x2
@@ -92,3 +98,44 @@ def format_hotkey(hotkey: Hotkey) -> str:
     """Canonical form: Ctrl+Alt+Shift+Win+Key."""
     names = [name for name, bit in _MODIFIERS if hotkey.mods & bit]
     return "+".join([*names, _KEY_NAMES[hotkey.vk]])
+
+
+def hotkey_id(command: Command) -> int:
+    """Stable id passed to RegisterHotKey: the command's position in ``Command``, from 1."""
+    return list(Command).index(command) + 1
+
+
+@dataclass(frozen=True)
+class HotkeyFailure:
+    command: Command
+    hotkey_text: str
+    error_code: int
+
+
+@dataclass
+class RegistrationReport:
+    registered: dict[int, Command] = field(default_factory=dict)
+    failed: list[HotkeyFailure] = field(default_factory=list)
+
+
+def register_all(
+    bindings: Mapping[Command, Hotkey], register: Callable[[int, int, int], int]
+) -> RegistrationReport:
+    """Register every binding in ``Command`` order; a failure does not stop the rest (F5-3)."""
+    report = RegistrationReport()
+    for command in Command:
+        if command not in bindings:
+            continue
+        hotkey = bindings[command]
+        hid = hotkey_id(command)
+        error = register(hid, hotkey.mods | MOD_NOREPEAT, hotkey.vk)
+        if error:
+            report.failed.append(HotkeyFailure(command, format_hotkey(hotkey), error))
+        else:
+            report.registered[hid] = command
+    return report
+
+
+def unregister_all(report: RegistrationReport, unregister: Callable[[int], int]) -> list[int]:
+    """Release the hotkeys that were registered (F5-5); returns the ids released without error."""
+    return [hid for hid in sorted(report.registered) if unregister(hid) == 0]
