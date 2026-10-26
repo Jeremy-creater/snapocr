@@ -185,3 +185,81 @@ def test_http_import_scan_positive_control():
         names = _imported_names(ast.parse(source))
         assert any(_uses(names, m) for m in FORBIDDEN_HTTP), source
     assert not _uses(_imported_names(ast.parse("import http")), "http.client")
+
+
+# --- F4 WI-7: snapocr.translators depends on stdlib, chars and itself only ------
+
+import importlib.util  # noqa: E402
+
+TRANSLATORS_PKG = "snapocr.translators"
+CHARS = "snapocr.postprocess.chars"
+
+
+def _within(name: str, package: str) -> bool:
+    return name == package or name.startswith(package + ".")
+
+
+def _translators_violations(source: str, package: str = TRANSLATORS_PKG) -> list[str]:
+    """Imports that are neither stdlib, ``snapocr.postprocess.chars`` nor the package itself.
+
+    Relative imports are resolved first (M7); ``from pkg import name`` is also
+    judged as ``pkg.name`` so ``from snapocr.postprocess import chars`` is legal.
+    """
+    bad = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            pairs = [(alias.name, [alias.name]) for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            base = importlib.util.resolve_name("." * node.level + (node.module or ""), package)
+            pairs = [(base, [base, f"{base}.{alias.name}"]) for alias in node.names]
+        else:
+            continue
+        for base, candidates in pairs:
+            ok = (
+                base.split(".")[0] in sys.stdlib_module_names
+                or _within(base, TRANSLATORS_PKG)
+                or any(c == CHARS for c in candidates)
+            )
+            if not ok:
+                bad.append(candidates[-1])
+    return bad
+
+
+def test_translators_import_only_stdlib_chars_and_self():
+    files = sorted((SRC / "translators").glob("*.py"))
+    assert len(files) >= 7
+    violations = {
+        path.name: _translators_violations(path.read_text(encoding="utf-8"))
+        for path in files
+    }
+    assert {name: v for name, v in violations.items() if v} == {}
+
+
+def test_translators_boundary_checker_positive_control():
+    for source in [
+        "from ..engines import base",
+        "from .. import engines",
+        "import numpy",
+        "from snapocr.postprocess import normalize",
+    ]:
+        assert _translators_violations(source), source
+    for source in [
+        "from snapocr.postprocess import chars",
+        "from snapocr.postprocess.chars import is_cjk",
+        "from .errors import X",
+        "import json",
+        "from __future__ import annotations",
+    ]:
+        assert _translators_violations(source) == [], source
+
+
+def test_import_translators_loads_no_heavy_deps():
+    code = (
+        "import json, pkgutil, importlib, sys\n"
+        "import snapocr.translators as pkg\n"
+        "for m in pkgutil.iter_modules(pkg.__path__):\n"
+        "    importlib.import_module('snapocr.translators.' + m.name)\n"
+        f"heavy = {HEAVY + ['snapocr.engines.rapidocr_engine']!r}\n"
+        "print(json.dumps([m for m in heavy if m in sys.modules]))\n"
+    )
+    assert _run_isolated(code) == []
