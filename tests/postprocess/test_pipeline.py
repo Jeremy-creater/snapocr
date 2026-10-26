@@ -7,8 +7,9 @@ rules one by one in ``RULE_ORDER`` (S4); the output does not depend on the
 input block order (S4); ``finalize`` is idempotent (S5). ``PostprocessOptions``
 has no law: it is a validated value object.
 
-Decision D1: there is no ``replacements`` rule in M1, so it is absent from
-``RULE_ORDER`` and from the option fields. The composition oracle below uses
+Decision D1: there is no ``replacements`` rule in M1. M2 decision D10 adds it
+in front of ``RULE_ORDER`` (PRD F2-6 v0.4); it is not an option field, since an
+empty table is the "off" state (tests: tests/postprocess/test_replacements.py). The composition oracle below uses
 only the public functions of the other post-processing modules plus a
 test-side finalize; it never calls ``pipeline`` internals.
 Matrix: tests-20261025-183000.md, section WI-6 (+ rev 1 L8).
@@ -123,7 +124,8 @@ def test_empty_for_every_switch_subset(paragraphs, spacing, punctuation):
 
 
 def test_rule_order_literal_and_options_fields():
-    assert RULE_ORDER == ("layout", "paragraphs", "spacing", "punctuation", "finalize")
+    # M2 D10 / PRD F2-6 v0.4: "replacements" runs first, per block, before layout.
+    assert RULE_ORDER == ("replacements", "layout", "paragraphs", "spacing", "punctuation", "finalize")
     assert [f.name for f in dataclasses.fields(PostprocessOptions)] == ["paragraphs", "spacing", "punctuation"]
     default = PostprocessOptions()
     assert (default.paragraphs, default.spacing, default.punctuation) == (True, True, True)
@@ -137,7 +139,7 @@ def test_docs_list_rules_in_order():
         token = f"`{name}`"
         assert token in text, f"{token} not documented"
         positions.append(text.index(token))
-    assert len(positions) == 5
+    assert len(positions) == 6  # M2 D10 added "replacements"
     assert positions == sorted(positions)
     assert len(set(positions)) == len(positions)
 

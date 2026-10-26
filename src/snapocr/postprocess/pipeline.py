@@ -2,6 +2,8 @@
 
 ``postprocess`` runs the rules in ``RULE_ORDER``:
 
+0. ``replacements`` (F2-6, M2 plan D10): each block's text goes through the
+   ``Replacements`` table first; the default empty table changes nothing.
 1. ``layout`` (F2-0, always on): ``build_lines`` turns blocks into lines. The
    text region ``(min left, max right)`` is computed once from these lines and
    passed to the paragraph rule explicitly (matrix Q1).
@@ -15,7 +17,6 @@
    deletes the spaces around a converted mark.
 5. ``finalize`` (always on): see ``finalize``.
 
-There is no ``replacements`` rule in M1 (D1; deferred to M2 together with F9).
 See ``docs/postprocess.md``.
 """
 
@@ -23,13 +24,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields
 
-from snapocr.engines.types import OcrResult
+from snapocr.engines.types import OcrResult, TextBlock
 from snapocr.postprocess.layout import build_lines
 from snapocr.postprocess.paragraphs import lines_to_text, merge_paragraphs
 from snapocr.postprocess.punctuation import to_fullwidth_punctuation
+from snapocr.postprocess.replacements import Replacements
 from snapocr.postprocess.spacing import add_cjk_latin_spacing
 
-RULE_ORDER: tuple[str, ...] = ("layout", "paragraphs", "spacing", "punctuation", "finalize")
+RULE_ORDER: tuple[str, ...] = ("replacements", "layout", "paragraphs", "spacing", "punctuation", "finalize")
 
 
 @dataclass(frozen=True)
@@ -64,7 +66,9 @@ def finalize(text: str) -> str:
     return "\n".join(lines[start:end])
 
 
-def postprocess(result: OcrResult, options: PostprocessOptions | None = None) -> str:
+def postprocess(
+    result: OcrResult, options: PostprocessOptions | None = None, replacements: Replacements | None = None
+) -> str:
     """Turn ``result`` into text by running the enabled rules in ``RULE_ORDER``."""
     if not isinstance(result, OcrResult):
         raise TypeError(f"expected OcrResult, got {type(result).__name__}")
@@ -72,7 +76,15 @@ def postprocess(result: OcrResult, options: PostprocessOptions | None = None) ->
         options = PostprocessOptions()
     elif not isinstance(options, PostprocessOptions):
         raise TypeError(f"options: expected PostprocessOptions, got {type(options).__name__}")
+    if replacements is None:
+        replacements = Replacements.EMPTY
+    elif not isinstance(replacements, Replacements):
+        raise TypeError(f"replacements: expected Replacements, got {type(replacements).__name__}")
 
+    if replacements.pairs:
+        result = OcrResult(
+            tuple(TextBlock(replacements.apply(b.text), b.box, b.score) for b in result.blocks)
+        )
     lines = build_lines(result)
     if lines and options.paragraphs:
         region = (min(line.left for line in lines), max(line.right for line in lines))
