@@ -378,8 +378,11 @@ def test_move_keeps_size_and_screen(data):
 @given(st.data())
 def test_move_back_restores_when_clear_of_edges(data):
     s, r = data.draw(screen_and_rect())
-    dx, dy = data.draw(st.integers(-3000, 3000)), data.draw(st.integers(-3000, 3000))
     p = s.physical
+    # FIX-2: draw only offsets that keep the rect on screen (same domain as the old
+    # +-3000 draw plus assume, without the filtering that tripped filter_too_much).
+    dx = data.draw(st.integers(max(-3000, p.x - r.x), min(3000, p.x + p.w - r.w - r.x)))
+    dy = data.draw(st.integers(max(-3000, p.y - r.y), min(3000, p.y + p.h - r.h - r.y)))
     assume(p.x <= r.x + dx and r.x + dx + r.w <= p.x + p.w)
     assume(p.y <= r.y + dy and r.y + dy + r.h <= p.y + p.h)
     assert move(r, dx, dy, s) == Rect(r.x + dx, r.y + dy, r.w, r.h)

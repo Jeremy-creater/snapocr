@@ -12,6 +12,7 @@ cheap: rapidocr / onnxruntime / cv2 / numpy load only inside ``load()``.
 from pathlib import Path
 
 import pytest
+from hypothesis import settings
 
 from snapocr.engines.config import OcrEngineConfig, resolve_model_paths
 from snapocr.engines.rapidocr_engine import RapidOcrEngine
@@ -23,6 +24,12 @@ from support.ollama_require import require_ollama as _require_ollama
 pytest_plugins = ["pytester", "support.qt_lane"]
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+# Hypothesis example budget (CLAUDE.md, FIX-2). Every lane runs "unit";
+# ``--hypothesis-profile=thorough`` overrides it for a manual run.
+settings.register_profile("unit", max_examples=50)
+settings.register_profile("thorough", max_examples=200)
+settings.load_profile("unit")
 
 
 @pytest.fixture(scope="session")

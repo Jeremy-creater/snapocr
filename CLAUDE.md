@@ -65,6 +65,7 @@
 - 初期不开 `blockCommitWithoutFreshGate`；熟悉流程后再开。
 - integration 测试在 Ollama 未运行或模型未导入时必须**明确失败并提示**，不得静默跳过后报绿。
 - engine 测试在模型文件缺失或损坏时必须**明确失败并提示**，不能跳过。归为独立车道的依据：冒烟实测加载 + 识别约 1–2 s，不需要外部服务，适合每次提交跑，但不该混进毫秒级的 unit。
+- hypothesis 样例数（2026-10-26 Jeremy 定）：`tests/conftest.py` 注册两个 profile，默认加载 `unit`（`max_examples=50`，所有车道都用它），`thorough`（`max_examples=200`）只手动跑：在任一车道命令后加 `--hypothesis-profile=thorough`。测试里显式写了 `max_examples` 的不受 profile 影响。unit 车道（带 coverage）再超过 45 s 时考虑 `pytest-xdist`。
 - `perf`（`@pytest.mark.perf`，延迟实测）只能手动跑：`python -m pytest -m perf -s`，不参与任何 gate。同时带 `integration` 和 `perf` 的测试（翻译延迟）也只能手动跑，同样需要 Ollama。
 - `gui`（`@pytest.mark.gui`，需要真实 Windows 桌面）只能手动跑：`python -m pytest -m gui --qt-desktop --cov=snapocr.gui.platform --cov-config=coverage-gui.toml --cov-branch --cov-report=json:coverage-gui.json`。没有 `--qt-desktop` 时 `gui` 用例必须**明确失败并提示**，不能跳过。
 
