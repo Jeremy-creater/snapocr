@@ -263,3 +263,41 @@ def test_import_translators_loads_no_heavy_deps():
         "print(json.dumps([m for m in heavy if m in sys.modules]))\n"
     )
     assert _run_isolated(code) == []
+
+
+# --- M2 WI-8: actions and the pure-logic modules stay free of Qt, ctypes and OCR runtime ---
+
+GUI_FREE = ["actions", "hotkeys.py", "geometry.py", "config", "commands.py"]
+FORBIDDEN = {"PySide6", "shiboken6", "ctypes", "rapidocr", "onnxruntime"}
+
+
+def _gui_free_files() -> list[Path]:
+    files = []
+    for name in GUI_FREE:
+        target = SRC / name
+        files += sorted(target.rglob("*.py")) if target.is_dir() else [target]
+    return files
+
+
+def test_gui_free_modules_do_not_import_qt_ctypes_or_runtime():
+    files = _gui_free_files()
+    assert len(files) >= 10
+    offenders = {
+        path.relative_to(SRC).as_posix(): sorted(roots & FORBIDDEN)
+        for path in files
+        if (roots := _imported_roots(ast.parse(path.read_text(encoding="utf-8"), str(path)))) & FORBIDDEN
+    }
+    assert offenders == {}
+
+
+def test_importing_gui_free_modules_loads_none_of_them():
+    modules = sorted(
+        "snapocr." + p.relative_to(SRC).with_suffix("").as_posix().replace("/", ".").removesuffix(".__init__")
+        for p in _gui_free_files()
+    )
+    code = (
+        "import importlib, json, sys\n"
+        f"for m in {modules!r}: importlib.import_module(m)\n"
+        f"print(json.dumps(sorted({{m.split('.')[0] for m in sys.modules}} & set({sorted(FORBIDDEN)!r}))))\n"
+    )
+    assert _run_isolated(code) == []

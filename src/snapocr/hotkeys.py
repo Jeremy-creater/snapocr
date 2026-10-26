@@ -21,6 +21,8 @@ MOD_SHIFT = 0x4
 MOD_WIN = 0x8
 MOD_NOREPEAT = 0x4000
 
+ERROR_HOTKEY_ALREADY_REGISTERED = 1409  # Win32: another program holds the combination
+
 
 class HotkeyError(ValueError):
     def __init__(self, token: str, reason: str) -> None:
