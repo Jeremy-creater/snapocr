@@ -168,3 +168,29 @@ def test_empty_file_is_defaults(tmp_path, content):
     path = tmp_path / "config.local.toml"
     path.write_bytes(content)
     assert load_config_file(path) == LoadResult(AppConfig(), [], created=False)
+
+
+# --- WI-19: single-instance name per config file (plan D5) --------------------------
+
+import re  # noqa: E402
+
+from snapocr.config.files import instance_name  # noqa: E402
+
+
+def test_instance_name_format(tmp_path):
+    name = instance_name(tmp_path / "config.local.toml")
+    assert re.fullmatch(r"Local\\snapocr-[0-9a-f]{12}", name)
+
+
+def test_instance_name_ignores_case_and_relative_spelling(tmp_path, monkeypatch):
+    path = tmp_path / "Config.Local.TOML"
+    monkeypatch.chdir(tmp_path)
+    assert instance_name(path) == instance_name(Path(str(path).upper())) == instance_name(Path("Config.Local.TOML"))
+
+
+def test_instance_name_differs_per_file(tmp_path):
+    assert instance_name(tmp_path / "a.toml") != instance_name(tmp_path / "b.toml")
+
+
+def test_default_config_gets_a_stable_name():
+    assert instance_name(default_config_path()) == instance_name(default_config_path())

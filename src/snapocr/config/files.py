@@ -7,6 +7,8 @@ existing file is never overwritten; a broken file is never changed.
 
 from __future__ import annotations
 
+import hashlib
+import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +25,17 @@ class LoadResult:
     config: AppConfig
     issues: list[ConfigIssue]
     created: bool
+
+
+def instance_name(path: Path) -> str:
+    """The single-instance mutex name for a config file (plan D5).
+
+    One instance per config file: the default file behaves as a global single
+    instance, while gui-lane runs on a temporary config never clash with it.
+    Windows paths ignore case, so the resolved path is case-folded first.
+    """
+    key = os.path.normcase(str(Path(path).resolve()))
+    return "Local\\snapocr-" +hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
 
 
 def default_config_path() -> Path:

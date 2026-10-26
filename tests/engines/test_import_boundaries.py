@@ -301,3 +301,17 @@ def test_importing_gui_free_modules_loads_none_of_them():
         f"print(json.dumps(sorted({{m.split('.')[0] for m in sys.modules}} & set({sorted(FORBIDDEN)!r}))))\n"
     )
     assert _run_isolated(code) == []
+
+
+# --- WI-19: ctypes only under snapocr/gui/platform ----------------------------------------
+
+
+def test_ctypes_only_in_gui_platform():
+    offenders = []
+    for path in SRC.rglob("*.py"):
+        rel = path.relative_to(SRC).as_posix()
+        if rel.startswith("gui/platform/"):
+            continue
+        if "ctypes" in _imported_roots(ast.parse(path.read_text(encoding="utf-8"))):
+            offenders.append(rel)
+    assert offenders == []
