@@ -48,3 +48,58 @@ class NoClipboardChange:
 
 
 ClipboardAction = ClipboardText | ClipboardPng | NoClipboardChange
+
+
+@dataclass(frozen=True)
+class HistoryRecord:
+    """One entry of "last results" (F7-6, F10). ``raw`` is layout-only text (plan A1)."""
+
+    png: bytes
+    raw: str
+    text: str
+    translation: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class Outcome:
+    clipboard: ClipboardAction
+    notice: Notice | None
+    record: HistoryRecord | None
+
+
+# Popup states (F8).
+@dataclass(frozen=True)
+class Translating:
+    source: str
+
+
+@dataclass(frozen=True)
+class Done:
+    source: str
+    translation: str
+
+
+@dataclass(frozen=True)
+class Failed:
+    source: str
+    message: str
+
+
+PopupState = Translating | Done | Failed
+
+
+@dataclass(frozen=True)
+class OcrStage:
+    """OCR finished with text; translation comes next."""
+
+    png: bytes
+    raw: str
+    text: str
+
+
+@dataclass(frozen=True)
+class TranslateOutcome:
+    clipboard: ClipboardAction
+    popup: Done | Failed
+    record: HistoryRecord

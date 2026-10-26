@@ -197,3 +197,19 @@ def test_every_notice_body_bounded(text, hint, paths, failures, issues):
         assert isinstance(n, Notice)
         assert len(n.body) <= NOTICE_BODY_MAX
         assert n.title and len(n.title) <= 40
+
+
+def test_engine_failed_notice_first_path_always_whole():
+    # Found in WI-9: the real fix hint is ~200 code points; the path must still show.
+    hint = "missing, empty or not a file; run `" + "u" * 220 + "`"
+    n = engine_failed_notice(EngineLoadError(["models/PP-OCRv6_det_small.onnx", "models/rec.onnx"], hint))
+    fix_line, paths_line = n.body.split("\n")[:2]
+    assert fix_line.startswith("修复：missing, empty or not a file") and fix_line.endswith("…")
+    assert paths_line.startswith("模型文件：models/PP-OCRv6_det_small.onnx")
+    assert len(n.body) <= NOTICE_BODY_MAX
+
+
+def test_engine_failed_notice_very_long_first_path_keeps_some_fix():
+    n = engine_failed_notice(EngineLoadError(["D:/" + "p" * 400], "reinstall rapidocr " * 10))
+    assert n.body.startswith("修复：reinstall rapidocr")
+    assert len(n.body) == NOTICE_BODY_MAX
