@@ -12,8 +12,8 @@ EXPRESSIONS = {
     "unit": "not integration and not engine and not perf and not gui",
     "engine": "engine and not perf and not gui",
     "integration": "integration and not perf",
-    "perf": "perf",
-    "gui": "gui",
+    "perf": "perf and not gui",
+    "gui": "gui and not perf",
 }
 REAL = "tests/translators/test_ollama_real.py"
 INTEGRATION_IDS = [
