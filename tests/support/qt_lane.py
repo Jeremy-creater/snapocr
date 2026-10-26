@@ -6,6 +6,7 @@ marked ``gui`` need the real desktop and FAIL (never skip) without the option.
 """
 
 import os
+import sys
 
 import pytest
 
@@ -33,3 +34,15 @@ def pytest_runtest_setup(item):
             f"gui tests need the real desktop; run them with: {GUI_COMMAND}",
             pytrace=False,
         )
+
+
+def pytest_sessionfinish(session):
+    # Offscreen Qt segfaults while destroying the application if the clipboard
+    # still holds a QMimeData set from Python (WI-13, R7). Clear it so a green
+    # run exits 0. Never on the real desktop: that is Jeremy's clipboard.
+    if session.config.getoption("--qt-desktop") or "PySide6.QtGui" not in sys.modules:
+        return
+    from PySide6.QtGui import QGuiApplication
+
+    if QGuiApplication.instance() is not None:
+        QGuiApplication.clipboard().clear()

@@ -71,3 +71,33 @@ def test_gui_test_runs_with_qt_desktop(lane):
     lane.makepyfile(GUI_TEST)
     result = lane.runpytest_subprocess("--qt-desktop")
     result.assert_outcomes(passed=1)
+
+
+# --- WI-13: offscreen clipboard teardown -----------------------------------
+# Offscreen Qt (PySide6 6.12) segfaults while destroying the application when
+# the clipboard still holds a QMimeData set by Python (found in WI-13, R7).
+# The lane clears the clipboard at session end so a green run exits 0.
+
+MIME_LEFT_ON_CLIPBOARD_TEST = """
+from PySide6.QtCore import QByteArray, QMimeData
+from PySide6.QtGui import QGuiApplication
+
+def test_leaves_mime_data(qapp):
+    mime = QMimeData()
+    mime.setData("image/png", QByteArray(b"x"))
+    QGuiApplication.clipboard().setMimeData(mime)
+"""
+
+
+def test_mime_data_left_on_offscreen_clipboard_exits_cleanly(lane):
+    lane.makepyfile(MIME_LEFT_ON_CLIPBOARD_TEST)
+    result = lane.runpytest_subprocess()
+    result.assert_outcomes(passed=1)
+    assert result.ret == 0
+
+
+def test_session_without_qapp_is_unaffected(lane):
+    lane.makepyfile(ENV_ONLY_TEST)
+    result = lane.runpytest_subprocess("-s")
+    result.assert_outcomes(passed=1)
+    assert result.ret == 0
