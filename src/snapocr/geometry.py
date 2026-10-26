@@ -240,3 +240,20 @@ def fit_size(src: tuple[int, int], max_box: tuple[int, int]) -> tuple[int, int]:
 def _round_ratio(num: int, den: int) -> int:
     """num / den rounded half up, in exact integer arithmetic."""
     return (2 * num + den) // (2 * den)
+
+
+def screen_containing(rect: Rect, screens: Sequence[ScreenInfo]) -> ScreenInfo:
+    """The screen whose physical rect holds all of ``rect`` (a selection never spans screens, D4)."""
+    for screen in screens:
+        p = screen.physical
+        if p.x <= rect.x and p.y <= rect.y and rect.x + rect.w <= p.x + p.w and rect.y + rect.h <= p.y + p.h:
+            return screen
+    raise ValueError(f"no screen holds {rect}")
+
+
+def logical_rect(screen: ScreenInfo, rect: Rect) -> Rect:
+    """``rect`` (physical, on ``screen``) in Qt's global logical coordinates, rounded outwards (F8-1)."""
+    x0, y0 = physical_to_local(screen, rect.x, rect.y)
+    x1, y1 = physical_to_local(screen, rect.x + rect.w, rect.y + rect.h)
+    left, top = math.floor(x0), math.floor(y0)
+    return Rect(screen.logical.x + left, screen.logical.y + top, math.ceil(x1) - left, math.ceil(y1) - top)

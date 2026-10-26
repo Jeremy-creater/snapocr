@@ -213,3 +213,43 @@ def test_engine_failed_notice_very_long_first_path_keeps_some_fix():
     n = engine_failed_notice(EngineLoadError(["D:/" + "p" * 400], "reinstall rapidocr " * 10))
     assert n.body.startswith("修复：reinstall rapidocr")
     assert len(n.body) == NOTICE_BODY_MAX
+
+
+# --- WI-17: controller notices --------------------------------------------------------
+
+from snapocr.actions.messages import (  # noqa: E402
+    capture_failed_notice,
+    config_opened_notice,
+    job_crashed_notice,
+    job_crashed_text,
+    open_config_failed_notice,
+)
+
+
+def test_capture_failed_notice():
+    n = capture_failed_notice("BitBlt failed")
+    assert n.title == "截图失败"
+    assert n.body == "BitBlt failed\n剪贴板没有改动。"
+
+
+def test_job_crashed_texts():
+    assert job_crashed_text("RuntimeError") == "内部错误（RuntimeError），详情见日志"
+    n = job_crashed_notice("RuntimeError")
+    assert n.title == "操作失败"
+    assert n.body == "内部错误（RuntimeError），详情见日志。剪贴板没有改动。"
+
+
+def test_config_opened_notice():
+    assert config_opened_notice() == Notice("已打开配置文件", "修改后重启 snapocr 生效。")
+
+
+def test_open_config_failed_notice():
+    n = open_config_failed_notice(CFG, "no application is associated")
+    assert n.title == "无法打开配置文件"
+    assert n.body == f"{CFG}\nno application is associated"
+
+
+@given(texts)
+def test_new_notice_bodies_bounded(text):
+    for n in (capture_failed_notice(text), job_crashed_notice(text), open_config_failed_notice(text, text)):
+        assert len(n.body) <= NOTICE_BODY_MAX

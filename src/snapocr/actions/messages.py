@@ -100,3 +100,24 @@ def config_issues_notice(issues: Sequence[ConfigIssue]) -> Notice:
     if not issues:
         raise ValueError("no config issues to report")
     return Notice(f"配置文件有 {len(issues)} 个问题", "\n".join(str(i) for i in issues))
+
+
+
+def capture_failed_notice(detail: str) -> Notice:
+    return Notice("截图失败", f"{detail}\n{_UNCHANGED}")
+
+
+def job_crashed_text(exc_type_name: str) -> str:
+    return f"内部错误（{exc_type_name}），详情见日志"
+
+
+def job_crashed_notice(exc_type_name: str) -> Notice:
+    return Notice("操作失败", f"{job_crashed_text(exc_type_name)}。{_UNCHANGED}")
+
+
+def config_opened_notice() -> Notice:
+    return Notice("已打开配置文件", "修改后重启 snapocr 生效。")
+
+
+def open_config_failed_notice(path: os.PathLike[str] | str, detail: str) -> Notice:
+    return Notice("无法打开配置文件", f"{os.fspath(path)}\n{detail}")

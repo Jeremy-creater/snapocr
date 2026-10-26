@@ -407,3 +407,44 @@ def test_module_uses_stdlib_only():
         for a in (n.names if isinstance(n, ast.Import) else [n])
     }
     assert imported <= sys.stdlib_module_names
+
+
+# --- WI-17: which screen holds a selection; selection in logical coordinates --------------
+
+from snapocr.geometry import logical_rect, screen_containing  # noqa: E402
+
+PRIMARY = ScreenInfo("P", Rect(0, 0, 1920, 1080), 1.0, Rect(0, 0, 1920, 1080))
+LEFT_150 = ScreenInfo("L", Rect(-1707, 0, 1707, 960), 1.5, Rect(-2560, 0, 2560, 1440))
+
+
+def test_screen_containing_picks_the_screen():
+    screens = [PRIMARY, LEFT_150]
+    assert screen_containing(Rect(10, 10, 50, 50), screens) is PRIMARY
+    assert screen_containing(Rect(-2410, 150, 150, 75), screens) is LEFT_150
+    assert screen_containing(Rect(0, 0, 1920, 1080), screens) is PRIMARY  # whole screen, edges inclusive
+
+
+@pytest.mark.parametrize("r", [Rect(-10, 0, 20, 20), Rect(5000, 0, 10, 10), Rect(1910, 0, 20, 20)])
+def test_screen_containing_rejects_rect_on_no_single_screen(r):
+    with pytest.raises(ValueError, match="no screen"):
+        screen_containing(r, [PRIMARY, LEFT_150])
+
+
+def test_logical_rect_examples():
+    assert logical_rect(PRIMARY, Rect(10, 20, 30, 40)) == Rect(10, 20, 30, 40)
+    # WI-3 example in reverse: local (100,100)-(200,150) on the 150% screen
+    assert logical_rect(LEFT_150, Rect(-2410, 150, 150, 75)) == Rect(-1607, 100, 100, 50)
+    # 1 physical px at 150% rounds outwards to a whole logical px
+    assert logical_rect(LEFT_150, Rect(-2559, 1, 1, 1)) == Rect(-1707, 0, 2, 2)
+
+
+@given(st.data())
+def test_logical_rect_covers_the_selection(data):
+    s, r = data.draw(screen_and_rect())
+    lr = logical_rect(s, r)
+    x0, y0 = physical_to_local(s, r.x, r.y)
+    x1, y1 = physical_to_local(s, r.x + r.w, r.y + r.h)
+    lx, ly = s.logical.x, s.logical.y
+    assert lr.x <= lx + x0 and lr.y <= ly + y0
+    assert lx + x1 <= lr.x + lr.w and ly + y1 <= lr.y + lr.h
+    assert lr.w - (x1 - x0) < 2 and lr.h - (y1 - y0) < 2
