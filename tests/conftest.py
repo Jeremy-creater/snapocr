@@ -18,6 +18,7 @@ from snapocr.engines.rapidocr_engine import RapidOcrEngine
 from support.engine_require import require_model_files
 from support.fake_openai_server import FakeOpenAIServer
 from support.netguard import LoopbackGuard, NetGuard
+from support.ollama_require import require_ollama as _require_ollama
 
 pytest_plugins = ["pytester"]
 
@@ -61,3 +62,9 @@ def fake_server():
     """In-process fake Ollama on 127.0.0.1; call ``reset()`` at the start of each test/example."""
     with FakeOpenAIServer() as fake:
         yield fake
+
+
+@pytest.fixture(scope="session")
+def require_ollama():
+    """Integration lane: FAIL (never skip) unless Ollama runs with hy-mt2:7b imported."""
+    _require_ollama()
