@@ -33,6 +33,7 @@ FONT_LEVELS = (14, 20, 28)  # text size, logical px
 NUMBER_LEVELS = (20, 28, 36)  # number badge diameter, logical px (F14-8)
 MOSAIC_LEVELS = (8, 12, 16)  # mosaic block side, logical px (F14-8)
 LEVEL_NAMES = ("细", "中", "粗")
+TEXT_SIZE_RANGE = (8, 200)  # font size by dragging the handle, logical px (F14-11)
 MIN_DRAG = 3  # physical px: a shorter drag leaves no mark (F14-2)
 
 
@@ -150,6 +151,25 @@ def hit_mark(marks: Sequence[Mark], p: Point, tol: int) -> int | None:
         if b.x - tol <= p[0] <= b.x + b.w + tol and b.y - tol <= p[1] <= b.y + b.h + tol:
             return i
     return None
+
+
+def text_handle(mark: Mark, tol: int) -> Point:
+    """Where a picked text's resize handle sits: the far corner of its outline (F14-11)."""
+    b = mark_bounds(mark)
+    return (b.x + b.w + tol, b.y + b.h + tol)
+
+
+def text_resize_size(mark: Mark, dx: int, dy: int, dpr: float) -> int:
+    """The font size after dragging the text's far corner by ``(dx, dy)`` (F14-11, plan D18).
+
+    The moved corner is projected on the box's diagonal; the size scales by
+    the same ratio, within ``TEXT_SIZE_RANGE``.
+    """
+    (x0, y0), (x1, y1) = mark.points
+    w, h = x1 - x0, y1 - y0
+    ratio = ((w + dx) * w + (h + dy) * h) / (w * w + h * h)
+    lo, hi = (scaled(v, dpr) for v in TEXT_SIZE_RANGE)
+    return _clamp(math.floor(mark.size * ratio + 0.5), lo, hi)
 
 
 def moved(mark: Mark, dx: int, dy: int) -> Mark:

@@ -38,6 +38,8 @@ from snapocr.annotate import (
     moved,
     number_mark,
     pen_mark,
+    text_handle,
+    text_resize_size,
     toolbar_place,
     with_level,
 )
@@ -136,6 +138,7 @@ class SelectionOverlay(QWidget):
         self._picked: int | None = None  # index of the picked mark (F14-8)
         self._moving: Point | None = None  # press point while dragging the picked mark
         self._moved: Mark | None = None  # the picked mark where the drag has put it
+        self._resizing: Point | None = None  # press point while dragging a text's handle (F14-11)
         self._draft: Mark | None = None
         self._editor: TextEditor | None = None
         self._editor_at: Point = (0, 0)  # physical top-left of the text being typed
@@ -199,6 +202,21 @@ class SelectionOverlay(QWidget):
         """F14-3: once a tool is picked or a mark drawn, the selection stays put."""
         return self._tool is not None or bool(self._board.marks)
 
+    @property
+    def _dragging_mark(self) -> bool:
+        return self._moving is not None or self._resizing is not None
+
+    def _on_handle(self, p: Point) -> bool:
+        """Whether ``p`` is on the picked text's resize handle (F14-11)."""
+        if self._picked is None or self._board.marks[self._picked].tool is not Tool.TEXT:
+            return False
+        hx, hy = text_handle(self._board.marks[self._picked], self._tol)
+        return max(abs(p[0] - hx), abs(p[1] - hy)) <= self._tol
+
+    def _text_at(self, p: Point) -> int | None:
+        i = hit_mark(self._board.marks, p, self._tol)
+        return i if i is not None and self._board.marks[i].tool is Tool.TEXT else None
+
     def _tool_changed(self, tool: Tool | None) -> None:
         self._close_editor(keep=True)
         self._picked = None
@@ -221,7 +239,7 @@ class SelectionOverlay(QWidget):
 
     def _restyle(self, change: Callable[[Mark], Mark]) -> None:
         """F14-10: a colour or level click changes the picked mark, as one undo step."""
-        if self._picked is None or self._moving is not None:
+        if self._picked is None or self._dragging_mark:
             return
         marks = list(self._board.marks)
         new = change(marks[self._picked])
@@ -268,6 +286,7 @@ class SelectionOverlay(QWidget):
             mark = text_mark(editor.text(), self._editor_at, self.toolbar.style, self._screen.dpr)
             if mark is not None:
                 self._board.add(mark)
+                self._picked = len(self._board.marks) - 1  # F14-11: ready to move or resize
         editor.hide()
         editor.deleteLater()
         self.setFocus()
@@ -337,7 +356,13 @@ class SelectionOverlay(QWidget):
         if self._state is OverlayState.ADJUSTING and self._locked:
             if self._editor is not None:  # a click elsewhere keeps the text (F14-5)
                 self._close_editor(keep=True)
+            elif self._on_handle(p):
+                self._resizing = p
+            elif self._tool is Tool.TEXT and (i := self._text_at(p)) is not None:
+                self._picked, self._moving = i, p
+                self.update()
             elif self._tool is Tool.TEXT and _inside(self._rect, p):
+                self._picked = None
                 self._open_editor(p)
             elif self._tool is Tool.NUMBER and _inside(self._rect, p):
                 self._board.add(number_mark(p, self._board.marks, self.toolbar.style, self._screen.dpr))
@@ -373,9 +398,17 @@ class SelectionOverlay(QWidget):
             self._moved = moved(self._board.marks[self._picked], p[0] - self._moving[0], p[1] - self._moving[1])
             self.update()
             return
+        if self._resizing is not None:
+            mark = self._board.marks[self._picked]
+            dx, dy = p[0] - self._resizing[0], p[1] - self._resizing[1]
+            self._moved = fit_text(mark, text_resize_size(mark, dx, dy, self._screen.dpr))
+            self.update()
+            return
         if self._drag is None:
             if self._state is OverlayState.ADJUSTING and not self._locked:
                 self.setCursor(_CURSORS[hit_handle(self._rect, p, self._tol)])
+            elif self._state is OverlayState.ADJUSTING:
+                self.setCursor(self._locked_cursor(p))
             return
         handle, start, start_rect = self._drag
         if handle is Handle.NONE:
@@ -397,13 +430,13 @@ class SelectionOverlay(QWidget):
                 self._board.add(mark)
             self._marks_changed()
             return
-        if self._moving is not None:
+        if self._dragging_mark:
             self.mouseMoveEvent(event)
             marks = list(self._board.marks)
             if self._moved != marks[self._picked]:
                 marks[self._picked] = self._moved
                 self._board.change(tuple(marks))
-            self._moving, self._moved = None, None
+            self._moving, self._resizing, self._moved = None, None, None
             self._marks_changed()
             return
         if self._drag is None:
@@ -418,6 +451,11 @@ class SelectionOverlay(QWidget):
             self._state = OverlayState.ADJUSTING
             self._place_toolbar()
         self.update()
+
+    def _locked_cursor(self, p: Point) -> Qt.CursorShape:
+        if self._on_handle(p):
+            return Qt.CursorShape.SizeFDiagCursor
+        return Qt.CursorShape.CrossCursor if self._tool is not None else Qt.CursorShape.ArrowCursor
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         if self._state is not OverlayState.ADJUSTING or self._tool is not None:
@@ -434,7 +472,7 @@ class SelectionOverlay(QWidget):
             self._finish(None)
         elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._confirm()
-        elif event.key() == Qt.Key.Key_Delete and self._picked is not None and self._moving is None:
+        elif event.key() == Qt.Key.Key_Delete and self._picked is not None and not self._dragging_mark:
             marks = self._board.marks
             self._board.change(marks[: self._picked] + marks[self._picked + 1 :])
             self._picked = None
@@ -493,6 +531,10 @@ class SelectionOverlay(QWidget):
             painter.setPen(QPen(_BORDER, self._screen.dpr, Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(QRectF(b.x - t, b.y - t, b.w + 2 * t, b.h + 2 * t))
+            if marks[self._picked].tool is Tool.TEXT:
+                hx, hy = text_handle(marks[self._picked], t)
+                side = HANDLE_SIZE * self._screen.dpr
+                painter.fillRect(QRectF(hx - side / 2, hy - side / 2, side, side), _BORDER)
         painter.restore()
 
     def _paint_handles(self, painter: QPainter, sel: QRectF) -> None:
