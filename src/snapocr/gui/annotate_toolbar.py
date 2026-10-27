@@ -13,7 +13,7 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QToolButton, QWidget
 
-from snapocr.annotate import COLOR_NAMES, DEFAULT_STYLE, LEVEL_NAMES, PALETTE, Style, Tool
+from snapocr.annotate import COLOR_NAMES, DEFAULT_STYLE, LEVEL_NAMES, PALETTE, Style, Tool, arrow_shape
 
 ICON = 20
 _INK = QColor("#333333")
@@ -52,9 +52,9 @@ def _glyph(text: str) -> Callable[[QPainter], None]:
 
 
 def _arrow(p: QPainter) -> None:
-    p.drawLine(QPointF(4, 16), QPointF(15, 5))
+    p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(_INK)
-    p.drawPolygon(QPolygonF([QPointF(16, 4), QPointF(9, 6), QPointF(14, 11)]))
+    p.drawPolygon(QPolygonF([QPointF(*q) for q in arrow_shape((3, 17), (17, 3), 2)]))
 
 
 def _number(p: QPainter) -> None:

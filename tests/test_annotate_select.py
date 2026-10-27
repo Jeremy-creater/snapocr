@@ -2,8 +2,9 @@
 
 Pinned here:
 - ``mark_bounds(mark)``: the covered box in physical px. Strokes (rectangle,
-  ellipse, arrow, pen) grow by ``ceil(size / 2)`` around their points; text
-  and mosaic are their two points; a number is its badge (centre +- size/2).
+  ellipse, pen) grow by ``ceil(size / 2)`` around their points; an arrow is
+  its polygon (``arrow_shape``, floor / ceil); text and mosaic are their two
+  points; a number is its badge (centre +- size/2).
 - ``hit_mark(marks, p, tol)``: index of the last (topmost) mark whose box
   grown by ``tol`` holds ``p`` (edges included), else ``None``.
 - ``moved(mark, dx, dy)``: every point shifted, nothing else changed.
@@ -25,7 +26,10 @@ R = PALETTE[0]
     [
         (Mark(Tool.RECT, ((10, 20), (50, 60)), R, 4), Rect(8, 18, 44, 44)),
         (Mark(Tool.ELLIPSE, ((10, 20), (50, 60)), R, 5), Rect(7, 17, 46, 46)),
-        (Mark(Tool.ARROW, ((50, 60), (10, 20)), R, 4), Rect(8, 18, 44, 44)),
+        (Mark(Tool.ARROW, ((0, 50), (100, 50)), R, 4), Rect(0, 41, 100, 18)),
+        (Mark(Tool.ARROW, ((100, 50), (0, 50)), R, 4), Rect(0, 41, 100, 18)),
+        (Mark(Tool.ARROW, ((0, 0), (0, 10)), R, 4), Rect(-3, 0, 6, 10)),
+        (Mark(Tool.ARROW, ((0, 0), (0, 11)), R, 4), Rect(-4, 0, 8, 11)),
         (Mark(Tool.PEN, ((0, 0), (10, 5), (3, 20)), R, 2), Rect(-1, -1, 12, 22)),
         (Mark(Tool.NUMBER, ((100, 100),), R, 28, "1"), Rect(86, 86, 28, 28)),
         (Mark(Tool.NUMBER, ((100, 100),), R, 27, "1"), Rect(86, 86, 28, 28)),

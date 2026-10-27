@@ -7,8 +7,8 @@ Pinned here:
   (x - origin.x, y - origin.y). The input image is not changed. Marks outside
   the image are cut off.
 - Rectangle and ellipse are outlines of ``size`` physical px centred on the
-  box edge; the inside is untouched. An arrow is a ``size`` px line plus a
-  filled head (``annotate.arrow_head``). Text is drawn from the top-left of
+  box edge; the inside is untouched. An arrow is one filled polygon
+  (``annotate.arrow_shape``): sharp at the start, thickest at the head. Text is drawn from the top-left of
   its box in the mark's colour.
 """
 
@@ -96,12 +96,18 @@ def test_ellipse_outline():
         assert is_(at(out, x, y), WHITE), (x, y)
 
 
-def test_arrow_line_and_head():
+def test_arrow_tapers_from_tail_to_head():
+    # length 160, size 4: neck 8 wide at x = 156, head 24 long, 28.8 wide
     out = render_marked(canvas(), [Mark(Tool.ARROW, ((20, 75), (180, 75)), PALETTE[0], 4)], (0, 0))
-    for x, y in [(60, 75), (60, 76), (166, 80), (166, 70), (176, 75)]:
+    for x, y in [(60, 75), (150, 77), (150, 72), (160, 85), (160, 65), (176, 75)]:
         assert is_(at(out, x, y), RED), (x, y)
-    for x, y in [(60, 79), (166, 84), (185, 75), (10, 75)]:
+    for x, y in [(30, 78), (150, 81), (160, 89), (185, 75), (10, 75)]:
         assert is_(at(out, x, y), WHITE), (x, y)
+
+    def inked(x):
+        return sum(not is_(at(out, x, y), WHITE) for y in range(150))
+
+    assert inked(40) < inked(100) < inked(150) < inked(160)
 
 
 def test_text_is_drawn_inside_its_box():

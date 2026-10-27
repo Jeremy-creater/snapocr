@@ -8,9 +8,11 @@ Pinned here:
   physical pixels in both directions gives ``None``; the size is the stroke
   width of the level in physical pixels. Text is not a drag tool.
 - ``Board``: marks in drawing order; ``undo`` drops the last change.
-- ``arrow_head``: the tip is the end point; the head is ``max(10, 4 * width)``
-  long (the whole arrow when shorter) and as wide as it is long; the shaft
-  stops at the base of the head.
+- ``arrow_shape`` (F14-9, plan D16): one filled polygon (tail, neck left,
+  wing left, tip, wing right, neck right). The tail is the start point, the
+  tip the end point. Neck width ``s = min(max(width, L/20), 3*width)``, head
+  ``H = min(3s, L/2)`` long and ``1.2H`` wide, neck ``min(s, 0.6H)`` wide,
+  both centred on the base of the head, which lies on the line.
 - ``toolbar_place``: below the selection, right edges aligned; else above;
   else inside at the bottom; always clamped into the screen area.
 """
@@ -31,7 +33,7 @@ from snapocr.annotate import (
     Mark,
     Style,
     Tool,
-    arrow_head,
+    arrow_shape,
     drag_mark,
     scaled,
     toolbar_place,
@@ -146,45 +148,61 @@ def test_undo_k_times_returns_to_k_steps_before(n, data):
     assert board.marks == tuple(mk(i) for i in range(n - k))
 
 
-# --- arrow_head ----------------------------------------------------------------------
+# --- arrow_shape ---------------------------------------------------------------------
 
 
-def test_arrow_head_horizontal():
-    shaft_end, (tip, left, right) = arrow_head((0, 0), (100, 0), 4)
-    assert tip == pytest.approx((100, 0))
-    assert shaft_end == pytest.approx((84, 0))
-    assert sorted([left, right]) == [pytest.approx((84, -8)), pytest.approx((84, 8))]
+def test_arrow_shape_horizontal():
+    # length 100, width 4: neck 5 (100 / 20), head 15 long and 18 wide
+    tail, neck_l, wing_l, tip, wing_r, neck_r = arrow_shape((0, 0), (100, 0), 4)
+    assert tail == pytest.approx((0, 0)) and tip == pytest.approx((100, 0))
+    assert sorted([neck_l, neck_r]) == [pytest.approx((85, -2.5)), pytest.approx((85, 2.5))]
+    assert sorted([wing_l, wing_r]) == [pytest.approx((85, -9)), pytest.approx((85, 9))]
 
 
-def test_arrow_head_minimum_length_for_thin_lines():
-    shaft_end, _ = arrow_head((0, 0), (0, 50), 1)
-    assert shaft_end == pytest.approx((0, 40))
+@pytest.mark.parametrize(
+    ("length", "width", "neck"), [(40, 4, 4), (100, 4, 5), (240, 4, 12), (1000, 4, 12), (1000, 2, 6), (60, 6, 6)]
+)
+def test_arrow_neck_grows_with_length_within_the_level(length, width, neck):
+    _, neck_l, _, _, _, neck_r = arrow_shape((0, 0), (0, length), width)
+    assert math.dist(neck_l, neck_r) == pytest.approx(neck)
 
 
-def test_short_arrow_is_all_head():
-    shaft_end, (tip, _, _) = arrow_head((10, 10), (13, 14), 4)
-    assert shaft_end == pytest.approx((10, 10))
-    assert tip == pytest.approx((13, 14))
+def test_short_arrow_head_is_half_the_arrow():
+    # neck 4; head min(12, 5) = 5 long, 6 wide; neck min(4, 3) = 3 wide
+    _, neck_l, wing_l, _, wing_r, neck_r = arrow_shape((0, 0), (10, 0), 4)
+    assert sorted([wing_l, wing_r]) == [pytest.approx((5, -3)), pytest.approx((5, 3))]
+    assert sorted([neck_l, neck_r]) == [pytest.approx((5, -1.5)), pytest.approx((5, 1.5))]
 
 
 def test_zero_length_arrow_is_rejected():
     with pytest.raises(ValueError, match="length"):
-        arrow_head((5, 5), (5, 5), 4)
+        arrow_shape((5, 5), (5, 5), 4)
+
+
+def _mid(a, b):
+    return ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+
+
+def _side(start, end, p):
+    return (end[0] - start[0]) * (p[1] - start[1]) - (end[1] - start[1]) * (p[0] - start[0])
 
 
 @given(points, points, st.integers(1, 20))
-def test_arrow_head_geometry(start, end, width):
+def test_arrow_shape_geometry(start, end, width):
     length = math.dist(start, end)
     if length == 0:
         return
-    head = min(length, max(10, 4 * width))
-    shaft_end, (tip, left, right) = arrow_head(start, end, width)
-    assert tip == pytest.approx(end)
-    assert math.dist(shaft_end, end) == pytest.approx(head)
-    assert math.dist(start, shaft_end) + math.dist(shaft_end, end) == pytest.approx(length)
-    assert math.dist(left, right) == pytest.approx(head)
-    assert math.dist(left, shaft_end) == pytest.approx(head / 2)
-    assert math.dist(right, shaft_end) == pytest.approx(head / 2)
+    neck = min(max(width, length / 20), 3 * width)
+    head = min(3 * neck, length / 2)
+    tail, neck_l, wing_l, tip, wing_r, neck_r = arrow_shape(start, end, width)
+    assert tail == pytest.approx(start) and tip == pytest.approx(end)
+    base = _mid(wing_l, wing_r)
+    assert math.dist(base, end) == pytest.approx(head)
+    assert math.dist(start, base) + math.dist(base, end) == pytest.approx(length)
+    assert math.dist(wing_l, wing_r) == pytest.approx(1.2 * head)
+    assert _mid(neck_l, neck_r) == pytest.approx(base, abs=1e-6)
+    assert math.dist(neck_l, neck_r) == pytest.approx(min(neck, 0.6 * head))
+    assert (_side(start, end, neck_l) > 0) == (_side(start, end, wing_l) > 0)
 
 
 # --- toolbar_place --------------------------------------------------------------------

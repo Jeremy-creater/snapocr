@@ -114,7 +114,7 @@ def pen_mark(points: Sequence[Point], style: Style, dpr: float) -> Mark | None:
     return Mark(Tool.PEN, tuple(kept), style.color, scaled(WIDTH_LEVELS[style.level], dpr))
 
 
-_STROKED = (Tool.RECT, Tool.ELLIPSE, Tool.ARROW, Tool.PEN)
+_STROKED = (Tool.RECT, Tool.ELLIPSE, Tool.PEN)
 
 
 def mark_bounds(mark: Mark) -> Rect:
@@ -122,6 +122,10 @@ def mark_bounds(mark: Mark) -> Rect:
     if mark.tool is Tool.NUMBER:
         (cx, cy), r = mark.points[0], mark.size / 2
         x0, y0, x1, y1 = math.floor(cx - r), math.floor(cy - r), math.ceil(cx + r), math.ceil(cy + r)
+    elif mark.tool is Tool.ARROW:
+        shape = arrow_shape(mark.points[0], mark.points[1], mark.size)
+        xs, ys = [x for x, _ in shape], [y for _, y in shape]
+        x0, y0, x1, y1 = math.floor(min(xs)), math.floor(min(ys)), math.ceil(max(xs)), math.ceil(max(ys))
     else:
         xs, ys = [x for x, _ in mark.points], [y for _, y in mark.points]
         pad = math.ceil(mark.size / 2) if mark.tool in _STROKED else 0
@@ -173,24 +177,33 @@ class Board:
         return True
 
 
-def arrow_head(
-    start: Point, end: Point, width: int
-) -> tuple[tuple[float, float], tuple[tuple[float, float], tuple[float, float], tuple[float, float]]]:
-    """The shaft's end and the head triangle (tip, left, right) of an arrow from ``start`` to ``end``.
+FloatPoint = tuple[float, float]
 
-    The head is ``max(10, 4 * width)`` long, or the whole arrow when that is
-    shorter, and as wide as it is long; the shaft stops at its base so a
-    thick line never pokes out of the tip.
+
+def arrow_shape(start: Point, end: Point, width: int) -> tuple[FloatPoint, ...]:
+    """The filled outline of an arrow from ``start`` to ``end`` (F14-9, plan D16).
+
+    Six points: the sharp tail (``start``), the left of the neck, the left
+    wing, the tip (``end``), the right wing, the right of the neck. The neck
+    is ``length / 20`` wide, kept within ``width`` .. ``3 * width``; the head
+    is three necks long (at most half the arrow) and 1.2 times as wide as it
+    is long. Long arrows come out bolder.
     """
     length = math.dist(start, end)
     if length == 0:
         raise ValueError("an arrow needs a length > 0")
-    head = min(length, max(10, 4 * width))
+    neck = min(max(width, length / 20), 3 * width)
+    head = min(3 * neck, length / 2)
+    wing, half = 0.6 * head, min(neck / 2, 0.3 * head)
     ux, uy = (end[0] - start[0]) / length, (end[1] - start[1]) / length
     bx, by = end[0] - ux * head, end[1] - uy * head
-    half = head / 2
-    tip = (float(end[0]), float(end[1]))
-    return (bx, by), (tip, (bx - uy * half, by + ux * half), (bx + uy * half, by - ux * half))
+    px, py = -uy, ux  # left of the direction
+
+    def side(d: float) -> FloatPoint:
+        return (bx + px * d, by + py * d)
+
+    tail, tip = (float(start[0]), float(start[1])), (float(end[0]), float(end[1]))
+    return (tail, side(half), side(wing), tip, side(-wing), side(-half))
 
 
 def _clamp(v: int, lo: int, hi: int) -> int:

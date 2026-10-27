@@ -15,7 +15,7 @@ import math
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QImage, QPainter, QPainterPath, QPen, QPolygonF
 
-from snapocr.annotate import FONT_LEVELS, Mark, Style, Tool, arrow_head, scaled
+from snapocr.annotate import FONT_LEVELS, Mark, Style, Tool, arrow_shape, scaled
 from snapocr.geometry import Point
 
 TEXT_FAMILY = "Microsoft YaHei UI"
@@ -91,12 +91,9 @@ def _paint(painter: QPainter, mark: Mark, base: QImage, origin: Point) -> None:
     elif mark.tool is Tool.ELLIPSE:
         painter.drawEllipse(_box(mark))
     elif mark.tool is Tool.ARROW:
-        start, end = mark.points
-        shaft_end, head = arrow_head(start, end, mark.size)
-        painter.drawLine(QPointF(*start), QPointF(*shaft_end))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(color))
-        painter.drawPolygon(QPolygonF([QPointF(*p) for p in head]))
+        painter.drawPolygon(QPolygonF([QPointF(*p) for p in arrow_shape(*mark.points, mark.size)]))
     elif mark.tool is Tool.NUMBER:
         (cx, cy), r = mark.points[0], mark.size / 2
         painter.setPen(Qt.PenStyle.NoPen)
