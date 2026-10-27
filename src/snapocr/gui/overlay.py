@@ -10,6 +10,8 @@ With ``annotate=True`` (the capture action, PRD F14) an adjusted selection
 gets the annotation toolbar. While no tool is picked and nothing is drawn the
 selection still adjusts as before; after that it is fixed (F14-3) and drags
 inside it draw marks (``snapocr.annotate``, drawn by ``marks_paint``).
+The text tool opens a line editor at the click instead (F14-5); Enter or a
+click elsewhere keeps the text, Esc drops only the text.
 """
 
 from __future__ import annotations
@@ -17,11 +19,11 @@ from __future__ import annotations
 import math
 from enum import Enum
 
-from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent, QPen
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QLineEdit, QWidget
 
-from snapocr.annotate import DEFAULT_STYLE, Board, Mark, Style, Tool, drag_mark, toolbar_place
+from snapocr.annotate import DEFAULT_STYLE, FONT_LEVELS, Board, Mark, Style, Tool, drag_mark, toolbar_place
 from snapocr.geometry import (
     Handle,
     Point,
@@ -36,11 +38,13 @@ from snapocr.geometry import (
     selection_rect,
 )
 from snapocr.gui.annotate_toolbar import AnnotateToolbar
-from snapocr.gui.marks_paint import paint_marks
+from snapocr.gui.marks_paint import paint_marks, text_font, text_mark
 
 HANDLE_SIZE = 7  # logical px, drawn centred on corners and edge midpoints
 HANDLE_MARGIN = 5  # border and handles stay within this many logical px of the edges
 TOOLBAR_GAP = 6  # logical px between the selection and the toolbar (M4 plan D12)
+EDITOR_INSET = (3, 2)  # logical px from the editor's corner to where its text starts
+EDITOR_MIN_WIDTH = 40  # logical px
 _DIM = QColor(0, 0, 0, 110)
 _BORDER = QColor(30, 144, 255)
 
@@ -66,6 +70,21 @@ class OverlayState(Enum):
 
 def _inside(rect: Rect, p: Point) -> bool:
     return rect.x <= p[0] <= rect.x + rect.w and rect.y <= p[1] <= rect.y + rect.h
+
+
+class TextEditor(QLineEdit):
+    """The line editor of the text tool: Enter keeps, Esc drops; neither reaches the overlay."""
+
+    committed = Signal()
+    discarded = Signal()
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.committed.emit()
+        elif event.key() == Qt.Key.Key_Escape:
+            self.discarded.emit()
+        else:
+            super().keyPressEvent(event)
 
 
 class SelectionOverlay(QWidget):
@@ -96,15 +115,18 @@ class SelectionOverlay(QWidget):
         self._board = Board()
         self._drawing: Point | None = None  # press point of the mark being drawn
         self._draft: Mark | None = None
+        self._editor: TextEditor | None = None
+        self._editor_at: Point = (0, 0)  # physical top-left of the text being typed
         self.toolbar: AnnotateToolbar | None = None
         if annotate:
             self.toolbar = AnnotateToolbar(style, self)
             self.toolbar.hide()
             self.toolbar.tool_changed.connect(self._tool_changed)
             self.toolbar.style_changed.connect(self.style_changed)
+            self.toolbar.style_changed.connect(self._style_editor)
             self.toolbar.undo_requested.connect(self._undo)
             self.toolbar.cancel_requested.connect(lambda: self._finish(None))
-            self.toolbar.done_requested.connect(self._confirm)
+            self.toolbar.done_requested.connect(self._done)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setMouseTracking(True)
@@ -125,6 +147,11 @@ class SelectionOverlay(QWidget):
         """The finished marks, in drawing order (physical pixels)."""
         return self._board.marks
 
+    @property
+    def editor(self) -> TextEditor | None:
+        """The open text editor (F14-5), if any."""
+        return self._editor
+
     def abandon(self) -> None:
         """Stop reacting to input without emitting anything (the session ended elsewhere)."""
         self._state = OverlayState.FINISHED
@@ -143,6 +170,7 @@ class SelectionOverlay(QWidget):
         return self._tool is not None or bool(self._board.marks)
 
     def _tool_changed(self, tool: Tool | None) -> None:
+        self._close_editor(keep=True)
         self.setCursor(Qt.CursorShape.CrossCursor if tool is not None else Qt.CursorShape.ArrowCursor)
         self.update()
 
@@ -154,6 +182,49 @@ class SelectionOverlay(QWidget):
         assert self.toolbar is not None
         self.toolbar.set_undo_enabled(self._board.can_undo)
         self.update()
+
+    def _open_editor(self, p: Point) -> None:
+        self._editor_at = p
+        x, y = physical_to_local(self._screen, *p)
+        editor = TextEditor(self)
+        editor.setObjectName("text-edit")
+        editor.setFont(text_font(FONT_LEVELS[self.toolbar.style.level]))
+        editor.textChanged.connect(self._fit_editor)
+        editor.committed.connect(lambda: self._close_editor(keep=True))
+        editor.discarded.connect(lambda: self._close_editor(keep=False))
+        editor.move(QPoint(round(x) - EDITOR_INSET[0], round(y) - EDITOR_INSET[1]))
+        self._editor = editor
+        self._style_editor(self.toolbar.style)
+        self._fit_editor()
+        editor.show()
+        editor.setFocus()
+
+    def _style_editor(self, style: Style) -> None:
+        if self._editor is not None:
+            self._editor.setFont(text_font(FONT_LEVELS[style.level]))
+            self._editor.setStyleSheet(
+                f"QLineEdit {{ color: {style.color}; background: transparent;"
+                f" border: 1px dashed {style.color}; padding: 0px; }}"
+            )
+            self._fit_editor()
+
+    def _fit_editor(self) -> None:
+        editor = self._editor
+        width = editor.fontMetrics().horizontalAdvance(editor.text()) + 4 * EDITOR_INSET[0]
+        editor.resize(max(EDITOR_MIN_WIDTH, width), editor.sizeHint().height())
+
+    def _close_editor(self, *, keep: bool) -> None:
+        editor, self._editor = self._editor, None
+        if editor is None:
+            return
+        if keep:
+            mark = text_mark(editor.text(), self._editor_at, self.toolbar.style, self._screen.dpr)
+            if mark is not None:
+                self._board.add(mark)
+        editor.hide()
+        editor.deleteLater()
+        self.setFocus()
+        self._marks_changed()
 
     def _place_toolbar(self) -> None:
         if self.toolbar is None:
@@ -179,6 +250,10 @@ class SelectionOverlay(QWidget):
         else:
             self.selected.emit(rect)
 
+    def _done(self) -> None:
+        self._close_editor(keep=True)
+        self._confirm()
+
     def _confirm(self) -> None:
         if self._state is OverlayState.ADJUSTING and self._drag is None and self._drawing is None:
             self._finish(self._rect)
@@ -199,7 +274,11 @@ class SelectionOverlay(QWidget):
             return
         p = self._point(event)
         if self._state is OverlayState.ADJUSTING and self._locked:
-            if self._tool is not None and _inside(self._rect, p):
+            if self._editor is not None:  # a click elsewhere keeps the text (F14-5)
+                self._close_editor(keep=True)
+            elif self._tool is Tool.TEXT and _inside(self._rect, p):
+                self._open_editor(p)
+            elif self._tool is not None and _inside(self._rect, p):
                 self._drawing = p
             return
         handle = Handle.NONE
@@ -267,7 +346,9 @@ class SelectionOverlay(QWidget):
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if self._state is OverlayState.FINISHED:
             return
-        if event.key() == Qt.Key.Key_Escape:
+        if self._editor is not None and event.key() in (Qt.Key.Key_Escape, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._close_editor(keep=event.key() != Qt.Key.Key_Escape)  # the editor lost focus; same rules
+        elif event.key() == Qt.Key.Key_Escape:
             self._finish(None)
         elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._confirm()

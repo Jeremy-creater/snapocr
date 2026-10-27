@@ -11,9 +11,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QImage, QPainter, QPen, QPolygonF
 
-from snapocr.annotate import Mark, Tool, arrow_head
+from snapocr.annotate import FONT_LEVELS, Mark, Style, Tool, arrow_head, scaled
 from snapocr.geometry import Point
 
 TEXT_FAMILY = "Microsoft YaHei UI"
@@ -24,6 +24,20 @@ def text_font(size: int) -> QFont:
     font = QFont(TEXT_FAMILY)
     font.setPixelSize(size)
     return font
+
+
+def text_mark(text: str, top_left: Point, style: Style, dpr: float) -> Mark | None:
+    """A text mark at ``top_left`` (physical); its second point is the far corner of the text (plan D9).
+
+    Leading and trailing blanks are dropped; nothing left gives ``None`` (F14-5).
+    """
+    text = text.strip()
+    if not text:
+        return None
+    size = scaled(FONT_LEVELS[style.level], dpr)
+    metrics = QFontMetrics(text_font(size))
+    far = (top_left[0] + metrics.horizontalAdvance(text), top_left[1] + metrics.height())
+    return Mark(Tool.TEXT, (top_left, far), style.color, size, text)
 
 
 def _box(mark: Mark) -> QRectF:
