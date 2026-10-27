@@ -40,7 +40,8 @@
 - 纯逻辑（后处理、翻译方向判断、热键字符串解析、坐标换算、配置解析）与 I/O（HTTP、剪贴板、截图、热键注册）分开，纯逻辑必须可在无 OCR 模型、无翻译服务、无 GUI 的环境下测试。
 - 全局热键用 Win32 `RegisterHotKey`（`ctypes`），不引入第三方热键库。
 - 开机自启动用标准库 `winreg` 写当前用户的 Run 键，封装放在 `snapocr.gui.platform`；`gui` 车道测试只写单独的测试键（`HKCU\Software\snapocr-gui-test\...`），跑完删除，不碰真实的 Run 键（2026-10-26，M3 F11-6）。
-- 截图标注（M4 F14）：纯逻辑放 `snapocr.annotate`（不 import Qt）：标注数据、撤销栈、箭头和序号的几何、工具栏位置、贴图缩放；绘制放 `snapocr.gui`，遮罩里的预览和输出图片共用同一个绘制函数，unit 车道在 offscreen 下画到真实图片上检查像素。标注和贴图只在内存里，不写硬盘（2026-10-27）。
+- 截图标注（M4 F14）：纯逻辑放 `snapocr.annotate`（不 import Qt）：标注数据、撤销栈、箭头和序号的几何、工具栏位置、贴图缩放；绘制放 `snapocr.gui`，遮罩里的预览和输出图片共用同一个绘制函数，unit 车道在 offscreen 下画到真实图片上检查像素。标注和贴图只在内存里，不写硬盘（2026-10-27）。唯一例外是 F17 截图保存：用户点“保存”时把图片写进保存目录（`[capture] save_dir`）；写文件和起文件名放 `snapocr.actions.saving`（不 import Qt），测试一律写 `tmp_path`（2026-10-27，PRD v1.0）。
+- 表格 OCR（M4 F16）：行列推断、Markdown / HTML 生成是纯逻辑，放 `snapocr.postprocess.table`；剪贴板同时放 HTML 和纯文本，写入在 `snapocr.gui.clipboard`。
 - 写回配置文件用 `tomlkit`（M3 F11-4），只在 `snapocr.config` 里使用；读取仍用标准库 `tomllib`。
 - 包结构：`src/snapocr/`（src layout）。
 
