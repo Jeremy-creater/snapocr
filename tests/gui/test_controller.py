@@ -38,10 +38,12 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QToolButton
 
 from snapocr.actions.flows import FlowDeps
 from snapocr.actions.messages import preview
 from snapocr.actions.outcomes import Done, Failed, Translating
+from snapocr.annotate import DEFAULT_STYLE, PALETTE, Mark, Style, Tool
 from snapocr.commands import Command
 from snapocr.config.schema import AppConfig, ConfigIssue
 from snapocr.config.template import DEFAULT_TEMPLATE
@@ -51,6 +53,7 @@ from snapocr.engines.types import OcrResult
 from snapocr.geometry import Rect, ScreenInfo, logical_rect, place_popup
 from snapocr.gui.controller import AppController
 from snapocr.gui.imageops import crop, decode_png
+from snapocr.gui.marks_paint import render_marked
 from snapocr.hotkeys import hotkey_id, parse_hotkey
 from snapocr.postprocess import PostprocessOptions, Replacements, postprocess
 from snapocr.translators.types import TranslationResult
@@ -955,3 +958,77 @@ def test_the_real_debug_directory_is_the_default():
     import inspect
 
     assert inspect.signature(AppController).parameters["debug_dir"].default == DEBUG_DIR
+
+
+# --- M4 WI-6: annotation on the capture action (PRD F14-1, F14-4, F14-7; plan D13) -----------------
+#
+# Pinned here:
+# - Only CAPTURE opens overlays in annotation mode (each has a toolbar); OCR,
+#   TRANSLATE and CODE_OCR overlays have none.
+# - Confirming a capture with marks puts ``render_marked(crop, marks, selection
+#   origin)`` on the clipboard: the marks of the confirmed overlay, in physical px.
+# - The last style picked on any capture toolbar is the starting style of the
+#   next capture (memory only); it starts as DEFAULT_STYLE.
+
+
+def annotate_tb(overlay, name):
+    assert overlay.toolbar is not None, "no toolbar"
+    found = overlay.toolbar.findChild(QToolButton, name)
+    assert found is not None, name
+    return found
+
+
+def test_only_capture_overlays_have_a_toolbar(make):
+    h = make()
+    h.controller.run(Command.CAPTURE)
+    assert all(o.toolbar is not None for o in h.controller.overlays)
+    qi.key(h.controller.overlays[0], Qt.Key.Key_Escape)
+    for command in (Command.OCR, Command.TRANSLATE, Command.CODE_OCR):
+        h.controller.run(command)
+        assert all(o.toolbar is None for o in h.controller.overlays), command
+        qi.key(h.controller.overlays[0], Qt.Key.Key_Escape)
+
+
+def test_capture_with_marks_puts_the_marked_image_on_clipboard(make, clipboard):
+    h = make()
+    h.controller.run(Command.CAPTURE)
+    overlay = h.controller.overlays[0]
+    qi.drag(overlay, 10, 20, 210, 170)
+    annotate_tb(overlay, "tool-rect").click()
+    qi.drag(overlay, 30, 40, 120, 100)
+    qi.key(overlay, Qt.Key.Key_Return)
+    marks = (Mark(Tool.RECT, ((30, 40), (120, 100)), PALETTE[0], 4),)
+    expected = render_marked(crop(h.capture.image, Rect(10, 20, 200, 150)), marks, (10, 20))
+    got = decode_png(bytes(clipboard.mimeData().data("image/png")))
+    assert pixels(got) == pixels(expected)
+    assert got.pixelColor(20, 50).name() == PALETTE[0]  # the left edge at physical (30, 70)
+    assert h.titles() == ["已复制截图"]
+
+
+def test_capture_with_marks_on_the_scaled_screen(make, clipboard):
+    h = make()
+    h.controller.run(Command.CAPTURE)
+    overlay = h.controller.overlays[1]
+    qi.drag(overlay, 10, 10, 110, 60)
+    annotate_tb(overlay, "tool-arrow").click()
+    qi.drag(overlay, 20, 20, 100, 50)
+    marks = overlay.marks
+    assert marks and marks[0].size == 6  # 4 logical px at 150%
+    qi.key(overlay, Qt.Key.Key_Return)
+    expected = render_marked(crop(h.capture.image, Rect(815, 15, 150, 75)), marks, (815, 15))
+    assert pixels(decode_png(bytes(clipboard.mimeData().data("image/png")))) == pixels(expected)
+
+
+def test_style_is_remembered_between_captures(make):
+    h = make()
+    h.controller.run(Command.CAPTURE)
+    assert all(o.toolbar.style == DEFAULT_STYLE for o in h.controller.overlays)
+    overlay = h.controller.overlays[1]
+    qi.drag(overlay, 10, 10, 110, 60)
+    annotate_tb(overlay, "color-4").click()
+    annotate_tb(overlay, "level-2").click()
+    qi.key(overlay, Qt.Key.Key_Escape)
+    h.controller.run(Command.OCR)
+    qi.key(h.controller.overlays[0], Qt.Key.Key_Escape)
+    h.controller.run(Command.CAPTURE)
+    assert all(o.toolbar.style == Style(PALETTE[4], 2) for o in h.controller.overlays)

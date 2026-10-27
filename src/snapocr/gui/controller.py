@@ -1,5 +1,8 @@
 """Application controller: commands, capture sessions, jobs and what they show (F5, F7, F8, F9-3, F10, F11).
 
+The capture action's overlays are in annotation mode (F14); the last style
+picked there is remembered for the next capture, in memory only (M4 plan D13).
+
 Everything here runs on the GUI thread. OCR and translation run as jobs on
 the ``JobRunner`` worker; their events come back through ``EventBridge``.
 Desktop access (capture, notices, hotkeys, start at login, opening files,
@@ -33,6 +36,7 @@ from snapocr.actions.runner import (
     ocr_job,
     translate_job,
 )
+from snapocr.annotate import DEFAULT_STYLE, Style
 from snapocr.commands import Command
 from snapocr.config.files import load_config_file
 from snapocr.config.schema import AppConfig, ConfigIssue
@@ -44,6 +48,7 @@ from snapocr.gui.boundaries import Autostart, Capture, CaptureError, CaptureProv
 from snapocr.gui.bridge import EventBridge
 from snapocr.gui.history_window import LastResultWindow
 from snapocr.gui.imageops import crop, encode_png
+from snapocr.gui.marks_paint import render_marked
 from snapocr.gui.overlay import OverlaySession, SelectionOverlay
 from snapocr.gui.popup import TranslationPopup
 from snapocr.gui.settings_window import SettingsWindow
@@ -102,6 +107,7 @@ class AppController(QObject):
         self._report = RegistrationReport()
         self._session: OverlaySession | None = None
         self._overlays: tuple[SelectionOverlay, ...] = ()
+        self._style: Style = DEFAULT_STYLE  # annotation colour and size (F14-4)
         self._anchors: dict[int, tuple[Rect, Rect]] = {}  # translate job -> (anchor, available), logical
         self._quitting = False
         self._paused = False  # hotkeys released while the settings window is open (plan D5)
@@ -178,11 +184,20 @@ class AppController(QObject):
         except CaptureError as err:
             self._notifier.notify(messages.capture_failed_notice(str(err)))
             return
-        overlays = tuple(SelectionOverlay(crop(cap.image, crop_box(s.physical, cap.origin)), s) for s in cap.screens)
+        annotate = command is Command.CAPTURE
+        overlays = tuple(
+            SelectionOverlay(crop(cap.image, crop_box(s.physical, cap.origin)), s, annotate=annotate, style=self._style)
+            for s in cap.screens
+        )
+        for overlay in overlays:
+            overlay.style_changed.connect(self._remember_style)
         session = OverlaySession(list(overlays), self)
         session.result.connect(lambda rect: self._on_selection(command, cap, rect))
         self._session, self._overlays = session, overlays
         session.start()
+
+    def _remember_style(self, style: Style) -> None:
+        self._style = style
 
     def _end_session(self) -> None:
         for overlay in self._overlays:
@@ -194,10 +209,14 @@ class AppController(QObject):
         self._session, self._overlays = None, ()
 
     def _on_selection(self, command: Command, cap: Capture, rect: Rect | None) -> None:
+        marks = self._session.marks  # only a capture overlay can have any (F14)
         self._end_session()
         if rect is None:  # F6-3: cancelled, nothing changes
             return
-        png = encode_png(crop(cap.image, crop_box(rect, cap.origin)))
+        image = crop(cap.image, crop_box(rect, cap.origin))
+        if marks:
+            image = render_marked(image, marks, (rect.x, rect.y))
+        png = encode_png(image)
         if command is Command.CAPTURE:
             self._land(capture_flow(png))
         elif command is Command.OCR:
