@@ -7,7 +7,9 @@ are handled here; anything else propagates to the job runner (WI-11).
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from pathlib import Path
 
 from snapocr.actions.messages import (
     NOTHING_TO_TRANSLATE,
@@ -29,11 +31,14 @@ from snapocr.actions.outcomes import (
     Outcome,
     TranslateOutcome,
 )
+from snapocr.app import DEFAULT_LOG_DIR, LOG_FILE_NAME
 from snapocr.engines.errors import EngineLoadError, OcrError
 from snapocr.engines.holder import EngineHolder
 from snapocr.postprocess import PostprocessOptions, Replacements, postprocess
 from snapocr.translators.errors import TranslationError
 from snapocr.translators.types import Translator
+
+_log = logging.getLogger(__name__)
 
 # Plan A1: the "raw" OCR text in F10 is layout only, without replacements.
 _LAYOUT_ONLY = PostprocessOptions(paragraphs=False, spacing=False, punctuation=False)
@@ -44,6 +49,7 @@ class FlowDeps:
     engine: EngineHolder
     options: PostprocessOptions
     replacements: Replacements
+    log_file: Path = DEFAULT_LOG_DIR / LOG_FILE_NAME
 
 
 def capture_flow(png: bytes) -> Outcome:
@@ -56,7 +62,9 @@ def _ocr(png: bytes, deps: FlowDeps) -> OcrStage | Outcome:
     try:
         engine = deps.engine.get()
     except EngineLoadError as err:
-        return Outcome(NoClipboardChange(), engine_failed_notice(err), HistoryRecord(png, "", "", error=str(err)))
+        # F7-4: the full story (paths, fix command, cause) goes to the log; never OCR text.
+        _log.warning("OCR engine failed to load: %s", err)
+        return Outcome(NoClipboardChange(), engine_failed_notice(err, deps.log_file), HistoryRecord(png, "", "", error=str(err)))
     try:
         result = engine.recognize(png)
     except OcrError as err:

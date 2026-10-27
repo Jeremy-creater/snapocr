@@ -11,6 +11,8 @@ Pinned here:
   notice, no popup message and no recorded error contains the marker.
 """
 
+import dataclasses
+import logging
 from pathlib import Path
 
 import pytest
@@ -38,6 +40,7 @@ from snapocr.actions.outcomes import (
     Outcome,
     TranslateOutcome,
 )
+from snapocr.app import DEFAULT_LOG_DIR, LOG_FILE_NAME
 from snapocr.engines.config import OcrEngineConfig
 from snapocr.engines.errors import EngineLoadError, EngineRuntimeError, InvalidImageError, InvalidImageReason
 from snapocr.engines.holder import EngineHolder
@@ -102,16 +105,43 @@ def test_ocr_empty(result):
 
 def test_ocr_engine_load_error():
     out = ocr_flow(PNG, deps(load_error=LOAD_ERROR))
-    assert out == Outcome(NoClipboardChange(), engine_failed_notice(LOAD_ERROR),
+    assert out == Outcome(NoClipboardChange(), engine_failed_notice(LOAD_ERROR, DEFAULT_LOG_DIR / LOG_FILE_NAME),
                           HistoryRecord(PNG, "", "", error=str(LOAD_ERROR)))
 
 
 def test_ocr_factory_crash_becomes_load_error():
+    # M3 WI-9: the cause is in the record and the log, no longer in the notice.
     out = ocr_flow(PNG, deps(load_error=RuntimeError("dll missing")))
     assert out.clipboard == NoClipboardChange()
     assert out.notice.title == "OCR 引擎加载失败"
-    assert "dll missing" in out.notice.body
+    assert out.notice.body.startswith("OCR 引擎没能初始化\n")
     assert "dll missing" in out.record.error
+
+
+def test_engine_load_error_notice_names_the_log_file_of_the_deps():
+    log_file = Path("E:/elsewhere/snap.log")
+    d = dataclasses.replace(deps(load_error=LOAD_ERROR), log_file=log_file)
+    assert ocr_flow(PNG, d).notice == engine_failed_notice(LOAD_ERROR, log_file)
+
+
+@pytest.mark.parametrize("run", ["ocr", "translate"])
+def test_engine_load_error_is_logged_in_full(caplog, run):
+    # M3 WI-9 (F7-4): the fix command and every model path go to the log.
+    err = EngineLoadError(["D:/m/det.onnx", "D:/m/rec.onnx"], "run `uv pip install --reinstall rapidocr`",
+                          detail="OSError: file not found")
+    with caplog.at_level(logging.WARNING, logger="snapocr.actions.flows"):
+        if run == "ocr":
+            ocr_flow(PNG, deps(load_error=err))
+        else:
+            translate_ocr_stage(PNG, deps(load_error=err))
+    records = [r for r in caplog.records if r.name == "snapocr.actions.flows"]
+    assert [(r.levelno, r.getMessage()) for r in records] == [(logging.WARNING, f"OCR engine failed to load: {err}")]
+
+
+def test_successful_ocr_logs_nothing(caplog):
+    with caplog.at_level(logging.DEBUG, logger="snapocr.actions.flows"):
+        ocr_flow(PNG, deps())
+    assert [r for r in caplog.records if r.name == "snapocr.actions.flows"] == []
 
 
 @pytest.mark.parametrize("err", RECOGNIZE_ERRORS, ids=["runtime", "invalid-image"])
@@ -133,9 +163,11 @@ def test_ocr_real_engine_missing_models():
     out = ocr_flow(PNG, FlowDeps(holder, PostprocessOptions(), Replacements.EMPTY))
     assert out.clipboard == NoClipboardChange()
     assert out.notice.title == "OCR 引擎加载失败"
-    assert str(missing / "PP-OCRv6_det_small.onnx") in out.notice.body
-    assert "uv pip install" in out.notice.body
-    assert str(missing) in out.record.error
+    # M3 WI-9: the notice names the file; the paths and the fix command are in the record (and the log).
+    assert out.notice.body.startswith("模型文件缺失或损坏：PP-OCRv6_det_small.onnx 等 3 个\n")
+    assert "uv pip install" not in out.notice.body
+    assert str(missing / "PP-OCRv6_det_small.onnx") in out.record.error
+    assert "uv pip install" in out.record.error
 
 
 # --- translate -------------------------------------------------------------------

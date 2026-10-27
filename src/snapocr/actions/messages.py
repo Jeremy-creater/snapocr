@@ -6,7 +6,9 @@ which shows the 30-character preview that F7-2 asks for.
 
 from __future__ import annotations
 
+import ntpath
 import os
+from pathlib import Path
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 
@@ -49,29 +51,31 @@ def ocr_empty_notice() -> Notice:
     return Notice("未识别到文字", _UNCHANGED)
 
 
-# A fix line is never cut shorter than this, even next to a very long first path.
-_MIN_FIX = 40
+# A model file name longer than this is cut (ending with "…").
+_MAX_FILE_NAME = 60
 
 
-def engine_failed_notice(err: EngineLoadError) -> Notice:
-    """Fix, then model files, then the cause; the full ``str(err)`` goes to the log.
+def engine_failed_notice(err: EngineLoadError, log_file: Path) -> Notice:
+    """A short reason, then the log file (F7-4, M3 WI-9).
 
-    The fix and the first model path always fit: when they do not fit together,
-    the fix is shortened (ending with "…") so the first path stays whole.
-    Further paths and the cause fill what is left.
+    The fix command, every model path and the cause are in the log (written by
+    ``actions.flows``) and in the "last result" record, not here: the real fix
+    command alone is about 200 code points. The log path always shows whole;
+    the reason is shortened to make room for it.
     """
-    fix = f"修复：{err.hint}"
-    parts = []
     if err.model_paths:
-        paths = [os.fspath(p) for p in err.model_paths]
-        # One more for the "…" that Notice adds if later paths or the cause are cut.
-        room = max(_MIN_FIX, NOTICE_BODY_MAX - len(f"\n模型文件：{paths[0]}") - 1)
-        if len(fix) > room:
-            fix = fix[: room - 1] + "…"
-        parts.append("模型文件：" + "；".join(paths))
-    if err.detail:
-        parts.append(f"原因：{err.detail}")
-    return Notice("OCR 引擎加载失败", "\n".join([fix, *parts]))
+        name = ntpath.basename(os.fspath(err.model_paths[0]))
+        if len(name) > _MAX_FILE_NAME:
+            name = name[: _MAX_FILE_NAME - 1] + "…"
+        more = f" 等 {len(err.model_paths)} 个" if len(err.model_paths) > 1 else ""
+        reason = f"模型文件缺失或损坏：{name}{more}"
+    else:
+        reason = "OCR 引擎没能初始化"
+    where = f"完整原因和修复命令见日志：{log_file}"
+    room = NOTICE_BODY_MAX - len(where) - 1
+    if len(reason) > room:
+        reason = reason[: max(room - 1, 0)] + "…"
+    return Notice("OCR 引擎加载失败", f"{reason}\n{where}")
 
 
 def ocr_failed_notice(err: OcrError) -> Notice:

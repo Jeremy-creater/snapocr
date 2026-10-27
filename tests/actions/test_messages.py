@@ -103,26 +103,48 @@ def test_ocr_empty_notice():
     assert "剪贴板" in ocr_empty_notice().body
 
 
-def test_engine_failed_notice_names_paths_and_fix():
-    err = EngineLoadError(["D:/m/PP-OCRv6_det_small.onnx", "D:/m/PP-OCRv6_rec_small.onnx"], "reinstall rapidocr")
-    n = engine_failed_notice(err)
-    assert "OCR" in n.title
-    assert "D:/m/PP-OCRv6_det_small.onnx" in n.body and "D:/m/PP-OCRv6_rec_small.onnx" in n.body
-    assert "reinstall rapidocr" in n.body
-    assert n.body.index("reinstall rapidocr") < n.body.index("D:/m/")
+LOG_FILE = Path("D:/DevLocal/runtime/snapocr/snapocr.log")
+REAL_HINT = r"missing, empty or not a file; run `uv pip install --python D:\DevLocal\envs\snapocr\Scripts\python.exe --reinstall rapidocr==3.10.0`, or set `model_dir` in the config to a directory holding the models"
 
 
-def test_engine_failed_notice_with_detail():
-    n = engine_failed_notice(EngineLoadError([], "fix it", detail="onnx session failed"))
-    assert "onnx session failed" in n.body and "fix it" in n.body
+def test_engine_failed_notice_names_the_missing_file_and_the_log():
+    # M3 WI-9 (F7-4, PRD 2026-10-27): a short reason and where the full story is.
+    err = EngineLoadError(["D:/m/PP-OCRv6_det_small.onnx"], REAL_HINT, detail="file not found")
+    n = engine_failed_notice(err, LOG_FILE)
+    assert n.title == "OCR 引擎加载失败"
+    assert n.body == f"模型文件缺失或损坏：PP-OCRv6_det_small.onnx\n完整原因和修复命令见日志：{LOG_FILE}"
 
 
-def test_engine_failed_notice_long_keeps_fix():
-    paths = [f"D:/very/long/path/{'x' * 80}/model{i}.onnx" for i in range(3)]
-    hint = "run `uv pip install --reinstall rapidocr==3.10.0`, or set `model_dir` in the config"
-    n = engine_failed_notice(EngineLoadError(paths, hint))
+def test_engine_failed_notice_counts_further_files():
+    err = EngineLoadError(["D:/m/det.onnx", "D:/m/cls.onnx", "D:/m/rec.onnx"], "reinstall rapidocr")
+    first = engine_failed_notice(err, LOG_FILE).body.split("\n")[0]
+    assert first == "模型文件缺失或损坏：det.onnx 等 3 个"
+
+
+def test_engine_failed_notice_without_paths():
+    n = engine_failed_notice(EngineLoadError([], "fix it", detail="RuntimeError: dll missing"), LOG_FILE)
+    assert n.body == f"OCR 引擎没能初始化\n完整原因和修复命令见日志：{LOG_FILE}"
+
+
+def test_engine_failed_notice_shortens_a_long_file_name():
+    name = "m" * 100 + ".onnx"
+    first = engine_failed_notice(EngineLoadError([f"D:/x/{name}"], "h"), LOG_FILE).body.split("\n")[0]
+    assert first == "模型文件缺失或损坏：" + name[:59] + "…"
+
+
+def test_engine_failed_notice_shortens_the_reason_for_a_long_log_path():
+    log_file = Path("D:/" + "d" * 190 + "/snapocr.log")
+    n = engine_failed_notice(EngineLoadError([f"D:/m/{'n' * 50}.onnx", "D:/m/b.onnx"], "h"), log_file)
+    reason, where = n.body.split("\n")
+    assert where == f"完整原因和修复命令见日志：{log_file}"
+    assert reason.startswith("模型文件缺失或损坏：nnn") and reason.endswith("…")
     assert len(n.body) == NOTICE_BODY_MAX
-    assert hint in n.body
+
+
+def test_engine_failed_notice_leaves_out_the_fix_and_the_cause():
+    # The fix command (~200 chars) was cut at 240 before; now it lives in the log only.
+    n = engine_failed_notice(EngineLoadError(["D:/m/det.onnx"], REAL_HINT, detail="onnx says no"), LOG_FILE)
+    assert "uv pip install" not in n.body and "onnx says no" not in n.body and "D:/m/" not in n.body
 
 
 def test_ocr_failed_notice():
@@ -191,7 +213,7 @@ texts = st.text(max_size=400)
     st.lists(st.builds(ConfigIssue, st.just(CFG), texts, texts), min_size=1, max_size=8))
 def test_every_notice_body_bounded(text, hint, paths, failures, issues):
     notices = [
-        ocr_ok_notice(text), ocr_empty_notice(), engine_failed_notice(EngineLoadError(paths, hint, detail=text)),
+        ocr_ok_notice(text), ocr_empty_notice(), engine_failed_notice(EngineLoadError(paths, hint, detail=text), LOG_FILE),
         ocr_failed_notice(EngineRuntimeError(text)), hotkey_failed_notice(failures), config_issues_notice(issues),
     ]
     for n in notices:
@@ -200,20 +222,12 @@ def test_every_notice_body_bounded(text, hint, paths, failures, issues):
         assert n.title and len(n.title) <= 40
 
 
-def test_engine_failed_notice_first_path_always_whole():
-    # Found in WI-9: the real fix hint is ~200 code points; the path must still show.
-    hint = "missing, empty or not a file; run `" + "u" * 220 + "`"
-    n = engine_failed_notice(EngineLoadError(["models/PP-OCRv6_det_small.onnx", "models/rec.onnx"], hint))
-    fix_line, paths_line = n.body.split("\n")[:2]
-    assert fix_line.startswith("修复：missing, empty or not a file") and fix_line.endswith("…")
-    assert paths_line.startswith("模型文件：models/PP-OCRv6_det_small.onnx")
+@given(texts, texts, st.lists(texts, max_size=4), st.text(min_size=1, max_size=150))
+def test_engine_failed_notice_always_shows_the_whole_log_path(hint, detail, paths, log_name):
+    log_file = Path("D:/DevLocal/runtime") / log_name.replace("/", "_").replace("\\", "_")
+    n = engine_failed_notice(EngineLoadError(paths, hint, detail=detail), log_file)
+    assert n.body.endswith(f"完整原因和修复命令见日志：{log_file}")
     assert len(n.body) <= NOTICE_BODY_MAX
-
-
-def test_engine_failed_notice_very_long_first_path_keeps_some_fix():
-    n = engine_failed_notice(EngineLoadError(["D:/" + "p" * 400], "reinstall rapidocr " * 10))
-    assert n.body.startswith("修复：reinstall rapidocr")
-    assert len(n.body) == NOTICE_BODY_MAX
 
 
 # --- WI-17: controller notices --------------------------------------------------------
