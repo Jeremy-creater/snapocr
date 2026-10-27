@@ -18,6 +18,7 @@ from hypothesis import strategies as st
 from snapocr.actions.messages import (
     COMMAND_LABELS,
     code_ok_notice,
+    table_ok_notice,
     config_issues_notice,
     engine_failed_notice,
     hotkey_failed_notice,
@@ -169,6 +170,7 @@ def test_command_labels():
         Command.CAPTURE: "截图", Command.OCR: "OCR", Command.TRANSLATE: "翻译",
         Command.LAST_RESULT: "上次结果", Command.SETTINGS: "设置…", Command.OPEN_CONFIG: "打开配置文件",
         Command.QUIT: "退出", Command.CODE_OCR: "代码 OCR",
+        Command.TABLE_OCR: "表格 OCR",
     }
 
 
@@ -352,3 +354,11 @@ def test_code_ok_notice_titles_the_code_and_follows_show_text():
     text = "def f():\n    return 1"
     assert code_ok_notice(text) == Notice("已复制代码", preview(text))
     assert code_ok_notice(text, show_text=False) == Notice("已复制代码", "共 14 个字")
+
+
+# --- M4 WI-15: table OCR (PRD F16-1) ---------------------------------------------
+
+
+def test_table_ok_notice_gives_rows_and_columns():
+    assert table_ok_notice(12, 3) == Notice("已复制表格", "12 行 × 3 列")
+    assert table_ok_notice(1, 1) == Notice("已复制表格", "1 行 × 1 列")

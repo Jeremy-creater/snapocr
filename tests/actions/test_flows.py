@@ -24,12 +24,14 @@ from snapocr.actions.flows import (
     capture_flow,
     code_ocr_flow,
     ocr_flow,
+    table_ocr_flow,
     translate_ocr_stage,
     translate_stage,
 )
 from snapocr.actions.messages import (
     NOTHING_TO_TRANSLATE,
     code_ok_notice,
+    table_ok_notice,
     engine_failed_notice,
     ocr_empty_notice,
     ocr_failed_notice,
@@ -38,6 +40,7 @@ from snapocr.actions.messages import (
 )
 from snapocr.actions.outcomes import (
     ClipboardPng,
+    ClipboardTable,
     ClipboardText,
     Done,
     Failed,
@@ -366,5 +369,53 @@ def test_code_ocr_flow_notice_without_text():
 def test_code_ocr_flow_failures_end_like_ocr(make_deps):
     d = make_deps()
     out = code_ocr_flow(PNG, d)
+    assert out == ocr_flow(PNG, make_deps())
+    assert out.clipboard == NoClipboardChange()
+
+
+# --- M4 WI-15: table OCR (PRD F16-1, F16-2; plan D23) ---------------------------------
+#
+# Pinned here: the clipboard holds ``to_markdown`` and ``to_html`` of
+# ``table_cells``; the record's ``text`` is the Markdown, ``raw`` the
+# layout-only text; the notice gives rows x columns; a result that leaves no
+# cell (nothing recognized, or only spreadsheet letters) and failed runs end
+# exactly like the OCR action.
+
+TABLE_RESULT = OcrResult((
+    rect("Name", 0, 0, 60, 20), rect("Qty", 200, 0, 240, 20),
+    rect("0CR", 0, 30, 40, 50), rect("3", 220, 30, 230, 50),
+    rect("Pear", 0, 60, 50, 80), rect("12", 215, 60, 235, 80),
+))
+TABLE_MD = "| Name | Qty |\n| --- | --- |\n| 0CR | 3 |\n| Pear | 12 |"  # no replacement table
+TABLE_HTML = (
+    "<table>\n<tr><td>Name</td><td>Qty</td></tr>\n<tr><td>0CR</td><td>3</td></tr>\n"
+    "<tr><td>Pear</td><td>12</td></tr>\n</table>"
+)
+
+
+def test_table_ocr_flow_copies_markdown_and_html():
+    out = table_ocr_flow(PNG, deps(TABLE_RESULT))
+    assert out == Outcome(
+        ClipboardTable(TABLE_MD, TABLE_HTML),
+        table_ok_notice(3, 2),
+        HistoryRecord(PNG, postprocess(TABLE_RESULT, LAYOUT_ONLY), TABLE_MD),
+    )
+    assert out.notice == Notice("已复制表格", "3 行 × 2 列")
+
+
+def test_table_ocr_flow_with_only_column_letters_is_empty():
+    letters = OcrResult((rect("A", 100, 0, 120, 20), rect("B", 200, 0, 220, 20)))
+    out = table_ocr_flow(PNG, deps(letters))
+    assert out == Outcome(NoClipboardChange(), ocr_empty_notice(),
+                          HistoryRecord(PNG, postprocess(letters, LAYOUT_ONLY), ""))
+
+
+@pytest.mark.parametrize("make_deps", [
+    lambda: deps(OcrResult(())),
+    lambda: deps(load_error=LOAD_ERROR),
+    lambda: deps(EngineRuntimeError("engine crashed")),
+], ids=["empty", "load-error", "recognize-error"])
+def test_table_ocr_flow_failures_end_like_ocr(make_deps):
+    out = table_ocr_flow(PNG, make_deps())
     assert out == ocr_flow(PNG, make_deps())
     assert out.clipboard == NoClipboardChange()

@@ -13,8 +13,11 @@ from snapocr.hotkeys import Hotkey, parse_hotkey
 from snapocr.postprocess import PostprocessOptions, Replacements
 from snapocr.translators.config import TranslatorConfig
 
-# Order: default hotkeys Alt+1, Alt+2, ...; tray menu and settings window rows (CODE_OCR: M3 F13-1).
-HOTKEY_COMMANDS = (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT, Command.CODE_OCR)
+# Order: default hotkeys Alt+1, Alt+2, ...; tray menu and settings window rows
+# (CODE_OCR: M3 F13-1; TABLE_OCR: M4 F16-1).
+HOTKEY_COMMANDS = (
+    Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT, Command.CODE_OCR, Command.TABLE_OCR,
+)
 DEFAULT_HOTKEY_TEXT: Mapping[Command, str] = MappingProxyType(
     {c: f"Alt+{n}" for n, c in enumerate(HOTKEY_COMMANDS, 1)}
 )

@@ -57,7 +57,8 @@ def window(qtbot):
 
 def test_title_rows_and_hint(window):
     assert window.windowTitle() == "snapocr 设置"
-    assert [window.hotkey_label(c) for c in HOTKEY_COMMANDS] == ["截图", "OCR", "翻译", "上次结果", "代码 OCR"]
+    assert [window.hotkey_label(c) for c in HOTKEY_COMMANDS] == ["截图", "OCR", "翻译", "上次结果", "代码 OCR",
+                                                                  "表格 OCR"]
     assert window.autostart_box.text() == "开机时自动启动 snapocr"
     assert [window.target_lang_box.itemData(i) for i in range(window.target_lang_box.count())] == ["auto", "zh", "en"]
     assert [b.text() for b in window.switch_boxes.values()] == [
@@ -74,7 +75,7 @@ def test_title_rows_and_hint(window):
 
 def test_load_shows_values(window):
     window.load(CUSTOM, True)
-    assert [window.hotkey_edits[c].text() for c in HOTKEY_COMMANDS] == ["Ctrl+F1", "Ctrl+F2", "Ctrl+F3", "", ""]
+    assert [window.hotkey_edits[c].text() for c in HOTKEY_COMMANDS] == ["Ctrl+F1", "Ctrl+F2", "Ctrl+F3", "", "", ""]
     assert window.autostart_box.isChecked()
     assert window.target_lang_box.currentData() == "en"
     assert window.model_edit.text() == "qwen3:8b"

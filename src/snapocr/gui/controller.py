@@ -35,6 +35,7 @@ from snapocr.actions.runner import (
     TranslateStarted,
     code_ocr_job,
     ocr_job,
+    table_ocr_job,
     translate_job,
 )
 from snapocr.annotate import DEFAULT_STYLE, Style
@@ -60,7 +61,7 @@ from snapocr.translators.config import TranslatorConfig
 from snapocr.translators.errors import TranslationError
 from snapocr.translators.types import Translator
 
-_CAPTURE_COMMANDS = (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.CODE_OCR)
+_CAPTURE_COMMANDS = (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.CODE_OCR, Command.TABLE_OCR)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -234,6 +235,8 @@ class AppController(QObject):
             self.runner.submit(ocr_job(png, self._deps))
         elif command is Command.CODE_OCR:
             self.runner.submit(code_ocr_job(png, self._deps))
+        elif command is Command.TABLE_OCR:
+            self.runner.submit(table_ocr_job(png, self._deps))
         else:
             job_id = self.runner.submit(translate_job(png, self._deps, self._translator))
             screen = screen_containing(rect, cap.screens)

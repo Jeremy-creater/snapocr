@@ -16,3 +16,4 @@ class Command(Enum):
     QUIT = "quit"
     SETTINGS = "settings"  # M3: added last so the existing ids stay
     CODE_OCR = "code_ocr"  # M3 WI-14 (F13-1): added last for the same reason
+    TABLE_OCR = "table_ocr"  # M4 WI-15 (F16-1): added last for the same reason

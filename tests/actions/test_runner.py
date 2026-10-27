@@ -34,7 +34,14 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from snapocr.actions.flows import FlowDeps, code_ocr_flow, ocr_flow, translate_ocr_stage, translate_stage
+from snapocr.actions.flows import (
+    FlowDeps,
+    code_ocr_flow,
+    ocr_flow,
+    table_ocr_flow,
+    translate_ocr_stage,
+    translate_stage,
+)
 from snapocr.actions.history import ResultHistory
 from snapocr.actions.outcomes import (
     ClipboardText,
@@ -54,6 +61,7 @@ from snapocr.actions.runner import (
     TranslateStarted,
     WarmedUp,
     code_ocr_job,
+    table_ocr_job,
     ocr_job,
     translate_job,
     warmup_job,
@@ -765,3 +773,16 @@ def test_without_on_record_nothing_changes(make_runner):
     runner, col = make_runner()
     runner.submit(outcome_job("a"))
     assert isinstance(col.wait_terminal(1)[0], OcrDone)
+
+
+def test_table_ocr_job_delivers_table_flow_outcome_and_records_it(make_runner):
+    # M4 WI-15 (F16-1): same event as OCR, with the table flow's outcome.
+    history = ResultHistory()
+    runner, col = make_runner(history=history)
+    d = deps()
+    job_id = runner.submit(table_ocr_job(PNG, d))
+    (event,) = col.wait_terminal(1)
+    expected = table_ocr_flow(PNG, d)
+    assert event == OcrDone(job_id, expected)
+    assert expected.notice.title == "已复制表格"
+    assert history.snapshot() == (expected.record,)

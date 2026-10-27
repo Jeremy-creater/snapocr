@@ -1,4 +1,6 @@
-"""The capture, OCR, code OCR and translate flows (PRD F7-1 to F7-6, F13-1). Synchronous; run on a worker thread.
+"""The capture, OCR, code OCR, table OCR and translate flows (PRD F7-1 to F7-6, F13-1, F16-1).
+
+Synchronous; run on a worker thread.
 
 Every OCR or translate run yields exactly one ``HistoryRecord`` (F7-6). The
 clipboard changes only on success. Only ``OcrError`` and ``TranslationError``
@@ -18,10 +20,12 @@ from snapocr.actions.messages import (
     ocr_empty_notice,
     ocr_failed_notice,
     ocr_ok_notice,
+    table_ok_notice,
     translation_error_text,
 )
 from snapocr.actions.outcomes import (
     ClipboardPng,
+    ClipboardTable,
     ClipboardText,
     Done,
     Failed,
@@ -35,8 +39,10 @@ from snapocr.actions.outcomes import (
 from snapocr.app import DEFAULT_LOG_DIR, LOG_FILE_NAME
 from snapocr.engines.errors import EngineLoadError, OcrError
 from snapocr.engines.holder import EngineHolder
+from snapocr.engines.types import OcrResult
 from snapocr.postprocess import PostprocessOptions, Replacements, postprocess
 from snapocr.postprocess.code import code_text
+from snapocr.postprocess.table import table_cells, to_html, to_markdown
 from snapocr.translators.errors import TranslationError
 from snapocr.translators.types import Translator
 
@@ -60,11 +66,8 @@ def capture_flow(png: bytes) -> Outcome:
     return Outcome(ClipboardPng(png), Notice("已复制截图", ""), None)
 
 
-def _ocr(png: bytes, deps: FlowDeps, *, code: bool = False) -> OcrStage | Outcome:
-    """OCR and post-processing; an ``Outcome`` when the run ends here (error or empty).
-
-    ``code``: the text is the F13 code layout instead of the F2 chain (no replacements).
-    """
+def _recognize(png: bytes, deps: FlowDeps) -> OcrResult | Outcome:
+    """Load the engine and recognize; an ``Outcome`` when either fails."""
     try:
         engine = deps.engine.get()
     except EngineLoadError as err:
@@ -72,9 +75,19 @@ def _ocr(png: bytes, deps: FlowDeps, *, code: bool = False) -> OcrStage | Outcom
         _log.warning("OCR engine failed to load: %s", err)
         return Outcome(NoClipboardChange(), engine_failed_notice(err, deps.log_file), HistoryRecord(png, "", "", error=str(err)))
     try:
-        result = engine.recognize(png)
+        return engine.recognize(png)
     except OcrError as err:
         return Outcome(NoClipboardChange(), ocr_failed_notice(err), HistoryRecord(png, "", "", error=str(err)))
+
+
+def _ocr(png: bytes, deps: FlowDeps, *, code: bool = False) -> OcrStage | Outcome:
+    """OCR and post-processing; an ``Outcome`` when the run ends here (error or empty).
+
+    ``code``: the text is the F13 code layout instead of the F2 chain (no replacements).
+    """
+    result = _recognize(png, deps)
+    if isinstance(result, Outcome):
+        return result
     raw = postprocess(result, _LAYOUT_ONLY)
     text = code_text(result) if code else postprocess(result, deps.options, deps.replacements)
     if not text:
@@ -98,6 +111,26 @@ def code_ocr_flow(png: bytes, deps: FlowDeps) -> Outcome:
         return stage
     notice = code_ok_notice(stage.text, deps.show_text)
     return Outcome(ClipboardText(stage.text), notice, HistoryRecord(png, stage.raw, stage.text))
+
+
+def table_ocr_flow(png: bytes, deps: FlowDeps) -> Outcome:
+    """F16-1, F16-2: the table goes to the clipboard as HTML and Markdown (no replacements; plan D23).
+
+    No cell left (nothing recognized, or only spreadsheet letters) ends like an empty OCR.
+    """
+    result = _recognize(png, deps)
+    if isinstance(result, Outcome):
+        return result
+    raw = postprocess(result, _LAYOUT_ONLY)
+    cells = table_cells(result)
+    if not cells:
+        return Outcome(NoClipboardChange(), ocr_empty_notice(), HistoryRecord(png, raw, ""))
+    markdown = to_markdown(cells)
+    return Outcome(
+        ClipboardTable(markdown, to_html(cells)),
+        table_ok_notice(len(cells), len(cells[0])),
+        HistoryRecord(png, raw, markdown),
+    )
 
 
 def translate_ocr_stage(png: bytes, deps: FlowDeps) -> OcrStage | Outcome:

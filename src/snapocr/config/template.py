@@ -34,6 +34,7 @@ _HOTKEY_HELP = {
     "translate": "截图、识别并翻译，译文复制到剪贴板",
     "last_result": "显示最近的结果",
     "code_ocr": "截图识别代码，保留换行和缩进，复制到剪贴板",
+    "table_ocr": "截图识别表格，表格（HTML）和 Markdown 文本一起复制到剪贴板",
 }
 
 

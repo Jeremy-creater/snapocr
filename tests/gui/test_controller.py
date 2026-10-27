@@ -133,7 +133,8 @@ class Harness:
 
     def menu_action(self, command):
         labels = {Command.CAPTURE: "截图", Command.OCR: "OCR", Command.TRANSLATE: "翻译", Command.LAST_RESULT: "上次结果",
-                  Command.CODE_OCR: "代码 OCR", Command.SETTINGS: "设置…", Command.QUIT: "退出"}
+                  Command.CODE_OCR: "代码 OCR", Command.TABLE_OCR: "表格 OCR", Command.SETTINGS: "设置…",
+                  Command.QUIT: "退出"}
         return next(a for a in self.controller.menu.actions() if a.text().split("\t")[0] == labels[command])
 
 
@@ -158,7 +159,7 @@ def make(qtbot, tmp_path, clipboard):
 def test_start_registers_all_default_hotkeys(make):
     h = make()
     assert sorted(h.table.ours) == sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT,
-                                                                 Command.CODE_OCR))
+                                                                 Command.CODE_OCR, Command.TABLE_OCR))
     assert h.notifier.notices == []
 
 
@@ -332,6 +333,34 @@ def test_code_ocr_empty_keeps_the_clipboard(make, clipboard):
     assert clipboard.text() == SENTINEL
 
 
+# --- TABLE OCR (M4 WI-15, PRD F16-1, F16-2) ----------------------------------------------------
+
+TABLE_RESULT = OcrResult((
+    rect("Name", 0, 0, 60, 20), rect("Qty", 200, 0, 240, 20),
+    rect("Pear", 0, 30, 50, 50), rect("12", 215, 30, 235, 50),
+))
+TABLE_MD = "| Name | Qty |\n| --- | --- |\n| Pear | 12 |"
+
+
+def test_table_ocr_hotkey_puts_the_table_on_clipboard(make, clipboard):
+    h = make(engine=TABLE_RESULT)
+    h.controller.handle_hotkey(hotkey_id(Command.TABLE_OCR))
+    h.select()
+    h.qtbot.waitUntil(lambda: clipboard.text() == TABLE_MD, timeout=WAIT)
+    assert "<td>Pear</td><td>12</td>" in clipboard.mimeData().html()
+    h.qtbot.waitUntil(lambda: h.titles() == ["已复制表格"], timeout=WAIT)
+    assert h.notifier.notices[0].body == "2 行 × 2 列"
+    assert h.controller.history.snapshot()[-1].text == TABLE_MD
+
+
+def test_table_ocr_from_the_menu(make, clipboard):
+    h = make(engine=TABLE_RESULT)
+    h.menu_action(Command.TABLE_OCR).trigger()
+    h.qtbot.waitUntil(lambda: len(h.controller.overlays) == 2, timeout=WAIT)
+    h.select()
+    h.qtbot.waitUntil(lambda: clipboard.text() == TABLE_MD, timeout=WAIT)
+
+
 # --- TRANSLATE (F7-5, F8) ---------------------------------------------------------------------
 
 
@@ -501,7 +530,7 @@ def test_outcome_without_notice_changes_clipboard_silently(make, clipboard):
 
 def test_registered_commands_lists_live_hotkeys(make):
     h = make(preoccupy=["Alt+3"])
-    live = (Command.CAPTURE, Command.OCR, Command.LAST_RESULT, Command.CODE_OCR)
+    live = (Command.CAPTURE, Command.OCR, Command.LAST_RESULT, Command.CODE_OCR, Command.TABLE_OCR)
     assert h.controller.registered_commands() == live
     h.controller.run(Command.QUIT)
     assert h.controller.registered_commands() == live  # what start() got
@@ -532,7 +561,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 M = Qt.KeyboardModifier
 DEFAULT_IDS = sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT,
-                                           Command.CODE_OCR))
+                                           Command.CODE_OCR, Command.TABLE_OCR))
 
 
 def record(edit, key, mods):
@@ -575,6 +604,7 @@ def test_menu_opens_settings_with_current_values(make):
     assert [window.hotkey_edits[c].text() for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE,
                                                     Command.LAST_RESULT)] == ["Alt+1", "Alt+2", "Alt+3", "Alt+4"]
     assert window.hotkey_edits[Command.CODE_OCR].text() == "Alt+5"  # M3 WI-14
+    assert window.hotkey_edits[Command.TABLE_OCR].text() == "Alt+6"  # M4 WI-15
     assert window.autostart_box.isChecked()
     assert window.model_edit.text() == "hy-mt2:7b"
     assert window.target_lang_box.currentData() == "auto"
@@ -983,7 +1013,7 @@ def test_only_capture_overlays_have_a_toolbar(make):
     h.controller.run(Command.CAPTURE)
     assert all(o.toolbar is not None for o in h.controller.overlays)
     qi.key(h.controller.overlays[0], Qt.Key.Key_Escape)
-    for command in (Command.OCR, Command.TRANSLATE, Command.CODE_OCR):
+    for command in (Command.OCR, Command.TRANSLATE, Command.CODE_OCR, Command.TABLE_OCR):
         h.controller.run(command)
         assert all(o.toolbar is None for o in h.controller.overlays), command
         qi.key(h.controller.overlays[0], Qt.Key.Key_Escape)

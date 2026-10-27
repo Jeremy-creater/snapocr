@@ -30,6 +30,7 @@ COMMAND_LABELS: Mapping[Command, str] = MappingProxyType(
         Command.OPEN_CONFIG: "打开配置文件",
         Command.QUIT: "退出",
         Command.CODE_OCR: "代码 OCR",
+        Command.TABLE_OCR: "表格 OCR",
     }
 )
 
@@ -54,6 +55,11 @@ def ocr_ok_notice(text: str, show_text: bool = True) -> Notice:
 def code_ok_notice(text: str, show_text: bool = True) -> Notice:
     """F13-1: like ``ocr_ok_notice``, titled for code."""
     return Notice("已复制代码", ocr_ok_notice(text, show_text).body)
+
+
+def table_ok_notice(rows: int, cols: int) -> Notice:
+    """F16-1: the table's size, never its text."""
+    return Notice("已复制表格", f"{rows} 行 × {cols} 列")
 
 
 def ocr_empty_notice() -> Notice:
