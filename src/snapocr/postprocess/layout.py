@@ -104,6 +104,16 @@ def _group(blocks: list[_Block]) -> list[list[_Block]]:
     return groups
 
 
+def group_blocks(result: OcrResult) -> list[list[_Block]]:
+    """Steps 1 and 2 of the module doc: normalized blocks grouped into lines, top to bottom.
+
+    Each block is ``(center_y, top, bottom, left, right, text, score)``; the
+    blocks of a line are in the step-2 order, not sorted by ``left``. Shared
+    with the F13 code layout (``postprocess.code``).
+    """
+    return _group(_normalize(result))
+
+
 def _make_line(group: list[_Block]) -> Line:
     members = sorted(group, key=lambda b: (b[3], b[1], b[2], b[4], b[5], b[6]))
     text = members[0][5]
@@ -123,7 +133,7 @@ def build_lines(result: OcrResult) -> tuple[Line, ...]:
     """Group the blocks of ``result`` into reading-order lines (see module doc)."""
     if not isinstance(result, OcrResult):
         raise TypeError(f"expected OcrResult, got {type(result).__name__}")
-    lines = [_make_line(g) for g in _group(_normalize(result))]
+    lines = [_make_line(g) for g in group_blocks(result)]
     if not lines:
         return ()
     line_height = median(line.bottom - line.top for line in lines)

@@ -1,0 +1,32 @@
+import dataclasses
+
+import pytest
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QApplication
+
+from snapocr.commands import Command
+from snapocr.config.schema import AppConfig, HOTKEY_COMMANDS
+from snapocr.config.settings import Settings, settings_of
+from snapocr.gui.settings_window import SettingsWindow
+from snapocr.hotkeys import parse_hotkey
+
+DEFAULTS = settings_of(AppConfig())
+CUSTOM = Settings(
+    hotkeys={Command.CAPTURE: parse_hotkey("Ctrl+F1"), Command.OCR: parse_hotkey("Ctrl+F2"),
+            Command.TRANSLATE: parse_hotkey("Ctrl+F3")},
+    paragraphs=False, spacing=True, punctuation=False, target_lang="en", model="qwen3:8b",
+)
+
+
+def key(widget, k, mods=Qt.KeyboardModifier.NoModifier):
+    for kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+        QApplication.sendEvent(widget, QKeyEvent(kind, k, mods))
+
+
+class Spy:
+    def __init__(self, window):
+        self.saved, self.closed, self.advanced = [], [], []
+        window.save_requested.connect(lambda s, a: self.saved.append((s, a)))
+        window.closed.connect(lambda: self.closed.append(True))
+        window.advanced_requested.connect(lambda: self.advanced.append(True))

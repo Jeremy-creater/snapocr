@@ -1,0 +1,32 @@
+from snapocr.geometry import Handle, Rect, ScreenInfo, is_cancel_size, local_to_physical, move, resize, selection_rect
+from snapocr.gui.overlay import HANDLE_MARGIN, OverlaySession, OverlayState, SelectionOverlay
+from support import qt_input as qi
+from support.qimages import gradient, pixels
+
+pytestmark = pytest.mark.usefixtures("qapp")
+
+ONE = ScreenInfo("A", Rect(0, 0, 200, 150), 1.0, Rect(0, 0, 200, 150))
+SIDE = ScreenInfo("B", Rect(-1707, 0, 1707, 960), 1.5, Rect(-2560, 0, 2560, 1440))
+
+
+def bright(w: int, h: int) -> QImage:
+    """A frozen image with no black pixels, so dimming is always visible."""
+    image = gradient(w, h)
+    image.invertPixels()  # keeps distinct pixels; the gradient's (0,0,0) becomes white
+    return image
+
+
+def frozen_for(screen: ScreenInfo) -> QImage:
+    p = screen.physical
+    return bright(p.w, p.h) if p.w * p.h <= 40_000 else QImage(p.w, p.h, QImage.Format.Format_RGB32)
+
+
+class Probe:
+    def __init__(self, overlay: SelectionOverlay):
+        self.selected: list[Rect] = []
+        self.cancelled = 0
+        overlay.selected.connect(self.selected.append)
+        overlay.cancelled.connect(self._cancel)
+
+    def _cancel(self):
+        self.cancelled += 1
