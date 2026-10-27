@@ -82,7 +82,7 @@ def clipboard(qapp):
 class Harness:
     def __init__(self, qtbot, tmp_path, *, engine=RESULT, load_error=None, holder=None, translator=None,
                  capture_error=None, issues=(), preoccupy=(), config_path=None, make_translator=None,
-                 autostart=None, list_models=None, show_text=True):
+                 autostart=None, list_models=None, show_text=True, debug=False):
         self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error)
         self.notifier = RecordingNotifier()
         self.table = FakeHotkeyTable()
@@ -94,7 +94,8 @@ class Harness:
         self.quits: list[bool] = []
         self.config_path = config_path or tmp_path / "config.local.toml"
         self.autostart = autostart or FakeAutostart()
-        config = AppConfig(replacements=TABLE, show_text=show_text)
+        config = AppConfig(replacements=TABLE, show_text=show_text, debug=debug)
+        self.debug_dir = tmp_path / "debug"  # never the real D:\DevLocal\runtime\snapocr\debug
         deps = FlowDeps(holder or holder_for(engine, load_error=load_error), config.postprocess, config.replacements)
         self.controller = AppController(
             config,
@@ -109,6 +110,7 @@ class Harness:
             open_file=self._open,
             quit_app=lambda: self.quits.append(True),
             startup_issues=list(issues),
+            debug_dir=self.debug_dir,
         )
         self.qtbot = qtbot
 
@@ -868,3 +870,52 @@ def test_controller_takes_show_text_from_the_config(make, clipboard):
     h.select()
     h.qtbot.waitUntil(lambda: h.titles() == ["已复制 OCR 文本"], timeout=WAIT)
     assert h.notifier.notices[0].body == f"共 {len(''.join(EXPECTED.split()))} 个字"
+
+
+# --- M3 WI-12: debug mode (F12) ----------------------------------------------------------
+
+from snapocr.actions.debug import DEBUG_DIR, debug_text  # noqa: E402
+
+
+def debug_files(h):
+    return sorted(p.name for p in h.debug_dir.iterdir()) if h.debug_dir.exists() else []
+
+
+def test_debug_on_reminds_at_start_and_saves_each_result(make, clipboard):
+    h = make(debug=True)
+    assert h.titles() == ["debug 模式已开启"]
+    assert h.notifier.notices[0].body == f"截图和识别全文会保存到：{h.debug_dir}"
+    h.controller.run(Command.OCR)
+    h.select()
+    h.qtbot.waitUntil(lambda: len(debug_files(h)) == 2, timeout=WAIT)
+    png_name, txt_name = debug_files(h)
+    assert png_name.endswith("-2.png") and txt_name == png_name[:-4] + ".txt"  # job 1 is the warm-up
+    [record] = h.controller.history.snapshot()
+    assert (h.debug_dir / png_name).read_bytes() == record.png
+    assert (h.debug_dir / txt_name).read_text(encoding="utf-8") == debug_text(record)
+    assert EXPECTED in debug_text(record)
+
+
+def test_debug_saves_translations_too(make, clipboard):
+    h = make(debug=True)
+    h.controller.run(Command.TRANSLATE)
+    h.select()
+    h.qtbot.waitUntil(lambda: len(debug_files(h)) == 2, timeout=WAIT)
+    text = (h.debug_dir / debug_files(h)[1]).read_text(encoding="utf-8")
+    assert "## 译文" in text
+
+
+def test_debug_off_writes_nothing_and_says_nothing(make, clipboard):
+    h = make()
+    assert h.notifier.notices == []
+    h.controller.run(Command.OCR)
+    h.select()
+    h.qtbot.waitUntil(lambda: clipboard.text() == EXPECTED, timeout=WAIT)
+    h.qtbot.wait(100)
+    assert not h.debug_dir.exists()
+
+
+def test_the_real_debug_directory_is_the_default():
+    import inspect
+
+    assert inspect.signature(AppController).parameters["debug_dir"].default == DEBUG_DIR

@@ -698,3 +698,56 @@ def test_handled_failures_are_not_logged_as_crashes(make_runner, caplog):
         runner.submit_warmup(holder_for(RESULT, load_error=LOAD_FAIL))
         col.wait_terminal(3)
     assert [r for r in caplog.records if r.name == "snapocr.actions.runner"] == []
+
+
+# --- M3 WI-12: on_record hook for debug mode (F12-1, F12-3) ------------------------------
+
+import logging  # noqa: E402
+
+
+def test_on_record_gets_each_record_after_history_and_before_the_event():
+    history = ResultHistory()
+    col = Collector()
+    calls = []
+
+    def on_record(job_id, record):
+        calls.append((job_id, record.text, tuple(r.text for r in history.snapshot()), len(col.events)))
+
+    runner = JobRunner(col, history, on_record=on_record)
+    try:
+        a = runner.submit(outcome_job("a"))
+        w = runner.submit(warmup_job(holder_for(RESULT)))
+        t = runner.submit(translate_job(PNG, deps(), ScriptedTranslator()))
+        col.wait_terminal(3)
+    finally:
+        runner.shutdown()
+    assert w == a + 1 and t == a + 2
+    # (job id, record text, history at that moment, events delivered before it)
+    assert calls == [(a, "a", ("a",), 0), (t, "你好，世界", ("你好，世界", "a"), 3)]
+
+
+def test_on_record_failure_is_logged_and_the_event_still_arrives(caplog):
+    col = Collector()
+
+    def on_record(job_id, record):
+        raise ValueError(f"boom {record.text}")
+
+    runner = JobRunner(col, ResultHistory(), on_record=on_record)
+    try:
+        with caplog.at_level(logging.WARNING, logger="snapocr.actions.runner"):
+            runner.submit(outcome_job("secret-text"))
+            [done] = col.wait_terminal(1)
+            runner.submit(outcome_job("b"))
+            col.wait_terminal(2)
+    finally:
+        runner.shutdown()
+    assert isinstance(done, OcrDone)
+    messages = [r.getMessage() for r in caplog.records if r.name == "snapocr.actions.runner"]
+    assert messages == ["on_record raised ValueError for job 1", "on_record raised ValueError for job 2"]
+    assert all("secret-text" not in r.getMessage() and r.exc_info is None for r in caplog.records)
+
+
+def test_without_on_record_nothing_changes(make_runner):
+    runner, col = make_runner()
+    runner.submit(outcome_job("a"))
+    assert isinstance(col.wait_terminal(1)[0], OcrDone)

@@ -162,3 +162,8 @@ def models_problem_text(err: TranslationError) -> str:
     """Why the settings window has no model list (F11-7); never blocks saving."""
     why = _MODELS_PROBLEM.get(err.kind, "服务不支持读取模型列表")
     return f"没能读取模型列表（{why}），可以直接输入模型名。"
+
+
+def debug_on_notice(directory: Path) -> Notice:
+    """F12-2: shown at start while debug mode is on."""
+    return Notice("debug 模式已开启", f"截图和识别全文会保存到：{directory}")

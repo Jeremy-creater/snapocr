@@ -24,7 +24,7 @@ from dataclasses import dataclass
 
 from snapocr.actions.flows import FlowDeps, ocr_flow, translate_ocr_stage, translate_stage
 from snapocr.actions.history import ResultHistory
-from snapocr.actions.outcomes import OcrStage, Outcome, TranslateOutcome
+from snapocr.actions.outcomes import HistoryRecord, OcrStage, Outcome, TranslateOutcome
 from snapocr.engines.errors import EngineLoadError
 from snapocr.engines.holder import EngineHolder
 from snapocr.translators.types import Translator
@@ -117,9 +117,15 @@ _STOP = object()
 
 
 class JobRunner:
-    def __init__(self, on_event: Callable[[Event], None], history: ResultHistory) -> None:
+    def __init__(
+        self,
+        on_event: Callable[[Event], None],
+        history: ResultHistory,
+        on_record: Callable[[int, HistoryRecord], None] | None = None,
+    ) -> None:
         self._on_event = on_event
         self._history = history
+        self._on_record = on_record  # F12: debug mode; called on the worker thread
         self._queue: queue.SimpleQueue[object] = queue.SimpleQueue()
         self._lock = threading.Lock()  # guards _next_id and the stopped check in submit
         self._deliver_lock = threading.RLock()  # a callback may call shutdown()
@@ -186,6 +192,7 @@ class JobRunner:
                     raise TypeError(f"job yielded {type(result).__name__}, not a flow result")
                 if record is not None:
                     self._history.push(record)
+                    self._record_hook(job_id, record)
                 self._deliver(event)
                 return
             raise IncompleteJobError("job ended without a terminal result")
@@ -194,6 +201,15 @@ class JobRunner:
             frames = "".join(f"  {f.filename}:{f.lineno} in {f.name}\n" for f in traceback.extract_tb(exc.__traceback__))
             _log.error("job %d crashed: %s\n%s", job_id, type(exc).__name__, frames)
             self._deliver(JobCrashed(job_id, type(exc).__name__))
+
+    def _record_hook(self, job_id: int, record: HistoryRecord) -> None:
+        if self._on_record is None:
+            return
+        try:
+            self._on_record(job_id, record)
+        except Exception as exc:
+            # The type only: the message may carry OCR text. The job's result is still delivered.
+            _log.warning("on_record raised %s for job %d", type(exc).__name__, job_id)
 
     def _deliver(self, event: Event) -> None:
         with self._deliver_lock:

@@ -19,6 +19,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QTimer
 
 from snapocr.actions import messages
+from snapocr.actions.debug import DEBUG_DIR, DebugDump
 from snapocr.actions.flows import FlowDeps, capture_flow
 from snapocr.actions.history import ResultHistory
 from snapocr.actions.outcomes import Failed, Outcome, Translating
@@ -79,6 +80,7 @@ class AppController(QObject):
         open_file: Callable[[Path], None],
         quit_app: Callable[[], None],
         startup_issues: Sequence[ConfigIssue] = (),
+        debug_dir: Path = DEBUG_DIR,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -106,7 +108,9 @@ class AppController(QObject):
         self.history = ResultHistory()
         self.bridge = EventBridge(self)
         self.bridge.event.connect(self._on_event)
-        self.runner = JobRunner(self.bridge.post, self.history)
+        self._debug_dir = debug_dir
+        on_record = DebugDump(debug_dir) if config.debug else None  # F12: read once at start
+        self.runner = JobRunner(self.bridge.post, self.history, on_record)
         self.popup = TranslationPopup()
         self.history_window = LastResultWindow(self.history)
         self.menu = build_tray_menu(config.hotkeys, self._on_menu)
@@ -127,12 +131,14 @@ class AppController(QObject):
     # --- commands ------------------------------------------------------------
 
     def start(self) -> None:
-        """Register hotkeys, report start-up problems (F9-3, F5-3), warm up the engine (D2)."""
+        """Register hotkeys, report start-up problems (F9-3, F5-3) and debug mode (F12-2), warm up (D2)."""
         self._report = register_all(self._config.hotkeys, self._hotkeys.register)
         if self._startup_issues:
             self._notifier.notify(messages.config_issues_notice(self._startup_issues))
         if self._report.failed:
             self._notifier.notify(messages.hotkey_failed_notice(self._report.failed))
+        if self._config.debug:
+            self._notifier.notify(messages.debug_on_notice(self._debug_dir))
         self.runner.submit_warmup(self._deps.engine)
 
     def handle_hotkey(self, hotkey_id: int) -> None:

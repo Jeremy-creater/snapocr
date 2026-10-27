@@ -71,6 +71,7 @@ def test_known_keys():
         "ocr": ("min_score", "model_dir"),
         "postprocess": ("paragraphs", "spacing", "punctuation", "replacements"),
         "notify": ("show_text",),  # M3 WI-11 (F7-2, F11-8)
+        "debug": ("enabled",),  # M3 WI-12 (F12)
         "translator": ("base_url", "model", "timeout_s", "target_lang", "direction_threshold",
                        "prompt_template", "max_input_chars", "sampling"),
     }
@@ -447,3 +448,32 @@ def test_notify_not_a_table():
     cfg, issues = build({"notify": True})
     only_issue(issues, "notify")
     assert cfg.show_text is True
+
+
+# --- M3 WI-12: [debug] enabled (F12) -----------------------------------------------------
+
+
+def test_debug_defaults_to_off():
+    assert AppConfig().debug is False
+    cfg, issues = build({"debug": {}})
+    assert issues == [] and cfg.debug is False
+
+
+def test_debug_enabled():
+    cfg, issues = build({"debug": {"enabled": True}})
+    assert issues == []
+    assert cfg == dataclasses.replace(AppConfig(), debug=True)
+
+
+def test_debug_bad_value_falls_back():
+    cfg, issues = build({"debug": {"enabled": "yes"}})
+    issue = only_issue(issues, "debug.enabled")
+    assert issue.reason == "must be true or false, got 'yes'; using false"
+    assert cfg.debug is False
+
+
+def test_debug_is_not_a_window_setting():
+    from snapocr.config.settings import apply, settings_of
+
+    config = dataclasses.replace(AppConfig(), debug=True)
+    assert apply(config, settings_of(config)).debug is True

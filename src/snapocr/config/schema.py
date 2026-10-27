@@ -28,6 +28,7 @@ KNOWN_KEYS: Mapping[str, tuple[str, ...]] = MappingProxyType(
         "ocr": ("min_score", "model_dir"),
         "postprocess": ("paragraphs", "spacing", "punctuation", "replacements"),
         "notify": ("show_text",),
+        "debug": ("enabled",),
         "translator": (
             "base_url",
             "model",
@@ -52,6 +53,7 @@ class AppConfig:
     replacements: Replacements = Replacements.EMPTY
     translator: TranslatorConfig = field(default_factory=TranslatorConfig)
     show_text: bool = True  # [notify] show_text: OCR notices show the text (F7-2)
+    debug: bool = False  # [debug] enabled: save screenshots and full text (F12)
 
 
 @dataclass(frozen=True)
