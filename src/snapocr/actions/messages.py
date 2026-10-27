@@ -43,7 +43,10 @@ def preview(text: str, n: int = 30) -> str:
     return flat if len(flat) <= n else flat[:n] + "…"
 
 
-def ocr_ok_notice(text: str) -> Notice:
+def ocr_ok_notice(text: str, show_text: bool = True) -> Notice:
+    """F7-2: the preview, or only the count of non-whitespace characters when ``show_text`` is off."""
+    if not show_text:
+        return Notice("已复制 OCR 文本", f"共 {len(''.join(text.split()))} 个字")
     return Notice("已复制 OCR 文本", preview(text))
 
 

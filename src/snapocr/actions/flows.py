@@ -50,6 +50,7 @@ class FlowDeps:
     options: PostprocessOptions
     replacements: Replacements
     log_file: Path = DEFAULT_LOG_DIR / LOG_FILE_NAME
+    show_text: bool = True
 
 
 def capture_flow(png: bytes) -> Outcome:
@@ -81,7 +82,8 @@ def ocr_flow(png: bytes, deps: FlowDeps) -> Outcome:
     stage = _ocr(png, deps)
     if isinstance(stage, Outcome):
         return stage
-    return Outcome(ClipboardText(stage.text), ocr_ok_notice(stage.text), HistoryRecord(png, stage.raw, stage.text))
+    notice = ocr_ok_notice(stage.text, deps.show_text)
+    return Outcome(ClipboardText(stage.text), notice, HistoryRecord(png, stage.raw, stage.text))
 
 
 def translate_ocr_stage(png: bytes, deps: FlowDeps) -> OcrStage | Outcome:

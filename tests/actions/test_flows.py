@@ -301,3 +301,19 @@ def test_errors_never_carry_ocr_text(engine_case, translator_case):
         assert MARKER not in popup.message
     if records[0].error is not None:
         assert MARKER not in records[0].error
+
+
+# --- M3 WI-11: show_text (F7-2) -------------------------------------------------------
+
+
+def test_ocr_success_without_text_in_the_notice():
+    d = dataclasses.replace(deps(), show_text=False)
+    out = ocr_flow(PNG, d)
+    expected = postprocess(RESULT, PostprocessOptions(), TABLE)
+    assert out == Outcome(ClipboardText(expected), ocr_ok_notice(expected, show_text=False),
+                          HistoryRecord(PNG, postprocess(RESULT, LAYOUT_ONLY), expected))
+    assert out.notice.body.startswith("共 ")
+
+
+def test_flow_deps_show_text_defaults_to_true():
+    assert deps().show_text is True

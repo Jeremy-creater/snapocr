@@ -84,7 +84,7 @@ class AppController(QObject):
         super().__init__(parent)
         self._config = config
         self._config_path = config_path
-        self._deps = flow_deps
+        self._deps = dataclasses.replace(flow_deps, show_text=config.show_text)  # F7-2: the config decides
         self._make_translator = make_translator
         self._translator = make_translator(config.translator)
         self._list_models = list_models
@@ -312,7 +312,7 @@ class AppController(QObject):
             window.show_problems([str(err)])
             return
         self._config = apply(self._config, new)
-        self._deps = dataclasses.replace(self._deps, options=self._config.postprocess)
+        self._deps = dataclasses.replace(self._deps, options=self._config.postprocess, show_text=self._config.show_text)
         self._translator = self._make_translator(self._config.translator)
         self._report = trial
         self._paused = False

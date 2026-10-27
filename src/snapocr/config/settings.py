@@ -33,6 +33,7 @@ class Settings:
     punctuation: bool
     target_lang: str
     model: str
+    show_text: bool = True  # F11-8; defaulted so older call sites stay valid
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "hotkeys", MappingProxyType(dict(self.hotkeys)))
@@ -61,7 +62,8 @@ Problem = DuplicateHotkey | BadModel | BadTargetLang
 def settings_of(config: AppConfig) -> Settings:
     pp = config.postprocess
     tr = config.translator
-    return Settings(config.hotkeys, pp.paragraphs, pp.spacing, pp.punctuation, tr.target_lang, tr.model)
+    return Settings(config.hotkeys, pp.paragraphs, pp.spacing, pp.punctuation, tr.target_lang, tr.model,
+                    config.show_text)
 
 
 def check(s: Settings) -> list[Problem]:
@@ -83,6 +85,7 @@ def check(s: Settings) -> list[Problem]:
 def _values(s: Settings) -> dict[str, bool | str]:
     out: dict[str, bool | str] = {f"hotkeys.{c.value}": format_hotkey(h) for c, h in s.hotkeys.items()}
     out |= {f"postprocess.{name}": getattr(s, name) for name in _SWITCHES}
+    out["notify.show_text"] = s.show_text
     out |= {f"translator.{name}": getattr(s, name) for name in _TRANSLATOR_KEYS}
     return out
 
@@ -103,4 +106,5 @@ def apply(config: AppConfig, s: Settings) -> AppConfig:
         hotkeys=s.hotkeys,
         postprocess=dataclasses.replace(config.postprocess, **{name: getattr(s, name) for name in _SWITCHES}),
         translator=dataclasses.replace(config.translator, model=s.model, target_lang=s.target_lang),
+        show_text=s.show_text,
     )

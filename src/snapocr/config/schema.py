@@ -27,6 +27,7 @@ KNOWN_KEYS: Mapping[str, tuple[str, ...]] = MappingProxyType(
         "hotkeys": tuple(c.value for c in HOTKEY_COMMANDS),
         "ocr": ("min_score", "model_dir"),
         "postprocess": ("paragraphs", "spacing", "punctuation", "replacements"),
+        "notify": ("show_text",),
         "translator": (
             "base_url",
             "model",
@@ -50,6 +51,7 @@ class AppConfig:
     postprocess: PostprocessOptions = field(default_factory=PostprocessOptions)
     replacements: Replacements = Replacements.EMPTY
     translator: TranslatorConfig = field(default_factory=TranslatorConfig)
+    show_text: bool = True  # [notify] show_text: OCR notices show the text (F7-2)
 
 
 @dataclass(frozen=True)

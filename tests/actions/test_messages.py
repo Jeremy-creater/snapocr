@@ -323,3 +323,22 @@ from snapocr.actions.messages import models_problem_text  # noqa: E402
 def test_models_problem_text(kind, why):
     err = TranslationError(kind, base_url="http://127.0.0.1:11434", model="hy-mt2:7b")
     assert models_problem_text(err) == f"没能读取模型列表（{why}），可以直接输入模型名。"
+
+
+# --- M3 WI-11: OCR notice without the text (F7-2) -------------------------------------
+
+
+def test_ocr_ok_notice_without_text_counts_characters():
+    n = ocr_ok_notice("使用 Python3 截图，\n  自动复制。", show_text=False)
+    assert n == Notice("已复制 OCR 文本", "共 17 个字")  # whitespace not counted
+
+
+def test_ocr_ok_notice_show_text_default_is_the_preview():
+    assert ocr_ok_notice("你好 world") == ocr_ok_notice("你好 world", show_text=True) == Notice("已复制 OCR 文本", "你好 world")
+
+
+@given(st.text(max_size=300))
+def test_ocr_ok_notice_without_text_never_shows_it(text):
+    n = ocr_ok_notice(text + "⟦M7⟧", show_text=False)
+    assert "⟦M7⟧" not in n.body and "M7" not in n.body
+    assert n.body == f"共 {len(''.join((text + '⟦M7⟧').split()))} 个字"

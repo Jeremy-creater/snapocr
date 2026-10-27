@@ -70,7 +70,10 @@ class SettingsWindow(QWidget):
 
         general = QGroupBox("常规")
         self.autostart_box = QCheckBox("开机时自动启动 snapocr")
-        QVBoxLayout(general).addWidget(self.autostart_box)
+        self.show_text_box = QCheckBox("OCR 完成的通知里显示识别出的文字")  # F11-8
+        general_layout = QVBoxLayout(general)
+        general_layout.addWidget(self.autostart_box)
+        general_layout.addWidget(self.show_text_box)
 
         translate = QGroupBox("翻译")
         tform = QFormLayout(translate)
@@ -129,6 +132,7 @@ class SettingsWindow(QWidget):
         for command, edit in self.hotkey_edits.items():
             edit.set_hotkey(settings.hotkeys.get(command))
         self.autostart_box.setChecked(autostart)
+        self.show_text_box.setChecked(settings.show_text)
         self.target_lang_box.setCurrentIndex(self.target_lang_box.findData(settings.target_lang))
         self.model_edit.setText(settings.model)
         self.set_models((), None)
@@ -160,6 +164,7 @@ class SettingsWindow(QWidget):
             hotkeys=hotkeys,
             target_lang=self.target_lang_box.currentData(),
             model=self.model_box.currentText().strip(),
+            show_text=self.show_text_box.isChecked(),
             **switches,
         )
         self.save_requested.emit(settings, self.autostart_box.isChecked())

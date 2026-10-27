@@ -229,3 +229,21 @@ def test_models_hint_is_shown_and_cleared(window):
     window.set_models((), "x")
     window.load(CUSTOM, False)
     assert not window.models_hint.isVisible()
+
+
+# --- M3 WI-11: show the OCR text in notices (F11-8) --------------------------------------
+
+
+def test_show_text_box_is_in_general_and_loaded(window):
+    assert window.show_text_box.text() == "OCR 完成的通知里显示识别出的文字"
+    assert window.show_text_box.isChecked()  # DEFAULTS
+    window.load(dataclasses.replace(CUSTOM, show_text=False), False)
+    assert not window.show_text_box.isChecked()
+
+
+def test_show_text_is_saved(window):
+    spy = Spy(window)
+    window.load(CUSTOM, True)
+    window.show_text_box.setChecked(False)
+    window.save_button.click()
+    assert spy.saved == [(dataclasses.replace(CUSTOM, show_text=False), True)]

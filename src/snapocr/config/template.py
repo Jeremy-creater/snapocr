@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from snapocr.config.schema import DEFAULT_HOTKEY_TEXT, HOTKEY_COMMANDS
+from snapocr.config.schema import DEFAULT_HOTKEY_TEXT, HOTKEY_COMMANDS, AppConfig
 from snapocr.engines.config import OcrEngineConfig
 from snapocr.postprocess import PostprocessOptions
 from snapocr.translators.config import SAMPLING_KEYS, TranslatorConfig
@@ -71,6 +71,10 @@ def _build() -> str:
         "## 约束见 docs/postprocess.md。下面只是示例。",
         "# [postprocess.replacements]",
         f"# {_toml(EXAMPLE_REPLACEMENT[0])} = {_toml(EXAMPLE_REPLACEMENT[1])}",
+        "",
+        "[notify]",
+        "## OCR 完成的托盘通知里显示识别出的前 30 个字；false 时只显示字数。",
+        f"# show_text = {_toml(AppConfig.show_text)}",
         "",
         "[translator]",
         "## 本地模型服务的地址，只接受 http://127.0.0.1:<端口>，不带路径。",

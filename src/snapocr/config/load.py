@@ -142,6 +142,16 @@ def _postprocess(table: Mapping, issues: _Issues) -> tuple[PostprocessOptions, R
     return PostprocessOptions(**switches), replacements
 
 
+def _bool(table: Mapping, section: str, key: str, default: bool, issues: _Issues) -> bool:
+    if key not in table:
+        return default
+    v = table[key]
+    if type(v) is bool:
+        return v
+    issues.add(f"{section}.{key}", f"must be true or false, got {v!r}; using {str(default).lower()}")
+    return default
+
+
 def _translator(table: Mapping, issues: _Issues) -> TranslatorConfig:
     """Drop each field TranslatorConfig rejects and retry; the defaults are valid, so this ends."""
     kwargs = dict(table)
@@ -165,5 +175,6 @@ def build_config(data: object, *, source: Path) -> tuple[AppConfig, list[ConfigI
     hotkeys = _hotkeys(_section(data, "hotkeys", issues), issues)
     ocr = _ocr(_section(data, "ocr", issues), issues, source)
     postprocess, replacements = _postprocess(_section(data, "postprocess", issues), issues)
+    show_text = _bool(_section(data, "notify", issues), "notify", "show_text", AppConfig.show_text, issues)
     translator = _translator(_section(data, "translator", issues), issues)
-    return AppConfig(hotkeys, ocr, postprocess, replacements, translator), issues.items
+    return AppConfig(hotkeys, ocr, postprocess, replacements, translator, show_text), issues.items

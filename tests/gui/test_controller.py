@@ -82,7 +82,7 @@ def clipboard(qapp):
 class Harness:
     def __init__(self, qtbot, tmp_path, *, engine=RESULT, load_error=None, holder=None, translator=None,
                  capture_error=None, issues=(), preoccupy=(), config_path=None, make_translator=None,
-                 autostart=None, list_models=None):
+                 autostart=None, list_models=None, show_text=True):
         self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error)
         self.notifier = RecordingNotifier()
         self.table = FakeHotkeyTable()
@@ -94,7 +94,7 @@ class Harness:
         self.quits: list[bool] = []
         self.config_path = config_path or tmp_path / "config.local.toml"
         self.autostart = autostart or FakeAutostart()
-        config = AppConfig(replacements=TABLE)
+        config = AppConfig(replacements=TABLE, show_text=show_text)
         deps = FlowDeps(holder or holder_for(engine, load_error=load_error), config.postprocess, config.replacements)
         self.controller = AppController(
             config,
@@ -842,3 +842,29 @@ def test_a_list_arriving_after_the_controller_is_deleted_is_dropped(make):
     finally:
         threading.excepthook = previous
     assert errors == []
+
+
+# --- M3 WI-11: OCR notice without the text (F7-2, F11-8) ----------------------------------
+
+
+def test_ocr_notice_without_text_after_unticking_the_switch(make, clipboard):
+    h = make()
+    window = open_settings(h)
+    window.show_text_box.setChecked(False)
+    window.save_button.click()
+    assert not window.isVisible()
+    assert load_config_file(h.config_path).config.show_text is False
+    h.controller.handle_hotkey(hotkey_id(Command.OCR))
+    h.select()
+    h.qtbot.waitUntil(lambda: clipboard.text() == EXPECTED, timeout=WAIT)
+    h.qtbot.waitUntil(lambda: "已复制 OCR 文本" in h.titles(), timeout=WAIT)
+    notice = next(n for n in h.notifier.notices if n.title == "已复制 OCR 文本")
+    assert notice.body == f"共 {len(''.join(EXPECTED.split()))} 个字"
+
+
+def test_controller_takes_show_text_from_the_config(make, clipboard):
+    h = make(show_text=False)
+    h.controller.run(Command.OCR)
+    h.select()
+    h.qtbot.waitUntil(lambda: h.titles() == ["已复制 OCR 文本"], timeout=WAIT)
+    assert h.notifier.notices[0].body == f"共 {len(''.join(EXPECTED.split()))} 个字"

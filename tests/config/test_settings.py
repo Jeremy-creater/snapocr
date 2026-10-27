@@ -224,3 +224,38 @@ def test_changes_keys_are_known(s):
 @given(settings())
 def test_apply_then_settings_of(s):
     assert settings_of(apply(AppConfig(), s)) == s
+
+
+# --- M3 WI-11: show_text (F7-2, F11-8) ------------------------------------------------
+
+
+def test_show_text_is_a_window_setting():
+    assert DEFAULTS.show_text is True
+    assert settings_of(dataclasses.replace(AppConfig(), show_text=False)).show_text is False
+
+
+def test_changes_show_text_sits_between_postprocess_and_translator():
+    new = dataclasses.replace(DEFAULTS, spacing=False, show_text=False, model="qwen3:8b")
+    assert list(changes(DEFAULTS, new).items()) == [
+        ("postprocess.spacing", False),
+        ("notify.show_text", False),
+        ("translator.model", "qwen3:8b"),
+    ]
+
+
+def test_apply_show_text():
+    out = apply(AppConfig(), dataclasses.replace(DEFAULTS, show_text=False))
+    assert out == dataclasses.replace(AppConfig(), show_text=False)
+
+
+def test_show_text_written_into_the_template_and_read_back(tmp_path):
+    from snapocr.config.files import load_config_file
+    from snapocr.config.writer import write_changes
+
+    path = tmp_path / "config.local.toml"
+    assert load_config_file(path).created
+    write_changes(path, changes(DEFAULTS, dataclasses.replace(DEFAULTS, show_text=False)))
+    loaded = load_config_file(path)
+    assert loaded.issues == []
+    assert loaded.config.show_text is False
+    assert "show_text = false" in path.read_text(encoding="utf-8").split("[notify]")[1].split("[translator]")[0]

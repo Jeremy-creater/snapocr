@@ -22,4 +22,5 @@ def window_settings(draw) -> Settings:
         punctuation=draw(st.booleans()),
         target_lang=draw(st.sampled_from(["auto", "zh", "en"])),
         model=draw(st.sampled_from(["hy-mt2:7b", "qwen3:8b", "llama3", "my/model:q4_K_M"])),
+        show_text=draw(st.booleans()),  # M3 WI-11
     )

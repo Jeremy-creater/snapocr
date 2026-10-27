@@ -70,6 +70,7 @@ def test_known_keys():
         "hotkeys": ("capture", "ocr", "translate", "last_result"),
         "ocr": ("min_score", "model_dir"),
         "postprocess": ("paragraphs", "spacing", "punctuation", "replacements"),
+        "notify": ("show_text",),  # M3 WI-11 (F7-2, F11-8)
         "translator": ("base_url", "model", "timeout_s", "target_lang", "direction_threshold",
                        "prompt_template", "max_input_chars", "sampling"),
     }
@@ -410,3 +411,39 @@ def test_datetime_value_reported_not_crashing():
     cfg, issues = build({"translator": {"timeout_s": datetime.time(1, 2)}})
     only_issue(issues, "translator.timeout_s")
     assert cfg == AppConfig()
+
+
+# --- M3 WI-11: [notify] show_text (F7-2, F11-8) ---------------------------------------
+
+
+def test_notify_show_text_defaults_to_true():
+    assert AppConfig().show_text is True
+    cfg, issues = build({"notify": {}})
+    assert issues == [] and cfg.show_text is True
+
+
+def test_notify_show_text_false():
+    cfg, issues = build({"notify": {"show_text": False}})
+    assert issues == []
+    assert cfg == dataclasses.replace(AppConfig(), show_text=False)
+
+
+@pytest.mark.parametrize("value", ["no", 0, 1, "true"])
+def test_notify_show_text_bad_value_falls_back(value):
+    cfg, issues = build({"notify": {"show_text": value}})
+    issue = only_issue(issues, "notify.show_text")
+    assert issue.reason == f"must be true or false, got {value!r}; using true"
+    assert cfg.show_text is True
+
+
+def test_notify_unknown_key_suggests():
+    cfg, issues = build({"notify": {"show_txt": False}})
+    issue = only_issue(issues, "notify.show_txt")
+    assert "show_text" in issue.reason
+    assert cfg.show_text is True
+
+
+def test_notify_not_a_table():
+    cfg, issues = build({"notify": True})
+    only_issue(issues, "notify")
+    assert cfg.show_text is True

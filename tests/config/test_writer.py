@@ -63,6 +63,7 @@ def test_missing_file_starts_from_template(tmp_path):
         "hotkeys": {"capture": "Ctrl+Q"},
         "ocr": {},
         "postprocess": {"spacing": False},
+        "notify": {},  # M3 WI-11: the template has a [notify] section
         "translator": {"target_lang": "en"},
     }
 
