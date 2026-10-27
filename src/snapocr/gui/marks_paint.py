@@ -1,0 +1,77 @@
+"""Draw annotation marks (PRD F14-7; M4 plan D6, D7).
+
+One function draws for both the overlay preview and the exported image, so
+they cannot drift apart. The painter works in physical virtual-desktop
+pixels: the overlay scales by 1/dpr and moves to its screen's origin first;
+``render_marked`` moves to the image's origin.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPolygonF
+
+from snapocr.annotate import Mark, Tool, arrow_head
+from snapocr.geometry import Point
+
+TEXT_FAMILY = "Microsoft YaHei UI"
+
+
+def text_font(size: int) -> QFont:
+    """The font of a text mark; ``size`` is its pixel size."""
+    font = QFont(TEXT_FAMILY)
+    font.setPixelSize(size)
+    return font
+
+
+def _box(mark: Mark) -> QRectF:
+    (x0, y0), (x1, y1) = mark.points
+    return QRectF(QPointF(x0, y0), QPointF(x1, y1))
+
+
+def _paint(painter: QPainter, mark: Mark) -> None:
+    color = QColor(mark.color)
+    pen = QPen(color, mark.size, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    if mark.tool is Tool.RECT:
+        painter.drawRect(_box(mark))
+    elif mark.tool is Tool.ELLIPSE:
+        painter.drawEllipse(_box(mark))
+    elif mark.tool is Tool.ARROW:
+        start, end = mark.points
+        shaft_end, head = arrow_head(start, end, mark.size)
+        painter.drawLine(QPointF(*start), QPointF(*shaft_end))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(color))
+        painter.drawPolygon(QPolygonF([QPointF(*p) for p in head]))
+    else:  # Tool.TEXT
+        painter.setFont(text_font(mark.size))
+        painter.drawText(_box(mark), int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop), mark.text)
+
+
+def paint_marks(painter: QPainter, marks: Sequence[Mark], base: QImage, origin: Point) -> None:
+    """Draw ``marks`` in order with ``painter`` (physical coordinates).
+
+    ``base`` is the picture under the marks and ``origin`` the physical
+    position of its top-left pixel (used by marks that read pixels).
+    """
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+    for mark in marks:
+        _paint(painter, mark)
+    painter.restore()
+
+
+def render_marked(image: QImage, marks: Sequence[Mark], origin: Point) -> QImage:
+    """A copy of ``image`` (top-left pixel at physical ``origin``) with ``marks`` drawn on it."""
+    out = image.copy()
+    if marks:
+        painter = QPainter(out)
+        painter.translate(-origin[0], -origin[1])
+        paint_marks(painter, marks, image, origin)
+        painter.end()
+    return out
