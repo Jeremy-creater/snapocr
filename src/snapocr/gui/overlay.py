@@ -23,7 +23,18 @@ from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QLineEdit, QWidget
 
-from snapocr.annotate import DEFAULT_STYLE, FONT_LEVELS, Board, Mark, Style, Tool, drag_mark, toolbar_place
+from snapocr.annotate import (
+    DEFAULT_STYLE,
+    FONT_LEVELS,
+    Board,
+    Mark,
+    Style,
+    Tool,
+    drag_mark,
+    number_mark,
+    pen_mark,
+    toolbar_place,
+)
 from snapocr.geometry import (
     Handle,
     Point,
@@ -115,6 +126,7 @@ class SelectionOverlay(QWidget):
         self._tol = max(1, round(HANDLE_SIZE / 2 * screen.dpr))
         self._board = Board()
         self._drawing: Point | None = None  # press point of the mark being drawn
+        self._stroke: list[Point] = []  # the pen tool's points so far
         self._draft: Mark | None = None
         self._editor: TextEditor | None = None
         self._editor_at: Point = (0, 0)  # physical top-left of the text being typed
@@ -228,6 +240,14 @@ class SelectionOverlay(QWidget):
         self.setFocus()
         self._marks_changed()
 
+    def _drawn(self, p: Point) -> Mark | None:
+        """The mark of the drawing drag so far, ending at ``p``."""
+        style, dpr = self.toolbar.style, self._screen.dpr
+        if self._tool is Tool.PEN:
+            self._stroke.append(p)
+            return pen_mark(self._stroke, style, dpr)
+        return drag_mark(self._tool, self._drawing, p, style, dpr)
+
     def _place_toolbar(self) -> None:
         if self.toolbar is None:
             return
@@ -286,8 +306,12 @@ class SelectionOverlay(QWidget):
                 self._close_editor(keep=True)
             elif self._tool is Tool.TEXT and _inside(self._rect, p):
                 self._open_editor(p)
+            elif self._tool is Tool.NUMBER and _inside(self._rect, p):
+                self._board.add(number_mark(p, self._board.marks, self.toolbar.style, self._screen.dpr))
+                self._marks_changed()
             elif self._tool is not None and _inside(self._rect, p):
                 self._drawing = p
+                self._stroke = [p]
             return
         handle = Handle.NONE
         if self._state is OverlayState.ADJUSTING:
@@ -305,7 +329,7 @@ class SelectionOverlay(QWidget):
             return
         p = self._point(event)
         if self._drawing is not None:
-            self._draft = drag_mark(self._tool, self._drawing, p, self.toolbar.style, self._screen.dpr)
+            self._draft = self._drawn(p)
             self.update()
             return
         if self._drag is None:
@@ -326,7 +350,7 @@ class SelectionOverlay(QWidget):
         if self._state is OverlayState.FINISHED or event.button() != Qt.MouseButton.LeftButton:
             return
         if self._drawing is not None:
-            mark = drag_mark(self._tool, self._drawing, self._point(event), self.toolbar.style, self._screen.dpr)
+            mark = self._drawn(self._point(event))
             self._drawing, self._draft = None, None
             if mark is not None:
                 self._board.add(mark)

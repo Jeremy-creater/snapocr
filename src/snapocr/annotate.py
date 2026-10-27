@@ -9,6 +9,7 @@ Drawing is ``snapocr.gui.marks_paint``; this module never imports Qt.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 
@@ -20,12 +21,15 @@ class Tool(Enum):
     ELLIPSE = "ellipse"
     ARROW = "arrow"
     TEXT = "text"
+    NUMBER = "number"
+    PEN = "pen"
 
 
 PALETTE = ("#e53935", "#fb8c00", "#fdd835", "#43a047", "#1e88e5", "#8e24aa", "#000000", "#ffffff")
 COLOR_NAMES = ("红", "橙", "黄", "绿", "蓝", "紫", "黑", "白")
 WIDTH_LEVELS = (2, 4, 6)  # stroke width, logical px (F14-4)
 FONT_LEVELS = (14, 20, 28)  # text size, logical px
+NUMBER_LEVELS = (20, 28, 36)  # number badge diameter, logical px (F14-8)
 LEVEL_NAMES = ("细", "中", "粗")
 MIN_DRAG = 3  # physical px: a shorter drag leaves no mark (F14-2)
 
@@ -49,7 +53,8 @@ DEFAULT_STYLE = Style()
 
 @dataclass(frozen=True)
 class Mark:
-    """One annotation. ``size`` is in physical px: stroke width, or font size for text."""
+    """One annotation. ``size`` is in physical px: stroke width, font size for
+    text, badge diameter for a number (whose ``text`` is the number)."""
 
     tool: Tool
     points: tuple[Point, ...]
@@ -77,6 +82,32 @@ def drag_mark(tool: Tool, start: Point, end: Point, style: Style, dpr: float) ->
     else:
         pts = (start, end)
     return Mark(tool, pts, style.color, scaled(WIDTH_LEVELS[style.level], dpr))
+
+
+def next_number(marks: Iterable[Mark]) -> int:
+    """One more than the largest number mark, or 1 (F14-8: undo makes it go back)."""
+    return max((int(m.text) for m in marks if m.tool is Tool.NUMBER), default=0) + 1
+
+
+def number_mark(center: Point, marks: Iterable[Mark], style: Style, dpr: float) -> Mark:
+    """The next number badge, centred on ``center``."""
+    size = scaled(NUMBER_LEVELS[style.level], dpr)
+    return Mark(Tool.NUMBER, (center,), style.color, size, str(next_number(marks)))
+
+
+def pen_mark(points: Sequence[Point], style: Style, dpr: float) -> Mark | None:
+    """A freehand stroke through ``points``; repeated points dropped; ``None`` if it never
+    gets ``MIN_DRAG`` px away from where it started."""
+    kept: list[Point] = []
+    for p in points:
+        if not kept or p != kept[-1]:
+            kept.append(p)
+    if not kept:
+        return None
+    x0, y0 = kept[0]
+    if max(max(abs(x - x0), abs(y - y0)) for x, y in kept) < MIN_DRAG:
+        return None
+    return Mark(Tool.PEN, tuple(kept), style.color, scaled(WIDTH_LEVELS[style.level], dpr))
 
 
 class Board:

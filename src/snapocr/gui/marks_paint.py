@@ -11,12 +11,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QImage, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QImage, QPainter, QPainterPath, QPen, QPolygonF
 
 from snapocr.annotate import FONT_LEVELS, Mark, Style, Tool, arrow_head, scaled
 from snapocr.geometry import Point
 
 TEXT_FAMILY = "Microsoft YaHei UI"
+_LIGHT = ("#fdd835", "#ffffff")  # badge colours that need dark digits
+NUMBER_FONT_RATIO = 0.55  # digit height relative to the badge diameter
 
 
 def text_font(size: int) -> QFont:
@@ -61,6 +63,23 @@ def _paint(painter: QPainter, mark: Mark) -> None:
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(color))
         painter.drawPolygon(QPolygonF([QPointF(*p) for p in head]))
+    elif mark.tool is Tool.NUMBER:
+        (cx, cy), r = mark.points[0], mark.size / 2
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(color))
+        painter.drawEllipse(QPointF(cx, cy), r, r)
+        font = text_font(max(1, round(mark.size * NUMBER_FONT_RATIO)))
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(QColor("#000000" if mark.color in _LIGHT else "#ffffff"))
+        painter.drawText(QRectF(cx - r, cy - r, mark.size, mark.size), int(Qt.AlignmentFlag.AlignCenter), mark.text)
+    elif mark.tool is Tool.PEN:
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        path = QPainterPath(QPointF(*mark.points[0]))
+        for p in mark.points[1:]:
+            path.lineTo(QPointF(*p))
+        painter.drawPath(path)
     else:  # Tool.TEXT
         painter.setFont(text_font(mark.size))
         painter.drawText(_box(mark), int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop), mark.text)

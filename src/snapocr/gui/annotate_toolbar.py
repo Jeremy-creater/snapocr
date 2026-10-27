@@ -23,6 +23,8 @@ _TOOLS = (
     (Tool.ELLIPSE, "tool-ellipse", "椭圆"),
     (Tool.ARROW, "tool-arrow", "箭头"),
     (Tool.TEXT, "tool-text", "文字"),
+    (Tool.NUMBER, "tool-number", "序号"),
+    (Tool.PEN, "tool-pen", "画笔"),
 )
 
 
@@ -54,6 +56,17 @@ def _arrow(p: QPainter) -> None:
     p.drawPolygon(QPolygonF([QPointF(16, 4), QPointF(9, 6), QPointF(14, 11)]))
 
 
+def _number(p: QPainter) -> None:
+    p.drawEllipse(QRectF(2.5, 2.5, 15, 15))
+    _glyph("1")(p)
+
+
+def _pen(p: QPainter) -> None:
+    p.drawLine(QPointF(4, 16), QPointF(14, 6))
+    p.drawLine(QPointF(14, 6), QPointF(16, 8))
+    p.drawLine(QPointF(16, 8), QPointF(6, 18))
+
+
 def _pushpin(p: QPainter) -> None:
     p.drawLine(QPointF(10, 12), QPointF(10, 18))
     p.drawLine(QPointF(5, 11.5), QPointF(15, 11.5))
@@ -66,6 +79,8 @@ _TOOL_ICONS: dict[Tool, Callable[[QPainter], None]] = {
     Tool.ELLIPSE: lambda p: p.drawEllipse(QRectF(3.5, 4.5, 13, 11)),
     Tool.ARROW: _arrow,
     Tool.TEXT: _glyph("T"),
+    Tool.NUMBER: _number,
+    Tool.PEN: _pen,
 }
 
 
