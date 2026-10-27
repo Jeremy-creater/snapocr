@@ -100,9 +100,11 @@ gdi32.SelectObject.restype = wintypes.HGDIOBJ
 gdi32.BitBlt.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                          wintypes.HDC, ctypes.c_int, ctypes.c_int, wintypes.DWORD]
 gdi32.BitBlt.restype = wintypes.BOOL
-gdi32.GetDIBits.argtypes = [wintypes.HDC, wintypes.HBITMAP, wintypes.UINT, wintypes.UINT, ctypes.c_void_p,
-                            ctypes.POINTER(BITMAPINFOHEADER), wintypes.UINT]
-gdi32.GetDIBits.restype = ctypes.c_int
+gdi32.CreateDIBSection.argtypes = [wintypes.HDC, ctypes.POINTER(BITMAPINFOHEADER), wintypes.UINT,
+                                   ctypes.POINTER(ctypes.c_void_p), wintypes.HANDLE, wintypes.DWORD]
+gdi32.CreateDIBSection.restype = wintypes.HBITMAP
+gdi32.GdiFlush.argtypes = []
+gdi32.GdiFlush.restype = wintypes.BOOL
 gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
 gdi32.DeleteObject.restype = wintypes.BOOL
 gdi32.DeleteDC.argtypes = [wintypes.HDC]
