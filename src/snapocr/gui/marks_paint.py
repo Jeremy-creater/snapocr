@@ -9,6 +9,7 @@ pixels: the overlay scales by 1/dpr and moves to its screen's origin first;
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 import math
 
@@ -38,10 +39,15 @@ def text_mark(text: str, top_left: Point, style: Style, dpr: float) -> Mark | No
     text = text.strip()
     if not text:
         return None
-    size = scaled(FONT_LEVELS[style.level], dpr)
+    return fit_text(Mark(Tool.TEXT, (top_left, top_left), style.color, 1, text), scaled(FONT_LEVELS[style.level], dpr))
+
+
+def fit_text(mark: Mark, size: int) -> Mark:
+    """A text mark at font ``size``: top-left kept, far corner re-measured (F14-10, F14-11)."""
     metrics = QFontMetrics(text_font(size))
-    far = (top_left[0] + metrics.horizontalAdvance(text), top_left[1] + metrics.height())
-    return Mark(Tool.TEXT, (top_left, far), style.color, size, text)
+    top_left = mark.points[0]
+    far = (top_left[0] + metrics.horizontalAdvance(mark.text), top_left[1] + metrics.height())
+    return replace(mark, points=(top_left, far), size=size)
 
 
 def _box(mark: Mark) -> QRectF:

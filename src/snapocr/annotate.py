@@ -88,6 +88,16 @@ def drag_mark(tool: Tool, start: Point, end: Point, style: Style, dpr: float) ->
     return Mark(tool, pts, style.color, scaled(levels[style.level], dpr))
 
 
+_LEVEL_TABLES = {Tool.TEXT: FONT_LEVELS, Tool.NUMBER: NUMBER_LEVELS, Tool.MOSAIC: MOSAIC_LEVELS}
+
+
+def with_level(mark: Mark, level: int, dpr: float) -> Mark:
+    """``mark`` at the size of ``level`` for its tool (F14-10); a text box is re-measured by the GUI."""
+    if type(level) is not int or not 0 <= level < len(WIDTH_LEVELS):
+        raise ValueError(f"level must be 0, 1 or 2, got {level!r}")
+    return replace(mark, size=scaled(_LEVEL_TABLES.get(mark.tool, WIDTH_LEVELS)[level], dpr))
+
+
 def next_number(marks: Iterable[Mark]) -> int:
     """One more than the largest number mark, or 1 (F14-8: undo makes it go back)."""
     return max((int(m.text) for m in marks if m.tool is Tool.NUMBER), default=0) + 1

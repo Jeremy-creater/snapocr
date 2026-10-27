@@ -11,6 +11,8 @@ Pinned here:
 - Colour and level: exactly one of each checked, starting from the given
   style; a click on another one emits ``style_changed(Style)``, a click on the
   checked one emits nothing.
+- ``color_clicked(str)`` and ``level_clicked(int)`` (F14-10) fire on every
+  click of a colour or level, the current one included.
 - Undo starts disabled; ``set_undo_enabled`` switches it. Undo, pin, cancel
   and done emit their signals. The pin button is hidden unless ``show_pin``.
 """
@@ -171,3 +173,15 @@ def test_toolbar_paints_its_own_light_panel():
     shot = parent.grab().toImage()
     c = shot.pixelColor(10 + bar.width() // 2, 12)  # between the border and the buttons
     assert min(c.red(), c.green(), c.blue()) >= 230, c.name()
+
+
+def test_every_colour_and_level_click_is_reported():
+    bar = AnnotateToolbar()
+    clicks = []
+    bar.color_clicked.connect(lambda c: clicks.append(("color", c)))
+    bar.level_clicked.connect(lambda lv: clicks.append(("level", lv)))
+    btn(bar, "color-0").click()  # the current one
+    btn(bar, "color-4").click()
+    btn(bar, "level-1").click()  # the current one
+    btn(bar, "level-2").click()
+    assert clicks == [("color", PALETTE[0]), ("color", PALETTE[4]), ("level", 1), ("level", 2)]

@@ -116,6 +116,8 @@ def _dot(level: int) -> Callable[[QPainter], None]:
 class AnnotateToolbar(QWidget):
     tool_changed = Signal(object)  # Tool | None
     style_changed = Signal(object)  # Style
+    color_clicked = Signal(str)  # every colour click, the current one too (F14-10)
+    level_clicked = Signal(int)  # every level click, the current one too
     undo_requested = Signal()
     pin_requested = Signal()
     cancel_requested = Signal()
@@ -146,12 +148,14 @@ class AnnotateToolbar(QWidget):
             b = self._button(layout, f"color-{i}", f"颜色：{label}", _icon(_swatch(color)), checkable=True)
             b.setChecked(color == style.color)
             b.clicked.connect(lambda _=False, c=color: self._set_style(Style(c, self._style.level)))
+            b.clicked.connect(lambda _=False, c=color: self.color_clicked.emit(c))
             self._colors.append(b)
         self._levels: list[QToolButton] = []
         for level, label in enumerate(LEVEL_NAMES):
             b = self._button(layout, f"level-{level}", f"粗细：{label}", _icon(_dot(level)), checkable=True)
             b.setChecked(level == style.level)
             b.clicked.connect(lambda _=False, lv=level: self._set_style(Style(self._style.color, lv)))
+            b.clicked.connect(lambda _=False, lv=level: self.level_clicked.emit(lv))
             self._levels.append(b)
         self._separator(layout)
         self._undo = self._button(layout, "undo", "撤销（Ctrl+Z）", _icon(_glyph("↶")))

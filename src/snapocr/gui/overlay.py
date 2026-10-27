@@ -17,6 +17,8 @@ click elsewhere keeps the text, Esc drops only the text.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
+from dataclasses import replace
 from enum import Enum
 
 from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, Qt, Signal
@@ -37,6 +39,7 @@ from snapocr.annotate import (
     number_mark,
     pen_mark,
     toolbar_place,
+    with_level,
 )
 from snapocr.geometry import (
     Handle,
@@ -52,7 +55,7 @@ from snapocr.geometry import (
     selection_rect,
 )
 from snapocr.gui.annotate_toolbar import AnnotateToolbar
-from snapocr.gui.marks_paint import paint_marks, text_font, text_mark
+from snapocr.gui.marks_paint import fit_text, paint_marks, text_font, text_mark
 
 HANDLE_SIZE = 7  # logical px, drawn centred on corners and edge midpoints
 HANDLE_MARGIN = 5  # border and handles stay within this many logical px of the edges
@@ -143,6 +146,8 @@ class SelectionOverlay(QWidget):
             self.toolbar.tool_changed.connect(self._tool_changed)
             self.toolbar.style_changed.connect(self.style_changed)
             self.toolbar.style_changed.connect(self._style_editor)
+            self.toolbar.color_clicked.connect(lambda c: self._restyle(lambda m: replace(m, color=c)))
+            self.toolbar.level_clicked.connect(lambda lv: self._restyle(lambda m: self._with_level(m, lv)))
             self.toolbar.undo_requested.connect(self._undo)
             self.toolbar.cancel_requested.connect(lambda: self._finish(None))
             self.toolbar.done_requested.connect(self._done)
@@ -209,6 +214,21 @@ class SelectionOverlay(QWidget):
         assert self.toolbar is not None
         self.toolbar.set_undo_enabled(self._board.can_undo)
         self.update()
+
+    def _with_level(self, mark: Mark, level: int) -> Mark:
+        mark = with_level(mark, level, self._screen.dpr)
+        return fit_text(mark, mark.size) if mark.tool is Tool.TEXT else mark
+
+    def _restyle(self, change: Callable[[Mark], Mark]) -> None:
+        """F14-10: a colour or level click changes the picked mark, as one undo step."""
+        if self._picked is None or self._moving is not None:
+            return
+        marks = list(self._board.marks)
+        new = change(marks[self._picked])
+        if new != marks[self._picked]:
+            marks[self._picked] = new
+            self._board.change(tuple(marks))
+            self._marks_changed()
 
     def _open_editor(self, p: Point) -> None:
         self._editor_at = p

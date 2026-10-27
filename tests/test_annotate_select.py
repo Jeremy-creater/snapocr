@@ -9,13 +9,31 @@ Pinned here:
   grown by ``tol`` holds ``p`` (edges included), else ``None``.
 - ``moved(mark, dx, dy)``: every point shifted, nothing else changed.
 - ``Board.change(marks)``: replaces all marks as one undo step.
+- ``with_level(mark, level, dpr)`` (F14-10, plan D17): the size of ``level``
+  for the mark's tool in physical px (strokes ``WIDTH_LEVELS``, text
+  ``FONT_LEVELS``, number ``NUMBER_LEVELS``, mosaic ``MOSAIC_LEVELS``);
+  nothing else changes (text gets its box re-measured in the GUI).
 """
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from snapocr.annotate import PALETTE, Board, Mark, Tool, hit_mark, mark_bounds, moved
+from snapocr.annotate import (
+    FONT_LEVELS,
+    MOSAIC_LEVELS,
+    NUMBER_LEVELS,
+    PALETTE,
+    WIDTH_LEVELS,
+    Board,
+    Mark,
+    Tool,
+    hit_mark,
+    mark_bounds,
+    moved,
+    scaled,
+    with_level,
+)
 from snapocr.geometry import Rect
 
 R = PALETTE[0]
@@ -77,3 +95,29 @@ def test_board_change_is_one_undo_step():
     assert board.marks == (moved(A, 5, 5),)
     board.undo()
     assert board.marks == (A, B)
+
+
+LEVEL_TABLES = {
+    Tool.RECT: WIDTH_LEVELS,
+    Tool.ELLIPSE: WIDTH_LEVELS,
+    Tool.ARROW: WIDTH_LEVELS,
+    Tool.PEN: WIDTH_LEVELS,
+    Tool.TEXT: FONT_LEVELS,
+    Tool.NUMBER: NUMBER_LEVELS,
+    Tool.MOSAIC: MOSAIC_LEVELS,
+}
+
+
+@pytest.mark.parametrize("tool", list(Tool))
+@pytest.mark.parametrize("level", [0, 1, 2])
+@pytest.mark.parametrize("dpr", [1.0, 1.5, 2.0])
+def test_with_level(tool, level, dpr):
+    mark = Mark(tool, ((10, 10), (60, 30)), PALETTE[5], 999, "7")
+    expected = Mark(tool, ((10, 10), (60, 30)), PALETTE[5], scaled(LEVEL_TABLES[tool][level], dpr), "7")
+    assert with_level(mark, level, dpr) == expected
+
+
+@pytest.mark.parametrize("level", [-1, 3, 1.0])
+def test_with_level_rejects_bad_levels(level):
+    with pytest.raises(ValueError, match="level"):
+        with_level(A, level, 1.0)
