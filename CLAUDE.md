@@ -34,7 +34,7 @@
 - **不依赖 Umi-OCR**，不 fork、不调用它。截图由 snapocr 自己实现（PRD §5）。
 - OCR 引擎放在适配层后面（`snapocr.engines`），对外只暴露引擎无关的结果结构；业务代码不 import `rapidocr`，便于以后换 PaddleOCR 或 VLM。
 - OCR 运行时不联网：模型文件在本地，只读本地路径。
-- 翻译后端放在适配层后面（`snapocr.translators`），只走 OpenAI 兼容接口（`POST {base_url}/v1/chat/completions`），默认 `http://127.0.0.1:11434`（Ollama）。
+- 翻译后端放在适配层后面（`snapocr.translators`），只走 OpenAI 兼容接口（`POST {base_url}/v1/chat/completions`；设置窗口读模型列表用 `GET {base_url}/v1/models`，2026-10-27 M3 F11-7），默认 `http://127.0.0.1:11434`（Ollama）。HTTP 只在 `snapocr.translators.http_transport` 里发。
 - **只访问 `127.0.0.1`。** 任何外网请求（云端模型等）必须先改 PRD，并做成默认关闭的显式开关。
 - GUI 层（`snapocr.gui`，PySide6）只做界面和 I/O（托盘、热键、遮罩、浮窗、剪贴板），不含业务规则；流程编排放 `snapocr.actions`，可用假引擎测试。
 - 纯逻辑（后处理、翻译方向判断、热键字符串解析、坐标换算、配置解析）与 I/O（HTTP、剪贴板、截图、热键注册）分开，纯逻辑必须可在无 OCR 模型、无翻译服务、无 GUI 的环境下测试。
@@ -84,6 +84,8 @@
 
 - 测试截图放 `tests/fixtures/`，只放无隐私内容的样例；真实使用中的截图不进 Git。
 - 不在日志里写 OCR 出来的全文，除非开了 debug 开关，且日志只写到 `D:\DevLocal\runtime\snapocr`。
+- debug 模式（PRD F12）把截图和全文写到固定目录 `D:\DevLocal\runtime\snapocr\debug`；测试一律用 `tmp_path`，不写真实目录。
+- `tempsnap/`：Jeremy 给 S4 代码模式提供的原始截图，不进 Git（`.gitignore`）；挑出无隐私的样例后再复制进 `tests/fixtures/`。
 
 ## Git
 
