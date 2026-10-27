@@ -31,6 +31,9 @@ from snapocr.annotate import (
     Style,
     Tool,
     drag_mark,
+    hit_mark,
+    mark_bounds,
+    moved,
     number_mark,
     pen_mark,
     toolbar_place,
@@ -127,6 +130,9 @@ class SelectionOverlay(QWidget):
         self._board = Board()
         self._drawing: Point | None = None  # press point of the mark being drawn
         self._stroke: list[Point] = []  # the pen tool's points so far
+        self._picked: int | None = None  # index of the picked mark (F14-8)
+        self._moving: Point | None = None  # press point while dragging the picked mark
+        self._moved: Mark | None = None  # the picked mark where the drag has put it
         self._draft: Mark | None = None
         self._editor: TextEditor | None = None
         self._editor_at: Point = (0, 0)  # physical top-left of the text being typed
@@ -162,6 +168,11 @@ class SelectionOverlay(QWidget):
         return self._board.marks
 
     @property
+    def picked(self) -> int | None:
+        """Index in ``marks`` of the mark picked with no tool (F14-8), or ``None``."""
+        return self._picked
+
+    @property
     def editor(self) -> TextEditor | None:
         """The open text editor (F14-5), if any."""
         return self._editor
@@ -185,11 +196,13 @@ class SelectionOverlay(QWidget):
 
     def _tool_changed(self, tool: Tool | None) -> None:
         self._close_editor(keep=True)
+        self._picked = None
         self.setCursor(Qt.CursorShape.CrossCursor if tool is not None else Qt.CursorShape.ArrowCursor)
         self.update()
 
     def _undo(self) -> None:
         if self._board.undo():
+            self._picked = None
             self._marks_changed()
 
     def _marks_changed(self) -> None:
@@ -312,6 +325,10 @@ class SelectionOverlay(QWidget):
             elif self._tool is not None and _inside(self._rect, p):
                 self._drawing = p
                 self._stroke = [p]
+            elif self._tool is None:
+                self._picked = hit_mark(self._board.marks, p, self._tol)
+                self._moving = None if self._picked is None else p
+                self.update()
             return
         handle = Handle.NONE
         if self._state is OverlayState.ADJUSTING:
@@ -330,6 +347,10 @@ class SelectionOverlay(QWidget):
         p = self._point(event)
         if self._drawing is not None:
             self._draft = self._drawn(p)
+            self.update()
+            return
+        if self._moving is not None:
+            self._moved = moved(self._board.marks[self._picked], p[0] - self._moving[0], p[1] - self._moving[1])
             self.update()
             return
         if self._drag is None:
@@ -354,6 +375,15 @@ class SelectionOverlay(QWidget):
             self._drawing, self._draft = None, None
             if mark is not None:
                 self._board.add(mark)
+            self._marks_changed()
+            return
+        if self._moving is not None:
+            self.mouseMoveEvent(event)
+            marks = list(self._board.marks)
+            if self._moved != marks[self._picked]:
+                marks[self._picked] = self._moved
+                self._board.change(tuple(marks))
+            self._moving, self._moved = None, None
             self._marks_changed()
             return
         if self._drag is None:
@@ -384,6 +414,11 @@ class SelectionOverlay(QWidget):
             self._finish(None)
         elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._confirm()
+        elif event.key() == Qt.Key.Key_Delete and self._picked is not None and self._moving is None:
+            marks = self._board.marks
+            self._board.change(marks[: self._picked] + marks[self._picked + 1 :])
+            self._picked = None
+            self._marks_changed()
         elif (
             event.key() == Qt.Key.Key_Z
             and event.modifiers() == Qt.KeyboardModifier.ControlModifier
@@ -419,7 +454,11 @@ class SelectionOverlay(QWidget):
         painter.end()
 
     def _paint_marks(self, painter: QPainter, sel: QRectF) -> None:
-        marks = self._board.marks if self._draft is None else (*self._board.marks, self._draft)
+        marks = self._board.marks
+        if self._moved is not None:
+            marks = (*marks[: self._picked], self._moved, *marks[self._picked + 1 :])
+        if self._draft is not None:
+            marks = (*marks, self._draft)
         if not marks:
             return
         origin = (self._screen.physical.x, self._screen.physical.y)
@@ -428,6 +467,12 @@ class SelectionOverlay(QWidget):
         painter.scale(1 / self._screen.dpr, 1 / self._screen.dpr)
         painter.translate(-origin[0], -origin[1])
         paint_marks(painter, marks, self._frozen, origin)
+        if self._picked is not None:
+            b = mark_bounds(marks[self._picked])
+            t = self._tol
+            painter.setPen(QPen(_BORDER, self._screen.dpr, Qt.PenStyle.DashLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(QRectF(b.x - t, b.y - t, b.w + 2 * t, b.h + 2 * t))
         painter.restore()
 
     def _paint_handles(self, painter: QPainter, sel: QRectF) -> None:

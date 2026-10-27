@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 
 from snapocr.geometry import Point, Rect
@@ -114,6 +114,34 @@ def pen_mark(points: Sequence[Point], style: Style, dpr: float) -> Mark | None:
     return Mark(Tool.PEN, tuple(kept), style.color, scaled(WIDTH_LEVELS[style.level], dpr))
 
 
+_STROKED = (Tool.RECT, Tool.ELLIPSE, Tool.ARROW, Tool.PEN)
+
+
+def mark_bounds(mark: Mark) -> Rect:
+    """The box a mark covers, in physical px (strokes included; a number is its badge)."""
+    if mark.tool is Tool.NUMBER:
+        (cx, cy), r = mark.points[0], mark.size / 2
+        x0, y0, x1, y1 = math.floor(cx - r), math.floor(cy - r), math.ceil(cx + r), math.ceil(cy + r)
+    else:
+        xs, ys = [x for x, _ in mark.points], [y for _, y in mark.points]
+        pad = math.ceil(mark.size / 2) if mark.tool in _STROKED else 0
+        x0, y0, x1, y1 = min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad
+    return Rect(x0, y0, x1 - x0, y1 - y0)
+
+
+def hit_mark(marks: Sequence[Mark], p: Point, tol: int) -> int | None:
+    """Index of the topmost mark whose box, grown by ``tol``, holds ``p`` (F14-8)."""
+    for i in range(len(marks) - 1, -1, -1):
+        b = mark_bounds(marks[i])
+        if b.x - tol <= p[0] <= b.x + b.w + tol and b.y - tol <= p[1] <= b.y + b.h + tol:
+            return i
+    return None
+
+
+def moved(mark: Mark, dx: int, dy: int) -> Mark:
+    return replace(mark, points=tuple((x + dx, y + dy) for x, y in mark.points))
+
+
 class Board:
     """The marks of one capture, with snapshot undo (F14-6)."""
 
@@ -132,6 +160,11 @@ class Board:
     def add(self, mark: Mark) -> None:
         self._past.append(self._marks)
         self._marks = (*self._marks, mark)
+
+    def change(self, marks: tuple[Mark, ...]) -> None:
+        """Replace all marks at once (a move or a delete); one undo step."""
+        self._past.append(self._marks)
+        self._marks = marks
 
     def undo(self) -> bool:
         if not self._past:
