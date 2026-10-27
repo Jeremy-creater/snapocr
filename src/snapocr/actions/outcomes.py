@@ -43,11 +43,23 @@ class ClipboardPng:
 
 
 @dataclass(frozen=True)
+class ClipboardTable:
+    """F16-2: a table as Markdown text and as HTML; both go on the clipboard."""
+
+    markdown: str
+    html: str
+
+    def __post_init__(self) -> None:
+        _require(self.markdown, str, "markdown")
+        _require(self.html, str, "html")
+
+
+@dataclass(frozen=True)
 class NoClipboardChange:
     pass
 
 
-ClipboardAction = ClipboardText | ClipboardPng | NoClipboardChange
+ClipboardAction = ClipboardText | ClipboardPng | ClipboardTable | NoClipboardChange
 
 
 @dataclass(frozen=True)

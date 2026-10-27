@@ -20,11 +20,13 @@ rules were fitted to the real OCR boxes of the M4 table screenshots (plan D19):
    such a text joins the row it overlaps more. Ties go to the upper pair.
 
 Last, ``strip_sheet_headers`` removes spreadsheet column letters and row
-numbers (F16-5).
+numbers (F16-5). ``to_markdown`` and ``to_html`` give the two clipboard forms
+(F16-2).
 """
 
 from __future__ import annotations
 
+import html
 import re
 
 from snapocr.engines.types import OcrResult
@@ -173,3 +175,24 @@ def strip_sheet_headers(cells: list[list[str]]) -> list[list[str]]:
     if not corner and numbers and 2 * sum(bool(_ROW_NUMBER.fullmatch(n)) for n in numbers) >= len(numbers):
         return [row[1:] for row in rest]
     return rest
+
+
+def _markdown_cell(text: str) -> str:
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").replace("|", "\\|")
+
+
+def to_markdown(cells: list[list[str]]) -> str:
+    """F16-2: a Markdown table; the first row is the header. "" for no rows."""
+    if not cells:
+        return ""
+    lines = ["| " + " | ".join(_markdown_cell(c) for c in row) + " |" for row in cells]
+    lines.insert(1, "|" + " --- |" * len(cells[0]))
+    return "\n".join(lines)
+
+
+def to_html(cells: list[list[str]]) -> str:
+    """F16-2: an HTML ``<table>`` with every cell escaped. "" for no rows."""
+    if not cells:
+        return ""
+    rows = ["<tr>" + "".join(f"<td>{html.escape(c)}</td>" for c in row) + "</tr>" for row in cells]
+    return "\n".join(["<table>", *rows, "</table>"])

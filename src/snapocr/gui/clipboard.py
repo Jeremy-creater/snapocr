@@ -1,4 +1,4 @@
-"""Write action results to the system clipboard (F7-1, F7-2; plan D6).
+"""Write action results to the system clipboard (F7-1, F7-2, F16-2; plan D6).
 
 A screenshot goes in as one QMimeData: the image itself (Qt turns it into
 CF_DIB / CF_DIBV5 on Windows) and the PNG bytes, both as "image/png" (for Qt
@@ -11,7 +11,7 @@ from __future__ import annotations
 from PySide6.QtCore import QByteArray, QMimeData
 from PySide6.QtGui import QGuiApplication
 
-from snapocr.actions.outcomes import ClipboardAction, ClipboardPng, ClipboardText, NoClipboardChange
+from snapocr.actions.outcomes import ClipboardAction, ClipboardPng, ClipboardTable, ClipboardText, NoClipboardChange
 from snapocr.gui.imageops import decode_png
 
 WINDOWS_PNG = 'application/x-qt-windows-mime;value="PNG"'
@@ -33,6 +33,14 @@ def set_png(png: bytes) -> None:
     QGuiApplication.clipboard().setMimeData(mime)  # the clipboard takes ownership
 
 
+def set_table(markdown: str, html: str) -> None:
+    """F16-2: one QMimeData with the HTML (Qt offers it as CF_HTML on Windows) and the Markdown as text."""
+    mime = QMimeData()
+    mime.setHtml(html)
+    mime.setText(markdown)
+    QGuiApplication.clipboard().setMimeData(mime)
+
+
 def apply(action: ClipboardAction) -> bool:
     """Carry out an action's clipboard result; True when the clipboard changed."""
     if isinstance(action, ClipboardText):
@@ -40,6 +48,9 @@ def apply(action: ClipboardAction) -> bool:
         return True
     if isinstance(action, ClipboardPng):
         set_png(action.png)
+        return True
+    if isinstance(action, ClipboardTable):
+        set_table(action.markdown, action.html)
         return True
     if isinstance(action, NoClipboardChange):
         return False

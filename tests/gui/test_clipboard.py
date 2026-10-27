@@ -16,8 +16,8 @@ Pinned here:
 import pytest
 from PySide6.QtGui import QGuiApplication
 
-from snapocr.actions.outcomes import ClipboardPng, ClipboardText, NoClipboardChange
-from snapocr.gui.clipboard import apply, set_png, set_text
+from snapocr.actions.outcomes import ClipboardPng, ClipboardTable, ClipboardText, NoClipboardChange
+from snapocr.gui.clipboard import apply, set_png, set_table, set_text
 from snapocr.gui.imageops import decode_png, encode_png
 from support.qimages import gradient, pixels
 
@@ -100,3 +100,28 @@ def test_set_png_also_offers_the_windows_png_format(clipboard):
     mime = clipboard.mimeData()
     assert WINDOWS_PNG in mime.formats()
     assert bytes(mime.data(WINDOWS_PNG)) == png
+
+
+# --- M4 WI-14: tables go in as HTML and Markdown text (F16-2) -------------------------------
+
+
+def test_set_table_puts_html_and_text(clipboard):
+    set_table("| a | b |\n| --- | --- |", "<table>\n<tr><td>a</td><td>b</td></tr>\n</table>")
+    mime = clipboard.mimeData()
+    assert mime.hasHtml()
+    assert "<td>a</td><td>b</td>" in mime.html()
+    assert clipboard.text() == "| a | b |\n| --- | --- |"
+    assert not mime.hasImage()
+
+
+def test_apply_table(clipboard):
+    assert apply(ClipboardTable("| 甲 |\n| --- |", "<table>\n<tr><td>甲</td></tr>\n</table>")) is True
+    assert clipboard.text() == "| 甲 |\n| --- |"
+    assert "<td>甲</td>" in clipboard.mimeData().html()
+
+
+def test_clipboard_table_takes_strings_only():
+    with pytest.raises(TypeError):
+        ClipboardTable(b"md", "<table></table>")
+    with pytest.raises(TypeError):
+        ClipboardTable("md", None)
