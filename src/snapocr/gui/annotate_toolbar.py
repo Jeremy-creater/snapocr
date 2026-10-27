@@ -25,6 +25,7 @@ _TOOLS = (
     (Tool.TEXT, "tool-text", "文字"),
     (Tool.NUMBER, "tool-number", "序号"),
     (Tool.PEN, "tool-pen", "画笔"),
+    (Tool.MOSAIC, "tool-mosaic", "马赛克"),
 )
 
 
@@ -67,6 +68,14 @@ def _pen(p: QPainter) -> None:
     p.drawLine(QPointF(16, 8), QPointF(6, 18))
 
 
+def _mosaic(p: QPainter) -> None:
+    p.setPen(Qt.PenStyle.NoPen)
+    for i in range(3):
+        for j in range(3):
+            p.setBrush(_INK if (i + j) % 2 == 0 else QColor("#bbbbbb"))
+            p.drawRect(QRectF(3 + 5 * i, 3 + 5 * j, 5, 5))
+
+
 def _pushpin(p: QPainter) -> None:
     p.drawLine(QPointF(10, 12), QPointF(10, 18))
     p.drawLine(QPointF(5, 11.5), QPointF(15, 11.5))
@@ -81,6 +90,7 @@ _TOOL_ICONS: dict[Tool, Callable[[QPainter], None]] = {
     Tool.TEXT: _glyph("T"),
     Tool.NUMBER: _number,
     Tool.PEN: _pen,
+    Tool.MOSAIC: _mosaic,
 }
 
 

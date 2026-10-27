@@ -23,6 +23,7 @@ class Tool(Enum):
     TEXT = "text"
     NUMBER = "number"
     PEN = "pen"
+    MOSAIC = "mosaic"
 
 
 PALETTE = ("#e53935", "#fb8c00", "#fdd835", "#43a047", "#1e88e5", "#8e24aa", "#000000", "#ffffff")
@@ -30,6 +31,7 @@ COLOR_NAMES = ("红", "橙", "黄", "绿", "蓝", "紫", "黑", "白")
 WIDTH_LEVELS = (2, 4, 6)  # stroke width, logical px (F14-4)
 FONT_LEVELS = (14, 20, 28)  # text size, logical px
 NUMBER_LEVELS = (20, 28, 36)  # number badge diameter, logical px (F14-8)
+MOSAIC_LEVELS = (8, 12, 16)  # mosaic block side, logical px (F14-8)
 LEVEL_NAMES = ("细", "中", "粗")
 MIN_DRAG = 3  # physical px: a shorter drag leaves no mark (F14-2)
 
@@ -54,7 +56,8 @@ DEFAULT_STYLE = Style()
 @dataclass(frozen=True)
 class Mark:
     """One annotation. ``size`` is in physical px: stroke width, font size for
-    text, badge diameter for a number (whose ``text`` is the number)."""
+    text, badge diameter for a number (whose ``text`` is the number), block
+    side for a mosaic."""
 
     tool: Tool
     points: tuple[Point, ...]
@@ -68,7 +71,7 @@ def scaled(value: float, dpr: float) -> int:
     return max(1, math.floor(value * dpr + 0.5))
 
 
-_BOX_TOOLS = (Tool.RECT, Tool.ELLIPSE)
+_BOX_TOOLS = (Tool.RECT, Tool.ELLIPSE, Tool.MOSAIC)
 
 
 def drag_mark(tool: Tool, start: Point, end: Point, style: Style, dpr: float) -> Mark | None:
@@ -81,7 +84,8 @@ def drag_mark(tool: Tool, start: Point, end: Point, style: Style, dpr: float) ->
         pts = ((min(start[0], end[0]), min(start[1], end[1])), (max(start[0], end[0]), max(start[1], end[1])))
     else:
         pts = (start, end)
-    return Mark(tool, pts, style.color, scaled(WIDTH_LEVELS[style.level], dpr))
+    levels = MOSAIC_LEVELS if tool is Tool.MOSAIC else WIDTH_LEVELS
+    return Mark(tool, pts, style.color, scaled(levels[style.level], dpr))
 
 
 def next_number(marks: Iterable[Mark]) -> int:

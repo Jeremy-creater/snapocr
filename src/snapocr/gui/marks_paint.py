@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+import math
+
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QImage, QPainter, QPainterPath, QPen, QPolygonF
 
 from snapocr.annotate import FONT_LEVELS, Mark, Style, Tool, arrow_head, scaled
@@ -47,12 +49,44 @@ def _box(mark: Mark) -> QRectF:
     return QRectF(QPointF(x0, y0), QPointF(x1, y1))
 
 
-def _paint(painter: QPainter, mark: Mark) -> None:
+def _mosaic(painter: QPainter, mark: Mark, base: QImage, origin: Point) -> None:
+    """Pixelate the box: each ``size`` px block gets the average colour of ``base`` under it.
+
+    Blocks start at the box's top-left corner. Only the part of the box that
+    lies on ``base`` is drawn.
+    """
+    (x0, y0), (x1, y1) = mark.points
+    box = QRect(x0 - origin[0], y0 - origin[1], x1 - x0, y1 - y0).intersected(base.rect())
+    if box.isEmpty():
+        return
+    b = mark.size
+    # Whole blocks from the box corner that cover the visible part.
+    left = box.x() - (box.x() - (x0 - origin[0])) % b
+    top = box.y() - (box.y() - (y0 - origin[1])) % b
+    cols = math.ceil((box.right() + 1 - left) / b)
+    rows = math.ceil((box.bottom() + 1 - top) / b)
+    grid = QRect(left, top, cols * b, rows * b).intersected(base.rect())
+    small = base.copy(grid).scaled(
+        math.ceil(grid.width() / b),
+        math.ceil(grid.height() / b),
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    blocks = small.scaled(small.width() * b, small.height() * b)  # nearest: hard block edges
+    painter.save()
+    painter.setClipRect(box.translated(origin[0], origin[1]), Qt.ClipOperation.IntersectClip)
+    painter.drawImage(QPoint(grid.x() + origin[0], grid.y() + origin[1]), blocks)
+    painter.restore()
+
+
+def _paint(painter: QPainter, mark: Mark, base: QImage, origin: Point) -> None:
     color = QColor(mark.color)
     pen = QPen(color, mark.size, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin)
     painter.setPen(pen)
     painter.setBrush(Qt.BrushStyle.NoBrush)
-    if mark.tool is Tool.RECT:
+    if mark.tool is Tool.MOSAIC:
+        _mosaic(painter, mark, base, origin)
+    elif mark.tool is Tool.RECT:
         painter.drawRect(_box(mark))
     elif mark.tool is Tool.ELLIPSE:
         painter.drawEllipse(_box(mark))
@@ -95,7 +129,7 @@ def paint_marks(painter: QPainter, marks: Sequence[Mark], base: QImage, origin: 
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
     for mark in marks:
-        _paint(painter, mark)
+        _paint(painter, mark, base, origin)
     painter.restore()
 
 
