@@ -3,3 +3,4 @@ tests/fixtures/*.txt text eol=lf
 *.png binary
 *.ico binary
 tests/fixtures/translators/* text eol=lf
+tests/fixtures/table/*.tsv text eol=lf

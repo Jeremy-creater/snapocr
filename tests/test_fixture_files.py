@@ -67,3 +67,20 @@ def test_fixture_pngs_are_8bit_rgb_no_alpha(path):
     assert data[12:16] == b"IHDR"
     bit_depth, color_type = data[24], data[25]
     assert (bit_depth, color_type) == (8, 2)
+
+
+# --- M4 WI-16: table samples (PRD F16-4) ------------------------------------------------
+
+TABLES = FIXTURES / "table"
+TABLE_NAMES = ["schedule", "groceries", "products", "quarterly", "grades", "merged", "sales"]
+
+
+@pytest.mark.parametrize("name", TABLE_NAMES)
+def test_table_samples_are_rectangular_utf8_lf_tsv(name):
+    raw = _read(TABLES / f"{name}.expected.tsv")
+    assert not raw.startswith(b"\xef\xbb\xbf")
+    assert b"\r" not in raw and raw.endswith(b"\n")
+    rows = [line.split("\t") for line in raw.decode("utf-8").split("\n")[:-1]]
+    assert len({len(row) for row in rows}) == 1
+    assert any(cell for row in rows for cell in row)
+    assert _read(TABLES / f"{name}.png")[:8] == b"\x89PNG\r\n\x1a\n"
