@@ -20,6 +20,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer
+from PySide6.QtGui import QImage
 
 from snapocr.actions import messages
 from snapocr.actions.debug import DEBUG_DIR, DebugDump
@@ -50,6 +51,7 @@ from snapocr.gui.history_window import LastResultWindow
 from snapocr.gui.imageops import crop, encode_png
 from snapocr.gui.marks_paint import render_marked
 from snapocr.gui.overlay import OverlaySession, SelectionOverlay
+from snapocr.gui.pin_window import PinWindow
 from snapocr.gui.popup import TranslationPopup
 from snapocr.gui.settings_window import SettingsWindow
 from snapocr.gui.tray_menu import build_tray_menu, update_tray_menu
@@ -108,6 +110,7 @@ class AppController(QObject):
         self._session: OverlaySession | None = None
         self._overlays: tuple[SelectionOverlay, ...] = ()
         self._style: Style = DEFAULT_STYLE  # annotation colour and size (F14-4)
+        self._pins: list[PinWindow] = []  # F15-3: memory only
         self._anchors: dict[int, tuple[Rect, Rect]] = {}  # translate job -> (anchor, available), logical
         self._quitting = False
         self._paused = False  # hotkeys released while the settings window is open (plan D5)
@@ -129,6 +132,11 @@ class AppController(QObject):
     def registered_commands(self) -> tuple[Command, ...]:
         """The commands whose hotkeys were registered by ``start()`` (in hotkey-id order)."""
         return tuple(self._report.registered[i] for i in sorted(self._report.registered))
+
+    @property
+    def pins(self) -> tuple[PinWindow, ...]:
+        """The open pinned screenshots (F15), oldest first."""
+        return tuple(self._pins)
 
     @property
     def overlays(self) -> tuple[SelectionOverlay, ...]:
@@ -209,13 +217,16 @@ class AppController(QObject):
         self._session, self._overlays = None, ()
 
     def _on_selection(self, command: Command, cap: Capture, rect: Rect | None) -> None:
-        marks = self._session.marks  # only a capture overlay can have any (F14)
+        marks, action = self._session.marks, self._session.action  # only capture overlays annotate or pin
         self._end_session()
         if rect is None:  # F6-3: cancelled, nothing changes
             return
         image = crop(cap.image, crop_box(rect, cap.origin))
         if marks:
             image = render_marked(image, marks, (rect.x, rect.y))
+        if action == "pin":  # F15-1: no clipboard change, no notice
+            self._pin(image, logical_rect(screen_containing(rect, cap.screens), rect))
+            return
         png = encode_png(image)
         if command is Command.CAPTURE:
             self._land(capture_flow(png))
@@ -228,6 +239,18 @@ class AppController(QObject):
             screen = screen_containing(rect, cap.screens)
             available = cap.work_areas.get(screen.name, screen.logical)
             self._anchors[job_id] = (logical_rect(screen, rect), available)
+
+    def _pin(self, image: QImage, geometry: Rect) -> None:
+        window = PinWindow(image, geometry)
+        window.closed.connect(lambda: self._unpin(window))
+        self._pins.append(window)
+        window.show()
+        window.raise_()
+        window.activateWindow()
+
+    def _unpin(self, window: PinWindow) -> None:
+        self._pins.remove(window)  # a window sends ``closed`` once
+        window.deleteLater()
 
     # --- job events (GUI thread) --------------------------------------------------------
 
@@ -379,6 +402,8 @@ class AppController(QObject):
         unregister_all(self._report, self._hotkeys.unregister)
         self.runner.shutdown()
         self._end_session()
+        for pin in tuple(self._pins):
+            pin.close()
         self.popup.hide()
         self.history_window.hide()
         self.settings_window.hide()

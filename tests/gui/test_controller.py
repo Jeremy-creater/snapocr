@@ -1032,3 +1032,68 @@ def test_style_is_remembered_between_captures(make):
     qi.key(h.controller.overlays[0], Qt.Key.Key_Escape)
     h.controller.run(Command.CAPTURE)
     assert all(o.toolbar.style == Style(PALETTE[4], 2) for o in h.controller.overlays)
+
+
+# --- M4 WI-8: pinning a capture (PRD F15-1, F15-3; plan D14) --------------------------------------
+#
+# Pinned here:
+# - The toolbar's pin button turns the selection (with its marks) into a
+#   ``PinWindow`` at the selection's logical rect on its screen
+#   (``logical_rect``), shown; the clipboard does not change and no notice is
+#   shown. ``controller.pins`` lists the open pin windows.
+# - Several pins can be open; a closed pin leaves ``pins``; QUIT closes all.
+
+
+def pin_capture(h, screen=0, area=(10, 20, 210, 170), mark=None):
+    assert hasattr(h.controller, "pins"), "no pins"
+    h.controller.run(Command.CAPTURE)
+    overlay = h.controller.overlays[screen]
+    qi.drag(overlay, *area)
+    if mark is not None:
+        annotate_tb(overlay, "tool-rect").click()
+        qi.drag(overlay, *mark)
+    annotate_tb(overlay, "pin").click()
+
+
+def test_pin_opens_a_window_at_the_selection(make, clipboard):
+    h = make()
+    pin_capture(h, mark=(30, 40, 120, 100))
+    (pin,) = h.controller.pins
+    assert pin.isVisible()
+    g = pin.geometry()
+    assert Rect(g.x(), g.y(), g.width(), g.height()) == logical_rect(MAIN, Rect(10, 20, 200, 150))
+    marks = (Mark(Tool.RECT, ((30, 40), (120, 100)), PALETTE[0], 4),)
+    expected = render_marked(crop(h.capture.image, Rect(10, 20, 200, 150)), marks, (10, 20))
+    assert pixels(pin.image) == pixels(expected)
+    assert clipboard.text() == SENTINEL
+    assert h.notifier.notices == []
+    assert h.controller.overlays == ()
+
+
+def test_pin_on_the_scaled_screen(make):
+    h = make()
+    pin_capture(h, screen=1, area=(10, 10, 110, 60))
+    (pin,) = h.controller.pins
+    g = pin.geometry()
+    assert Rect(g.x(), g.y(), g.width(), g.height()) == logical_rect(SIDE, Rect(815, 15, 150, 75))
+    assert (pin.image.width(), pin.image.height()) == (150, 75)
+
+
+def test_several_pins_and_closing_one(make):
+    h = make()
+    pin_capture(h)
+    pin_capture(h, area=(300, 300, 400, 380))
+    first, second = h.controller.pins
+    first.close()
+    assert h.controller.pins == (second,)
+    assert second.isVisible()
+
+
+def test_quit_closes_all_pins(make):
+    h = make()
+    pin_capture(h)
+    pin_capture(h, area=(300, 300, 400, 380))
+    pins = h.controller.pins
+    h.controller.run(Command.QUIT)
+    assert h.controller.pins == ()
+    assert not any(p.isVisible() for p in pins)

@@ -54,6 +54,13 @@ def _arrow(p: QPainter) -> None:
     p.drawPolygon(QPolygonF([QPointF(16, 4), QPointF(9, 6), QPointF(14, 11)]))
 
 
+def _pushpin(p: QPainter) -> None:
+    p.drawLine(QPointF(10, 12), QPointF(10, 18))
+    p.drawLine(QPointF(5, 11.5), QPointF(15, 11.5))
+    p.setBrush(_INK)
+    p.drawRect(QRectF(7.5, 3, 5, 8))
+
+
 _TOOL_ICONS: dict[Tool, Callable[[QPainter], None]] = {
     Tool.RECT: lambda p: p.drawRect(QRectF(3.5, 4.5, 13, 11)),
     Tool.ELLIPSE: lambda p: p.drawEllipse(QRectF(3.5, 4.5, 13, 11)),
@@ -125,7 +132,7 @@ class AnnotateToolbar(QWidget):
         self._undo = self._button(layout, "undo", "撤销（Ctrl+Z）", _icon(_glyph("↶")))
         self._undo.setEnabled(False)
         self._undo.clicked.connect(self.undo_requested)
-        pin = self._button(layout, "pin", "贴图：钉在屏幕上", _icon(_glyph("⊼")))
+        pin = self._button(layout, "pin", "贴图：钉在屏幕上", _icon(_pushpin))
         pin.setVisible(show_pin)
         pin.clicked.connect(self.pin_requested)
         self._button(layout, "cancel", "取消（Esc）", _icon(_glyph("✕"))).clicked.connect(self.cancel_requested)

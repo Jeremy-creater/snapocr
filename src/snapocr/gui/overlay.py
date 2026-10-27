@@ -91,6 +91,7 @@ class SelectionOverlay(QWidget):
     selected = Signal(object)  # Rect, physical pixels
     cancelled = Signal()
     style_changed = Signal(object)  # Style, annotate mode only (M4 plan D13)
+    pinned = Signal(object)  # Rect: the toolbar's pin button (F15-1)
 
     def __init__(
         self,
@@ -119,7 +120,7 @@ class SelectionOverlay(QWidget):
         self._editor_at: Point = (0, 0)  # physical top-left of the text being typed
         self.toolbar: AnnotateToolbar | None = None
         if annotate:
-            self.toolbar = AnnotateToolbar(style, self)
+            self.toolbar = AnnotateToolbar(style, self, show_pin=True)
             self.toolbar.hide()
             self.toolbar.tool_changed.connect(self._tool_changed)
             self.toolbar.style_changed.connect(self.style_changed)
@@ -127,6 +128,7 @@ class SelectionOverlay(QWidget):
             self.toolbar.undo_requested.connect(self._undo)
             self.toolbar.cancel_requested.connect(lambda: self._finish(None))
             self.toolbar.done_requested.connect(self._done)
+            self.toolbar.pin_requested.connect(self._pin)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setMouseTracking(True)
@@ -253,6 +255,12 @@ class SelectionOverlay(QWidget):
     def _done(self) -> None:
         self._close_editor(keep=True)
         self._confirm()
+
+    def _pin(self) -> None:
+        self._close_editor(keep=True)
+        if self._state is OverlayState.ADJUSTING and self._drag is None and self._drawing is None:
+            self.abandon()
+            self.pinned.emit(self._rect)
 
     def _confirm(self) -> None:
         if self._state is OverlayState.ADJUSTING and self._drag is None and self._drawing is None:
@@ -414,7 +422,8 @@ class OverlaySession(QObject):
     """All overlays of one capture; the first result ends the session (emitted once).
 
     Before ``result`` is emitted, ``marks`` holds the marks of the overlay that
-    was confirmed and ``action`` what to do with the picture (M4 plan D10).
+    was confirmed and ``action`` what to do with the picture: ``"copy"``, or
+    ``"pin"`` when its pin button ended it (M4 plan D10, F15-1).
     """
 
     result = Signal(object)  # Rect, or None when cancelled
@@ -430,6 +439,7 @@ class OverlaySession(QObject):
         self.action = "copy"
         for overlay in self._overlays:
             overlay.selected.connect(lambda rect, o=overlay: self._on_selected(o, rect))
+            overlay.pinned.connect(lambda rect, o=overlay: self._on_selected(o, rect, "pin"))
             overlay.cancelled.connect(lambda: self._on_result(None))
 
     @property
@@ -445,8 +455,9 @@ class OverlaySession(QObject):
         self._overlays[0].activateWindow()
         self._overlays[0].setFocus()
 
-    def _on_selected(self, overlay: SelectionOverlay, rect: Rect) -> None:
+    def _on_selected(self, overlay: SelectionOverlay, rect: Rect, action: str = "copy") -> None:
         self.marks = overlay.marks
+        self.action = action
         self._on_result(rect)
 
     def _on_result(self, rect: Rect | None) -> None:
