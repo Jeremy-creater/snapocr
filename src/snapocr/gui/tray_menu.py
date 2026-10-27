@@ -1,4 +1,4 @@
-"""Tray menu (F5-1): the four actions with their hotkeys, then settings and quit (F11-1)."""
+"""Tray menu (F5-1): the hotkey actions with their hotkeys, then settings and quit (F11-1, F13-1)."""
 
 from __future__ import annotations
 

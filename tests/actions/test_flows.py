@@ -19,9 +19,17 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from snapocr.actions.flows import FlowDeps, capture_flow, ocr_flow, translate_ocr_stage, translate_stage
+from snapocr.actions.flows import (
+    FlowDeps,
+    capture_flow,
+    code_ocr_flow,
+    ocr_flow,
+    translate_ocr_stage,
+    translate_stage,
+)
 from snapocr.actions.messages import (
     NOTHING_TO_TRANSLATE,
+    code_ok_notice,
     engine_failed_notice,
     ocr_empty_notice,
     ocr_failed_notice,
@@ -317,3 +325,46 @@ def test_ocr_success_without_text_in_the_notice():
 
 def test_flow_deps_show_text_defaults_to_true():
     assert deps().show_text is True
+
+
+# --- M3 WI-14: code OCR (PRD F13-1) ---------------------------------------------
+#
+# Pinned here: the clipboard text is ``code_text`` (F13-2 to F13-4: indentation
+# kept, no prose rules, no replacement table); the record's ``raw`` is the
+# layout-only text as for OCR (plan A1); empty and failed runs end exactly like
+# the OCR action.
+
+CODE_RESULT = OcrResult((
+    rect("def f():", 0, 0, 80, 20),
+    rect("x = 0CR", 40, 30, 110, 50),
+    rect("s = '中文abc'", 40, 60, 150, 80),
+))
+CODE = "def f():\n    x = 0CR\n    s = '中文abc'"
+
+
+def test_code_ocr_flow_copies_the_indented_code():
+    d = deps(CODE_RESULT)
+    out = code_ocr_flow(PNG, d)
+    assert out == Outcome(
+        ClipboardText(CODE),
+        code_ok_notice(CODE),
+        HistoryRecord(PNG, postprocess(CODE_RESULT, LAYOUT_ONLY), CODE),
+    )
+    assert out.notice.title == "已复制代码"
+
+
+def test_code_ocr_flow_notice_without_text():
+    d = dataclasses.replace(deps(CODE_RESULT), show_text=False)
+    assert code_ocr_flow(PNG, d).notice == Notice("已复制代码", "共 21 个字")
+
+
+@pytest.mark.parametrize("make_deps", [
+    lambda: deps(OcrResult(())),
+    lambda: deps(load_error=LOAD_ERROR),
+    lambda: deps(EngineRuntimeError("engine crashed")),
+], ids=["empty", "load-error", "recognize-error"])
+def test_code_ocr_flow_failures_end_like_ocr(make_deps):
+    d = make_deps()
+    out = code_ocr_flow(PNG, d)
+    assert out == ocr_flow(PNG, make_deps())
+    assert out.clipboard == NoClipboardChange()

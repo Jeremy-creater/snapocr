@@ -1,4 +1,4 @@
-"""The capture, OCR and translate flows (PRD F7-1 to F7-6). Synchronous; run on a worker thread.
+"""The capture, OCR, code OCR and translate flows (PRD F7-1 to F7-6, F13-1). Synchronous; run on a worker thread.
 
 Every OCR or translate run yields exactly one ``HistoryRecord`` (F7-6). The
 clipboard changes only on success. Only ``OcrError`` and ``TranslationError``
@@ -13,6 +13,7 @@ from pathlib import Path
 
 from snapocr.actions.messages import (
     NOTHING_TO_TRANSLATE,
+    code_ok_notice,
     engine_failed_notice,
     ocr_empty_notice,
     ocr_failed_notice,
@@ -35,6 +36,7 @@ from snapocr.app import DEFAULT_LOG_DIR, LOG_FILE_NAME
 from snapocr.engines.errors import EngineLoadError, OcrError
 from snapocr.engines.holder import EngineHolder
 from snapocr.postprocess import PostprocessOptions, Replacements, postprocess
+from snapocr.postprocess.code import code_text
 from snapocr.translators.errors import TranslationError
 from snapocr.translators.types import Translator
 
@@ -58,8 +60,11 @@ def capture_flow(png: bytes) -> Outcome:
     return Outcome(ClipboardPng(png), Notice("已复制截图", ""), None)
 
 
-def _ocr(png: bytes, deps: FlowDeps) -> OcrStage | Outcome:
-    """OCR and post-processing; an ``Outcome`` when the run ends here (error or empty)."""
+def _ocr(png: bytes, deps: FlowDeps, *, code: bool = False) -> OcrStage | Outcome:
+    """OCR and post-processing; an ``Outcome`` when the run ends here (error or empty).
+
+    ``code``: the text is the F13 code layout instead of the F2 chain (no replacements).
+    """
     try:
         engine = deps.engine.get()
     except EngineLoadError as err:
@@ -71,7 +76,7 @@ def _ocr(png: bytes, deps: FlowDeps) -> OcrStage | Outcome:
     except OcrError as err:
         return Outcome(NoClipboardChange(), ocr_failed_notice(err), HistoryRecord(png, "", "", error=str(err)))
     raw = postprocess(result, _LAYOUT_ONLY)
-    text = postprocess(result, deps.options, deps.replacements)
+    text = code_text(result) if code else postprocess(result, deps.options, deps.replacements)
     if not text:
         return Outcome(NoClipboardChange(), ocr_empty_notice(), HistoryRecord(png, raw, text))
     return OcrStage(png, raw, text)
@@ -83,6 +88,15 @@ def ocr_flow(png: bytes, deps: FlowDeps) -> Outcome:
     if isinstance(stage, Outcome):
         return stage
     notice = ocr_ok_notice(stage.text, deps.show_text)
+    return Outcome(ClipboardText(stage.text), notice, HistoryRecord(png, stage.raw, stage.text))
+
+
+def code_ocr_flow(png: bytes, deps: FlowDeps) -> Outcome:
+    """F13-1: the code text goes to the clipboard; empty and failed runs end like ``ocr_flow``."""
+    stage = _ocr(png, deps, code=True)
+    if isinstance(stage, Outcome):
+        return stage
+    notice = code_ok_notice(stage.text, deps.show_text)
     return Outcome(ClipboardText(stage.text), notice, HistoryRecord(png, stage.raw, stage.text))
 
 

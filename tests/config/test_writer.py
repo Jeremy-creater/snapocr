@@ -239,7 +239,7 @@ def test_no_changes_still_valid(tmp_path):
 
 # --- property: template with random active keys, random settings ----------------------
 
-_WINDOW_KEYS = {"capture", "ocr", "translate", "last_result", "paragraphs", "spacing", "punctuation",
+_WINDOW_KEYS = {"capture", "ocr", "translate", "last_result", "code_ocr", "paragraphs", "spacing", "punctuation",
                 "model", "target_lang"}
 
 
@@ -251,7 +251,7 @@ def _setting_lines() -> list[str]:
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(st.sets(st.sampled_from(_setting_lines())), window_settings())
 def test_template_roundtrip(tmp_path, active, new):
-    assert len(_setting_lines()) == 9
+    assert len(_setting_lines()) == 10  # 9 before M3 WI-14 added code_ocr
     text = "\n".join(line[2:] if line in active else line for line in DEFAULT_TEMPLATE.split("\n"))
     path = write(tmp_path / "config.local.toml", text)
     old_config = load_config_file(path).config

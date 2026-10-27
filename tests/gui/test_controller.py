@@ -130,7 +130,7 @@ class Harness:
 
     def menu_action(self, command):
         labels = {Command.CAPTURE: "截图", Command.OCR: "OCR", Command.TRANSLATE: "翻译", Command.LAST_RESULT: "上次结果",
-                  Command.SETTINGS: "设置…", Command.QUIT: "退出"}
+                  Command.CODE_OCR: "代码 OCR", Command.SETTINGS: "设置…", Command.QUIT: "退出"}
         return next(a for a in self.controller.menu.actions() if a.text().split("\t")[0] == labels[command])
 
 
@@ -154,7 +154,8 @@ def make(qtbot, tmp_path, clipboard):
 
 def test_start_registers_all_default_hotkeys(make):
     h = make()
-    assert sorted(h.table.ours) == sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT))
+    assert sorted(h.table.ours) == sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT,
+                                                                 Command.CODE_OCR))
     assert h.notifier.notices == []
 
 
@@ -294,6 +295,38 @@ def test_menu_and_hotkey_give_the_same_result(make, clipboard):
     h.select()
     h.qtbot.waitUntil(lambda: clipboard.text() == EXPECTED, timeout=WAIT)
     assert (clipboard.text(), len(h.controller.history.snapshot()) - 1) == via_hotkey
+
+
+# --- CODE OCR (M3 WI-14, PRD F13-1) ----------------------------------------------------------
+
+CODE_RESULT = OcrResult((rect("def f():", 0, 0, 80, 20), rect("return 0CR", 40, 30, 140, 50)))
+CODE = "def f():\n    return 0CR"  # indentation kept, no replacement table
+
+
+def test_code_ocr_hotkey_puts_code_text_on_clipboard(make, clipboard):
+    h = make(engine=CODE_RESULT)
+    h.controller.handle_hotkey(hotkey_id(Command.CODE_OCR))
+    h.select()
+    h.qtbot.waitUntil(lambda: clipboard.text() == CODE, timeout=WAIT)
+    h.qtbot.waitUntil(lambda: h.titles() == ["已复制代码"], timeout=WAIT)
+    assert h.notifier.notices[0].body == preview(CODE)
+    assert h.controller.history.snapshot()[-1].text == CODE
+
+
+def test_code_ocr_from_the_menu(make, clipboard):
+    h = make(engine=CODE_RESULT)
+    h.menu_action(Command.CODE_OCR).trigger()
+    h.qtbot.waitUntil(lambda: len(h.controller.overlays) == 2, timeout=WAIT)
+    h.select()
+    h.qtbot.waitUntil(lambda: clipboard.text() == CODE, timeout=WAIT)
+
+
+def test_code_ocr_empty_keeps_the_clipboard(make, clipboard):
+    h = make(engine=OcrResult(()))
+    h.controller.run(Command.CODE_OCR)
+    h.select()
+    h.qtbot.waitUntil(lambda: h.titles() == ["未识别到文字"], timeout=WAIT)
+    assert clipboard.text() == SENTINEL
 
 
 # --- TRANSLATE (F7-5, F8) ---------------------------------------------------------------------
@@ -465,9 +498,10 @@ def test_outcome_without_notice_changes_clipboard_silently(make, clipboard):
 
 def test_registered_commands_lists_live_hotkeys(make):
     h = make(preoccupy=["Alt+3"])
-    assert h.controller.registered_commands() == (Command.CAPTURE, Command.OCR, Command.LAST_RESULT)
+    live = (Command.CAPTURE, Command.OCR, Command.LAST_RESULT, Command.CODE_OCR)
+    assert h.controller.registered_commands() == live
     h.controller.run(Command.QUIT)
-    assert h.controller.registered_commands() == (Command.CAPTURE, Command.OCR, Command.LAST_RESULT)  # what start() got
+    assert h.controller.registered_commands() == live  # what start() got
 
 
 
@@ -494,7 +528,8 @@ from PySide6.QtGui import QKeyEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 M = Qt.KeyboardModifier
-DEFAULT_IDS = sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT))
+DEFAULT_IDS = sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT,
+                                           Command.CODE_OCR))
 
 
 def record(edit, key, mods):
@@ -536,6 +571,7 @@ def test_menu_opens_settings_with_current_values(make):
     h.qtbot.waitUntil(window.isVisible)
     assert [window.hotkey_edits[c].text() for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE,
                                                     Command.LAST_RESULT)] == ["Alt+1", "Alt+2", "Alt+3", "Alt+4"]
+    assert window.hotkey_edits[Command.CODE_OCR].text() == "Alt+5"  # M3 WI-14
     assert window.autostart_box.isChecked()
     assert window.model_edit.text() == "hy-mt2:7b"
     assert window.target_lang_box.currentData() == "auto"

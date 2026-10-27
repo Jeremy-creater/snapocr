@@ -178,7 +178,7 @@ _hotkey = st.builds(Hotkey, st.integers(1, 0xF), st.sampled_from(_KEYS))
 
 @st.composite
 def settings(draw):
-    keys = draw(st.lists(_hotkey, min_size=4, max_size=4, unique=True))
+    keys = draw(st.lists(_hotkey, min_size=len(HOTKEY_COMMANDS), max_size=len(HOTKEY_COMMANDS), unique=True))
     return Settings(
         hotkeys=MappingProxyType(dict(zip(HOTKEY_COMMANDS, keys, strict=True))),
         paragraphs=draw(st.booleans()),

@@ -1,4 +1,4 @@
-"""Hypothesis strategy for settings-window values (M3 WI-2 onwards): four distinct hotkeys."""
+"""Hypothesis strategy for settings-window values (M3 WI-2 onwards): one distinct hotkey per command."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ hotkeys = st.builds(Hotkey, st.integers(1, 0xF), st.sampled_from(_KEYS))
 
 @st.composite
 def window_settings(draw) -> Settings:
-    keys = draw(st.lists(hotkeys, min_size=4, max_size=4, unique=True))
+    keys = draw(st.lists(hotkeys, min_size=len(HOTKEY_COMMANDS), max_size=len(HOTKEY_COMMANDS), unique=True))
     return Settings(
         hotkeys=dict(zip(HOTKEY_COMMANDS, keys, strict=True)),
         paragraphs=draw(st.booleans()),

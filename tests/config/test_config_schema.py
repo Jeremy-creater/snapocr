@@ -35,6 +35,7 @@ DEFAULT_HK = {
     C.OCR: Hotkey(MOD_ALT, 0x32),
     C.TRANSLATE: Hotkey(MOD_ALT, 0x33),
     C.LAST_RESULT: Hotkey(MOD_ALT, 0x34),
+    C.CODE_OCR: Hotkey(MOD_ALT, 0x35),  # M3 WI-14 (F13-1)
 }
 
 
@@ -67,7 +68,7 @@ def test_empty_is_all_defaults():
 
 def test_known_keys():
     assert dict(KNOWN_KEYS) == {
-        "hotkeys": ("capture", "ocr", "translate", "last_result"),
+        "hotkeys": ("capture", "ocr", "translate", "last_result", "code_ocr"),  # code_ocr: M3 WI-14
         "ocr": ("min_score", "model_dir"),
         "postprocess": ("paragraphs", "spacing", "punctuation", "replacements"),
         "notify": ("show_text",),  # M3 WI-11 (F7-2, F11-8)
@@ -105,6 +106,7 @@ def test_full_valid_config():
         C.OCR: Hotkey(MOD_CONTROL | MOD_ALT, 0x32),
         C.TRANSLATE: Hotkey(0x8, 0x54),
         C.LAST_RESULT: Hotkey(MOD_ALT, 0x73),
+        C.CODE_OCR: DEFAULT_HK[C.CODE_OCR],  # not in the file: default (M3 WI-14)
     }
     assert cfg.ocr == OcrEngineConfig(min_score=0.7, model_dir=Path("D:/cfg/models"))
     assert cfg.postprocess == PostprocessOptions(paragraphs=False, spacing=True, punctuation=False)
@@ -184,7 +186,7 @@ def test_duplicate_whose_default_is_taken_is_disabled():
     assert paths(issues) == ["hotkeys.ocr", "hotkeys.ocr"]
     assert "hotkeys.capture" in issues[0].reason and "disabled" in issues[1].reason
     assert dict(cfg.hotkeys) == {C.CAPTURE: Hotkey(MOD_ALT, 0x32), C.TRANSLATE: DEFAULT_HK[C.TRANSLATE],
-                                 C.LAST_RESULT: DEFAULT_HK[C.LAST_RESULT]}
+                                 C.LAST_RESULT: DEFAULT_HK[C.LAST_RESULT], C.CODE_OCR: DEFAULT_HK[C.CODE_OCR]}
 
 
 def test_invalid_hotkey_whose_default_is_taken_is_disabled():

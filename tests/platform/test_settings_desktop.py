@@ -32,6 +32,7 @@ KEYS = {
     "ocr": "Ctrl+Alt+Shift+F19",
     "translate": "Ctrl+Alt+Shift+F20",
     "last_result": "Ctrl+Alt+Shift+F22",
+    "code_ocr": "Ctrl+Alt+Shift+F17",  # M3 WI-14: never the user's Alt+5
 }
 VK_ESCAPE = 0x1B
 _user32 = ctypes.WinDLL("user32")

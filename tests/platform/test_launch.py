@@ -35,7 +35,7 @@ from support.win_input import press_combo, register_raw, unregister_raw
 pytestmark = pytest.mark.gui
 
 KEYS = {"capture": "Ctrl+Alt+Shift+F21", "ocr": "Ctrl+Alt+Shift+F22", "translate": "Ctrl+Alt+Shift+F23",
-        "last_result": "Ctrl+Alt+Shift+F24"}
+        "last_result": "Ctrl+Alt+Shift+F24", "code_ocr": "Ctrl+Alt+Shift+F17"}
 HISTORY_TITLE = "snapocr 上次结果"
 
 _user32 = ctypes.WinDLL("user32", use_last_error=True)

@@ -22,7 +22,7 @@ import traceback
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
-from snapocr.actions.flows import FlowDeps, ocr_flow, translate_ocr_stage, translate_stage
+from snapocr.actions.flows import FlowDeps, code_ocr_flow, ocr_flow, translate_ocr_stage, translate_stage
 from snapocr.actions.history import ResultHistory
 from snapocr.actions.outcomes import HistoryRecord, OcrStage, Outcome, TranslateOutcome
 from snapocr.engines.errors import EngineLoadError
@@ -83,6 +83,13 @@ class _WarmupResult:
 def ocr_job(png: bytes, deps: FlowDeps) -> Job:
     def job() -> Iterable[object]:
         yield ocr_flow(png, deps)
+
+    return job
+
+
+def code_ocr_job(png: bytes, deps: FlowDeps) -> Job:
+    def job() -> Iterable[object]:
+        yield code_ocr_flow(png, deps)
 
     return job
 

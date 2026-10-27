@@ -33,6 +33,7 @@ IDS = {
     Command.OPEN_CONFIG: 5,
     Command.QUIT: 6,
     Command.SETTINGS: 7,  # M3 WI-6: added at the end
+    Command.CODE_OCR: 8,  # M3 WI-14 (F13-1): added at the end
 }
 
 DEFAULTS = {
@@ -46,7 +47,7 @@ DEFAULTS = {
 def test_command_members():
     assert [c.name for c in Command] == list(n.name for n in IDS)
     assert [c.value for c in Command] == ["capture", "ocr", "translate", "last_result", "open_config", "quit",
-                                         "settings"]
+                                         "settings", "code_ocr"]
 
 
 @pytest.mark.parametrize(("command", "expected"), sorted(IDS.items(), key=lambda kv: kv[1]))

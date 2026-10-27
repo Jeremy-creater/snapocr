@@ -17,6 +17,7 @@ from hypothesis import strategies as st
 
 from snapocr.actions.messages import (
     COMMAND_LABELS,
+    code_ok_notice,
     config_issues_notice,
     engine_failed_notice,
     hotkey_failed_notice,
@@ -167,7 +168,7 @@ def test_command_labels():
     assert COMMAND_LABELS == {
         Command.CAPTURE: "截图", Command.OCR: "OCR", Command.TRANSLATE: "翻译",
         Command.LAST_RESULT: "上次结果", Command.SETTINGS: "设置…", Command.OPEN_CONFIG: "打开配置文件",
-        Command.QUIT: "退出",
+        Command.QUIT: "退出", Command.CODE_OCR: "代码 OCR",
     }
 
 
@@ -342,3 +343,12 @@ def test_ocr_ok_notice_without_text_never_shows_it(text):
     n = ocr_ok_notice(text + "⟦M7⟧", show_text=False)
     assert "⟦M7⟧" not in n.body and "M7" not in n.body
     assert n.body == f"共 {len(''.join((text + '⟦M7⟧').split()))} 个字"
+
+
+# --- M3 WI-14: code OCR (PRD F13-1) ---------------------------------------------
+
+
+def test_code_ok_notice_titles_the_code_and_follows_show_text():
+    text = "def f():\n    return 1"
+    assert code_ok_notice(text) == Notice("已复制代码", preview(text))
+    assert code_ok_notice(text, show_text=False) == Notice("已复制代码", "共 14 个字")

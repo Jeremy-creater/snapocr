@@ -25,13 +25,14 @@ def texts(menu):
 
 def test_default_menu_texts_and_order():
     menu = build_tray_menu(DEFAULT_HOTKEYS, lambda c: None)
-    assert texts(menu) == ["截图\tAlt+1", "OCR\tAlt+2", "翻译\tAlt+3", "上次结果\tAlt+4", "---", "设置…", "退出"]
+    assert texts(menu) == ["截图\tAlt+1", "OCR\tAlt+2", "翻译\tAlt+3", "上次结果\tAlt+4", "代码 OCR\tAlt+5", "---",
+                           "设置…", "退出"]
 
 
 def test_custom_and_missing_bindings():
     bindings = {Command.CAPTURE: parse_hotkey("Ctrl+Shift+F1"), Command.TRANSLATE: parse_hotkey("Win+T")}
     menu = build_tray_menu(bindings, lambda c: None)
-    assert texts(menu) == ["截图\tCtrl+Shift+F1", "OCR", "翻译\tWin+T", "上次结果", "---", "设置…", "退出"]
+    assert texts(menu) == ["截图\tCtrl+Shift+F1", "OCR", "翻译\tWin+T", "上次结果", "代码 OCR", "---", "设置…", "退出"]
 
 
 def test_triggering_actions_reports_commands():
@@ -40,7 +41,8 @@ def test_triggering_actions_reports_commands():
     for action in menu.actions():
         if not action.isSeparator():
             action.trigger()
-    assert seen == [Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT, Command.SETTINGS, Command.QUIT]
+    assert seen == [Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT, Command.CODE_OCR,
+                    Command.SETTINGS, Command.QUIT]
 
 
 def test_update_rewrites_hotkey_texts_in_place():
@@ -49,6 +51,6 @@ def test_update_rewrites_hotkey_texts_in_place():
     actions = menu.actions()
     update_tray_menu(menu, {Command.CAPTURE: parse_hotkey("Ctrl+Q"), Command.LAST_RESULT: parse_hotkey("Alt+4")})
     assert menu.actions() == actions
-    assert texts(menu) == ["截图\tCtrl+Q", "OCR", "翻译", "上次结果\tAlt+4", "---", "设置…", "退出"]
+    assert texts(menu) == ["截图\tCtrl+Q", "OCR", "翻译", "上次结果\tAlt+4", "代码 OCR", "---", "设置…", "退出"]
     actions[1].trigger()
     assert seen == [Command.OCR]

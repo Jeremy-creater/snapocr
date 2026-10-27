@@ -29,6 +29,7 @@ COMMAND_LABELS: Mapping[Command, str] = MappingProxyType(
         Command.SETTINGS: "设置…",
         Command.OPEN_CONFIG: "打开配置文件",
         Command.QUIT: "退出",
+        Command.CODE_OCR: "代码 OCR",
     }
 )
 
@@ -48,6 +49,11 @@ def ocr_ok_notice(text: str, show_text: bool = True) -> Notice:
     if not show_text:
         return Notice("已复制 OCR 文本", f"共 {len(''.join(text.split()))} 个字")
     return Notice("已复制 OCR 文本", preview(text))
+
+
+def code_ok_notice(text: str, show_text: bool = True) -> Notice:
+    """F13-1: like ``ocr_ok_notice``, titled for code."""
+    return Notice("已复制代码", ocr_ok_notice(text, show_text).body)
 
 
 def ocr_empty_notice() -> Notice:

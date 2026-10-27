@@ -1,7 +1,7 @@
 """M3 WI-5: the settings window (PRD F11-1, F11-3 window side; M3 plan D4, D5). Offscreen.
 
 Pinned here (beyond the plan text):
-- Rows in this order: four hotkeys (截图, OCR, 翻译, 上次结果), start at login,
+- Rows in this order: five hotkeys (截图, OCR, 翻译, 上次结果, 代码 OCR; M3 WI-14), start at login,
   target language (auto / zh / en), model name, the three post-processing switches.
 - "保存" emits ``save_requested(Settings, autostart)``; the model name is
   stripped; a hotkey field left empty (the hotkey was disabled) is left out.
@@ -57,7 +57,7 @@ def window(qtbot):
 
 def test_title_rows_and_hint(window):
     assert window.windowTitle() == "snapocr 设置"
-    assert [window.hotkey_label(c) for c in HOTKEY_COMMANDS] == ["截图", "OCR", "翻译", "上次结果"]
+    assert [window.hotkey_label(c) for c in HOTKEY_COMMANDS] == ["截图", "OCR", "翻译", "上次结果", "代码 OCR"]
     assert window.autostart_box.text() == "开机时自动启动 snapocr"
     assert [window.target_lang_box.itemData(i) for i in range(window.target_lang_box.count())] == ["auto", "zh", "en"]
     assert [b.text() for b in window.switch_boxes.values()] == [
@@ -74,7 +74,7 @@ def test_title_rows_and_hint(window):
 
 def test_load_shows_values(window):
     window.load(CUSTOM, True)
-    assert [window.hotkey_edits[c].text() for c in HOTKEY_COMMANDS] == ["Ctrl+F1", "Ctrl+F2", "Ctrl+F3", ""]
+    assert [window.hotkey_edits[c].text() for c in HOTKEY_COMMANDS] == ["Ctrl+F1", "Ctrl+F2", "Ctrl+F3", "", ""]
     assert window.autostart_box.isChecked()
     assert window.target_lang_box.currentData() == "en"
     assert window.model_edit.text() == "qwen3:8b"
