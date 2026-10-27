@@ -17,7 +17,8 @@ Pinned here:
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QToolButton
+from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import QToolButton, QWidget
 
 from snapocr.annotate import DEFAULT_STYLE, PALETTE, Style, Tool
 from snapocr.gui.annotate_toolbar import AnnotateToolbar
@@ -155,3 +156,18 @@ def test_has_a_usable_size():
     bar = AnnotateToolbar()
     hint = bar.sizeHint()
     assert hint.width() > hint.height() > 0
+
+
+def test_toolbar_paints_its_own_light_panel():
+    """M4 bug fix: a QWidget subclass ignores its stylesheet background unless styled backgrounds are on."""
+    parent = QWidget()  # stands in for the dimmed overlay
+    pal = parent.palette()
+    pal.setColor(QPalette.ColorRole.Window, Qt.GlobalColor.black)
+    parent.setPalette(pal)
+    parent.setAutoFillBackground(True)
+    parent.resize(1000, 100)
+    bar = AnnotateToolbar(parent=parent)
+    bar.setGeometry(10, 10, bar.sizeHint().width(), bar.sizeHint().height())
+    shot = parent.grab().toImage()
+    c = shot.pixelColor(10 + bar.width() // 2, 12)  # between the border and the buttons
+    assert min(c.red(), c.green(), c.blue()) >= 230, c.name()

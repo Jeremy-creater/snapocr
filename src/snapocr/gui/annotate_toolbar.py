@@ -125,7 +125,7 @@ class AnnotateToolbar(QWidget):
         super().__init__(parent)
         self._style = style
         self._tool: Tool | None = None
-        self.setAutoFillBackground(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)  # else the stylesheet panel is not painted
         self.setStyleSheet(
             "AnnotateToolbar { background: #f7f7f7; border: 1px solid #c8c8c8; border-radius: 4px; }"
             "QToolButton { border: none; padding: 3px; border-radius: 3px; }"
