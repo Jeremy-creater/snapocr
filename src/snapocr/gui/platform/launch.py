@@ -31,7 +31,7 @@ from snapocr.gui.platform.capture import DesktopCapture
 from snapocr.gui.platform.hotkeys import NativeHotkeys
 from snapocr.gui.platform.single_instance import InstanceLock, acquire
 from snapocr.gui.platform.tray import Tray
-from snapocr.translators.openai_compat import OpenAICompatTranslator
+from snapocr.translators.openai_compat import OpenAICompatTranslator, list_models
 
 ALREADY_RUNNING_MS = 3000
 
@@ -105,6 +105,7 @@ def start(argv: list[str]) -> RunningApp | None:
         args.config,
         deps,
         make_translator=OpenAICompatTranslator,
+        list_models=list_models,
         capture_provider=DesktopCapture(),
         notifier=notifier,
         hotkey_backend=hotkeys,

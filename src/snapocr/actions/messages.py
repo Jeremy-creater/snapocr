@@ -18,7 +18,7 @@ from snapocr.config.schema import ConfigIssue
 from snapocr.config.settings import BadModel, DuplicateHotkey, Problem
 from snapocr.engines.errors import EngineLoadError, OcrError
 from snapocr.hotkeys import ERROR_HOTKEY_ALREADY_REGISTERED, HotkeyFailure, format_hotkey
-from snapocr.translators.errors import TranslationError
+from snapocr.translators.errors import TranslationError, TranslationErrorKind
 
 COMMAND_LABELS: Mapping[Command, str] = MappingProxyType(
     {
@@ -144,3 +144,18 @@ def autostart_failed_text(err: OSError) -> str:
 
 def settings_saved_notice() -> Notice:
     return Notice("设置已保存", "新设置已经生效。")
+
+
+MODELS_LOADING = "正在读取模型列表…"
+
+_MODELS_PROBLEM = {
+    TranslationErrorKind.UNREACHABLE: "翻译服务没有运行",
+    TranslationErrorKind.TIMEOUT: "翻译服务没有响应",
+    TranslationErrorKind.CONNECTION: "连接中断",
+}
+
+
+def models_problem_text(err: TranslationError) -> str:
+    """Why the settings window has no model list (F11-7); never blocks saving."""
+    why = _MODELS_PROBLEM.get(err.kind, "服务不支持读取模型列表")
+    return f"没能读取模型列表（{why}），可以直接输入模型名。"

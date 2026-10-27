@@ -9,10 +9,11 @@ several threads share no state.
 from __future__ import annotations
 
 import http.client
+from collections.abc import Mapping
 
 from snapocr.translators.config import Endpoint
 from snapocr.translators.errors import ErrorContext, TranslationError, TranslationErrorKind
-from snapocr.translators.protocol import ChatRequest
+from snapocr.translators.protocol import ACCEPT_JSON, ChatRequest
 
 DEFAULT_MAX_RESPONSE_BYTES = 1_048_576
 
@@ -29,6 +30,31 @@ def post_json(
 
     ``timeout_s`` bounds each socket operation (connect, every read), not the total (D9).
     """
+    return _exchange(endpoint, "POST", request.path, request.body, request.headers, timeout_s, max_response_bytes, ctx)
+
+
+def get_json(
+    endpoint: Endpoint,
+    path: str,
+    timeout_s: float,
+    max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
+    *,
+    ctx: ErrorContext,
+) -> tuple[int, bytes]:
+    """GET ``path`` (no body) and return ``(status, body)``; failures map as in ``post_json`` (F11-7)."""
+    return _exchange(endpoint, "GET", path, None, ACCEPT_JSON, timeout_s, max_response_bytes, ctx)
+
+
+def _exchange(
+    endpoint: Endpoint,
+    method: str,
+    path: str,
+    payload: bytes | None,
+    headers: Mapping[str, str],
+    timeout_s: float,
+    max_response_bytes: int,
+    ctx: ErrorContext,
+) -> tuple[int, bytes]:
     if type(endpoint) is not Endpoint:  # defence in depth: only validated loopback endpoints
         raise TypeError(f"endpoint: expected Endpoint, got {type(endpoint).__name__}")
 
@@ -36,7 +62,7 @@ def post_json(
     status, body = 0, b""
     conn = http.client.HTTPConnection(endpoint.host, endpoint.port, timeout=timeout_s)
     try:
-        conn.request("POST", request.path, body=request.body, headers=dict(request.headers))
+        conn.request(method, path, body=payload, headers=dict(headers))
         response = conn.getresponse()
         status = response.status
         # Read at most one byte past the limit: never buffer an oversized body.
@@ -67,3 +93,4 @@ def post_json(
             detail=f"body exceeds {max_response_bytes} bytes",
         )
     return status, body
+

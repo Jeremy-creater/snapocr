@@ -24,6 +24,7 @@ INTEGRATION_IDS = [
     f"{REAL}::test_real_truncated_by_max_tokens",
     f"{REAL}::test_real_no_text_in_logs",
     f"{REAL}::test_real_loopback_only",
+    f"{REAL}::test_real_model_list_has_the_default_model",  # M3 WI-10
 ]
 PERF = "tests/perf/test_translate_latency.py"
 PERF_ID = f"{PERF}::test_translate_200_chars_warm_median_under_budget"

@@ -107,3 +107,12 @@ def test_real_loopback_only(loopback_guard):
     for _kind, target in loopback_guard.allowed:
         host = target[0] if isinstance(target, tuple) else target
         assert host == "127.0.0.1"
+
+
+def test_real_model_list_has_the_default_model():
+    # M3 WI-10 (F11-7): Ollama's OpenAI-compatible /v1/models lists imported models.
+    from snapocr.translators.openai_compat import list_models
+
+    models = list_models(TranslatorConfig())
+    assert "hy-mt2:7b" in models
+    assert list(models) == sorted(set(models))

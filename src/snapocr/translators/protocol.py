@@ -164,3 +164,25 @@ def parse_chat_response(status: int, body: bytes, *, ctx: ErrorContext) -> str:
     if not text:
         raise _fail(TranslationErrorKind.EMPTY_OUTPUT, ctx, "no text after removing <think> blocks")
     return text
+
+
+# --- model list (F11-7, M3 plan D13) -----------------------------------------------
+
+MODELS_PATH = "/v1/models"
+ACCEPT_JSON: Mapping[str, str] = MappingProxyType({"Accept": "application/json"})
+
+
+def parse_models_response(status: int, body: bytes, *, ctx: ErrorContext) -> tuple[str, ...]:
+    """The model ids of an OpenAI-style list, unique and sorted, or ``TranslationError``.
+
+    Entries without a non-empty string ``id`` are skipped. Nothing from the body
+    reaches the error.
+    """
+    if status != 200:
+        raise _fail(TranslationErrorKind.HTTP_STATUS, ctx, f"HTTP {status}", status)
+    value = _load_json(body)
+    data = value.get("data") if isinstance(value, dict) else None
+    if not isinstance(data, list):
+        raise _fail(TranslationErrorKind.BAD_RESPONSE, ctx, "not a model list")
+    ids = {item.get("id") for item in data if isinstance(item, dict)}
+    return tuple(sorted(i for i in ids if isinstance(i, str) and i))

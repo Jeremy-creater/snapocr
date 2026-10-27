@@ -77,9 +77,17 @@ class SettingsWindow(QWidget):
         self.target_lang_box = QComboBox()
         for text, value in _TARGET_LANGS:
             self.target_lang_box.addItem(text, value)
-        self.model_edit = QLineEdit()
+        # F11-7: pick a model the service lists, or type any name.
+        self.model_box = QComboBox()
+        self.model_box.setEditable(True)
+        self.model_box.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.model_edit: QLineEdit = self.model_box.lineEdit()
+        self.models_hint = QLabel()
+        self.models_hint.setWordWrap(True)
+        self.models_hint.hide()
         tform.addRow("目标语言", self.target_lang_box)
-        tform.addRow("模型名", self.model_edit)
+        tform.addRow("模型名", self.model_box)
+        tform.addRow(self.models_hint)
 
         tidy = QGroupBox("识别结果整理")
         tidy_layout = QVBoxLayout(tidy)
@@ -117,14 +125,25 @@ class SettingsWindow(QWidget):
         return self._labels[command].text()
 
     def load(self, settings: Settings, autostart: bool) -> None:
+        """Show ``settings``; the model list holds only the current model until ``set_models``."""
         for command, edit in self.hotkey_edits.items():
             edit.set_hotkey(settings.hotkeys.get(command))
         self.autostart_box.setChecked(autostart)
         self.target_lang_box.setCurrentIndex(self.target_lang_box.findData(settings.target_lang))
         self.model_edit.setText(settings.model)
+        self.set_models((), None)
         for name, box in self.switch_boxes.items():
             box.setChecked(getattr(settings, name))
         self.show_problems([])
+
+    def set_models(self, models: Sequence[str], hint: str | None) -> None:
+        """F11-7: list ``models``; the text in the box now stays the current model (and in the list)."""
+        current = self.model_box.currentText()
+        self.model_box.clear()
+        self.model_box.addItems(list(models) if current in models else [current, *models])
+        self.model_box.setCurrentText(current)
+        self.models_hint.setText(hint or "")
+        self.models_hint.setVisible(hint is not None)
 
     def show_problems(self, problems: Sequence[str]) -> None:
         self.problems_label.setText("\n".join(problems))
@@ -140,7 +159,7 @@ class SettingsWindow(QWidget):
         settings = Settings(
             hotkeys=hotkeys,
             target_lang=self.target_lang_box.currentData(),
-            model=self.model_edit.text().strip(),
+            model=self.model_box.currentText().strip(),
             **switches,
         )
         self.save_requested.emit(settings, self.autostart_box.isChecked())

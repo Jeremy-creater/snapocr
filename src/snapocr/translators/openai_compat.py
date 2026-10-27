@@ -14,8 +14,8 @@ import time
 from snapocr.translators.config import TranslatorConfig
 from snapocr.translators.direction import resolve_target
 from snapocr.translators.errors import ErrorContext, TranslationError, TranslationErrorKind
-from snapocr.translators.http_transport import post_json
-from snapocr.translators.protocol import build_chat_request, parse_chat_response
+from snapocr.translators.http_transport import get_json, post_json
+from snapocr.translators.protocol import MODELS_PATH, build_chat_request, parse_chat_response, parse_models_response
 from snapocr.translators.types import TranslationResult
 
 log = logging.getLogger(__name__)
@@ -66,3 +66,15 @@ class OpenAICompatTranslator:
                 n,
             )
         return TranslationResult(translated, target, False)
+
+
+# Fixed, not ``config.timeout_s`` (60 s for cold starts). Windows reports a refused
+# loopback connection only after about 2 s; 3 s keeps that an UNREACHABLE (M3 plan D12).
+MODEL_LIST_TIMEOUT_S = 3.0
+
+
+def list_models(config: TranslatorConfig) -> tuple[str, ...]:
+    """The models the service at ``config.base_url`` offers (``GET /v1/models``, F11-7)."""
+    ctx = ErrorContext(config.endpoint.url, config.model)
+    status, body = get_json(config.endpoint, MODELS_PATH, MODEL_LIST_TIMEOUT_S, ctx=ctx)
+    return parse_models_response(status, body, ctx=ctx)

@@ -12,6 +12,7 @@ routes their results to the clipboard, the notices and the windows.
 from __future__ import annotations
 
 import dataclasses
+import threading
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -47,9 +48,19 @@ from snapocr.gui.settings_window import SettingsWindow
 from snapocr.gui.tray_menu import build_tray_menu, update_tray_menu
 from snapocr.hotkeys import RegistrationReport, register_all, unregister_all
 from snapocr.translators.config import TranslatorConfig
+from snapocr.translators.errors import TranslationError
 from snapocr.translators.types import Translator
 
 _CAPTURE_COMMANDS = (Command.CAPTURE, Command.OCR, Command.TRANSLATE)
+
+
+@dataclasses.dataclass(frozen=True)
+class _ModelsListed:
+    """The model list for one opening of the settings window (F11-7)."""
+
+    request: int
+    models: tuple[str, ...]
+    hint: str | None
 
 
 class AppController(QObject):
@@ -60,6 +71,7 @@ class AppController(QObject):
         flow_deps: FlowDeps,
         *,
         make_translator: Callable[[TranslatorConfig], Translator],
+        list_models: Callable[[TranslatorConfig], Sequence[str]],
         capture_provider: CaptureProvider,
         notifier: Notifier,
         hotkey_backend: HotkeyBackend,
@@ -75,6 +87,8 @@ class AppController(QObject):
         self._deps = flow_deps
         self._make_translator = make_translator
         self._translator = make_translator(config.translator)
+        self._list_models = list_models
+        self._models_request = 0  # numbers the settings openings; stale model lists are dropped
         self._capture_provider = capture_provider
         self._notifier = notifier
         self._hotkeys = hotkey_backend
@@ -215,6 +229,10 @@ class AppController(QObject):
             state = self.popup.state
             if self.popup.job_id == event.job_id and isinstance(state, Translating):
                 self.popup.apply(event.job_id, Failed(state.source, messages.job_crashed_text(event.exc_type_name)))
+        elif isinstance(event, _ModelsListed):
+            # Only the answer to the latest opening, and only while the window is open.
+            if event.request == self._models_request and self.settings_window.isVisible():
+                self.settings_window.set_models(event.models, event.hint)
         # WarmedUp: nothing to show (plan A10)
 
     # --- settings window (F11) ------------------------------------------------------------
@@ -225,6 +243,28 @@ class AppController(QObject):
         except OSError:
             return False
 
+    def _request_models(self) -> None:
+        """F11-7, plan D12: read the model list off the GUI thread (a refused connection takes ~2 s)."""
+        self._models_request += 1
+        self.settings_window.set_models((), messages.MODELS_LOADING)
+        threading.Thread(
+            target=self._fetch_models,
+            args=(self._models_request, self._config.translator),
+            name="snapocr-models",
+            daemon=True,
+        ).start()
+
+    def _fetch_models(self, request: int, config: TranslatorConfig) -> None:
+        """Worker thread: list the models and post the result to the GUI thread."""
+        try:
+            listed = _ModelsListed(request, tuple(self._list_models(config)), None)
+        except TranslationError as err:
+            listed = _ModelsListed(request, (), messages.models_problem_text(err))
+        try:
+            self.bridge.post(listed)
+        except RuntimeError:  # the controller was deleted while the service answered (shutdown)
+            pass
+
     def _open_settings(self) -> None:
         window = self.settings_window
         if not window.isVisible():
@@ -233,6 +273,7 @@ class AppController(QObject):
             self._report = RegistrationReport()
             self._paused = True
             window.load(settings_of(self._config), self._autostart_enabled())
+            self._request_models()
             window.show()
         window.raise_()
         window.activateWindow()

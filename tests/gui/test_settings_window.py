@@ -150,3 +150,82 @@ def test_advanced_button(window):
     window.advanced_button.click()
     assert spy.advanced == [True]
     assert window.isVisible()
+
+
+# --- M3 WI-10: model name is an editable list (F11-7, plan D12) --------------------------
+# ``load`` shows only the current model; the controller fills the list later with
+# ``set_models``, which treats the text in the box at that moment as the current model.
+
+
+def items(box):
+    return [box.itemText(i) for i in range(box.count())]
+
+
+def test_load_shows_only_the_current_model_in_an_editable_box(window):
+    window.load(CUSTOM, False)
+    assert window.model_box.isEditable()
+    assert items(window.model_box) == ["qwen3:8b"]
+    assert window.model_box.currentText() == "qwen3:8b"
+    assert window.model_edit.text() == "qwen3:8b"
+    assert not window.models_hint.isVisible()
+
+
+def test_set_models_lists_them_and_keeps_the_current_one(window):
+    window.load(CUSTOM, False)
+    window.set_models(("hy-mt2:7b", "llama3:8b", "qwen3:8b"), None)
+    assert items(window.model_box) == ["hy-mt2:7b", "llama3:8b", "qwen3:8b"]
+    assert window.model_box.currentText() == "qwen3:8b"
+    assert not window.models_hint.isVisible()
+
+
+def test_current_model_missing_from_the_list_is_added_first(window):
+    window.load(CUSTOM, False)
+    window.set_models(("hy-mt2:7b",), None)
+    assert items(window.model_box) == ["qwen3:8b", "hy-mt2:7b"]
+    assert window.model_box.currentText() == "qwen3:8b"
+
+
+def test_text_typed_before_the_list_arrives_is_kept(window):
+    window.load(CUSTOM, False)
+    window.model_edit.setText("gemma3:4b")
+    window.set_models(("hy-mt2:7b", "qwen3:8b"), None)
+    assert window.model_box.currentText() == "gemma3:4b"
+    assert items(window.model_box) == ["gemma3:4b", "hy-mt2:7b", "qwen3:8b"]
+
+
+def test_load_again_drops_the_old_list(window):
+    window.load(CUSTOM, False)
+    window.set_models(("a", "b", "qwen3:8b"), None)
+    window.load(CUSTOM, False)
+    assert items(window.model_box) == ["qwen3:8b"]
+
+
+def test_picking_a_listed_model_is_saved(window):
+    spy = Spy(window)
+    window.load(CUSTOM, True)
+    window.set_models(("hy-mt2:7b", "qwen3:8b"), None)
+    window.model_box.setCurrentIndex(items(window.model_box).index("hy-mt2:7b"))
+    window.save_button.click()
+    assert spy.saved == [(dataclasses.replace(CUSTOM, model="hy-mt2:7b"), True)]
+
+
+def test_typed_model_is_saved(window):
+    spy = Spy(window)
+    window.load(CUSTOM, True)
+    window.set_models(("hy-mt2:7b", "qwen3:8b"), None)
+    window.model_box.setEditText(" gemma3:4b ")
+    window.save_button.click()
+    assert spy.saved == [(dataclasses.replace(CUSTOM, model="gemma3:4b"), True)]
+
+
+def test_models_hint_is_shown_and_cleared(window):
+    window.load(CUSTOM, False)
+    window.set_models((), "没能读取模型列表（翻译服务没有运行），可以直接输入模型名。")
+    assert window.models_hint.isVisible()
+    assert window.models_hint.text() == "没能读取模型列表（翻译服务没有运行），可以直接输入模型名。"
+    assert items(window.model_box) == ["qwen3:8b"]
+    window.set_models(("qwen3:8b",), None)
+    assert not window.models_hint.isVisible()
+    window.set_models((), "x")
+    window.load(CUSTOM, False)
+    assert not window.models_hint.isVisible()

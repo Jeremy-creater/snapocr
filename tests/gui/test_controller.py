@@ -82,7 +82,7 @@ def clipboard(qapp):
 class Harness:
     def __init__(self, qtbot, tmp_path, *, engine=RESULT, load_error=None, holder=None, translator=None,
                  capture_error=None, issues=(), preoccupy=(), config_path=None, make_translator=None,
-                 autostart=None):
+                 autostart=None, list_models=None):
         self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error)
         self.notifier = RecordingNotifier()
         self.table = FakeHotkeyTable()
@@ -101,6 +101,7 @@ class Harness:
             self.config_path,
             deps,
             make_translator=make_translator or (lambda cfg: translator or ScriptedTranslator()),
+            list_models=list_models or (lambda cfg: ()),
             capture_provider=self.capture,
             notifier=self.notifier,
             hotkey_backend=self.table,
@@ -726,3 +727,118 @@ def test_file_failure_without_autostart_change(make, tmp_path):
     assert "UTF-8" in window.problems_label.text()
     assert h.autostart.enabled is True
     assert path.read_bytes() == b"\xff"
+
+
+# --- M3 WI-10: model list in the settings window (F11-7, plan D12, D14) ---------------------
+# The list is read on a background thread; the window opens at once with a "loading" hint.
+
+from snapocr.actions.messages import MODELS_LOADING  # noqa: E402
+from snapocr.translators.errors import TranslationError, TranslationErrorKind  # noqa: E402
+
+
+class ModelLister:
+    """``list_models`` stand-in; ``hold()`` makes calls wait until ``release()``."""
+
+    def __init__(self, result):
+        self.result = result
+        self.asked = []
+        self.gate = threading.Event()
+        self.gate.set()
+
+    def hold(self):
+        self.gate.clear()
+
+    def release(self):
+        self.gate.set()
+
+    def __call__(self, config):
+        self.asked.append((config.base_url, config.model))
+        assert self.gate.wait(5)
+        result = self.result(len(self.asked)) if callable(self.result) else self.result
+        if isinstance(result, BaseException):
+            raise result
+        return result
+
+
+def model_items(window):
+    return [window.model_box.itemText(i) for i in range(window.model_box.count())]
+
+
+def test_settings_open_at_once_and_fill_the_list_later(make):
+    lister = ModelLister(("hy-mt2:7b", "qwen3:8b"))
+    lister.hold()
+    h = make(list_models=lister)
+    window = open_settings(h)
+    assert MODELS_LOADING == "正在读取模型列表…"
+    assert window.models_hint.isVisible() and window.models_hint.text() == MODELS_LOADING
+    assert model_items(window) == ["hy-mt2:7b"]
+    lister.release()
+    h.qtbot.waitUntil(lambda: model_items(window) == ["hy-mt2:7b", "qwen3:8b"], timeout=WAIT)
+    assert lister.asked == [("http://127.0.0.1:11434", "hy-mt2:7b")]
+    assert window.model_box.currentText() == "hy-mt2:7b"
+    assert not window.models_hint.isVisible()
+
+
+def test_settings_model_list_failure_shows_a_hint(make):
+    err = TranslationError(TranslationErrorKind.UNREACHABLE, base_url="http://127.0.0.1:11434", model="hy-mt2:7b")
+    h = make(list_models=ModelLister(err))
+    window = open_settings(h)
+    hint = "没能读取模型列表（翻译服务没有运行），可以直接输入模型名。"
+    h.qtbot.waitUntil(lambda: window.models_hint.text() == hint, timeout=WAIT)
+    assert window.models_hint.isVisible()
+    assert model_items(window) == ["hy-mt2:7b"]
+
+
+def test_settings_asks_again_with_the_saved_model(make):
+    lister = ModelLister(("hy-mt2:7b", "qwen3:8b"))
+    h = make(list_models=lister)
+    window = open_settings(h)
+    h.qtbot.waitUntil(lambda: model_items(window) == ["hy-mt2:7b", "qwen3:8b"], timeout=WAIT)
+    window.model_box.setCurrentIndex(model_items(window).index("qwen3:8b"))
+    window.save_button.click()
+    assert not window.isVisible()
+    open_settings(h)
+    h.qtbot.waitUntil(lambda: len(lister.asked) == 2, timeout=WAIT)
+    assert lister.asked == [("http://127.0.0.1:11434", "hy-mt2:7b"), ("http://127.0.0.1:11434", "qwen3:8b")]
+
+
+def test_open_again_while_visible_does_not_ask_again(make):
+    lister = ModelLister(("hy-mt2:7b",))
+    h = make(list_models=lister)
+    window = open_settings(h)
+    h.qtbot.waitUntil(lambda: not window.models_hint.isVisible(), timeout=WAIT)
+    h.controller.run(Command.SETTINGS)
+    h.qtbot.wait(100)
+    assert len(lister.asked) == 1
+
+
+def test_a_late_list_from_an_earlier_opening_is_ignored(make):
+    lister = ModelLister(lambda n: ("old-model",) if n == 1 else ("hy-mt2:7b", "new-model"))
+    lister.hold()
+    h = make(list_models=lister)
+    window = open_settings(h)
+    window.close()
+    open_settings(h)  # the second request also waits on the gate
+    lister.release()
+    h.qtbot.waitUntil(lambda: model_items(window) == ["hy-mt2:7b", "new-model"], timeout=WAIT)
+    h.qtbot.wait(200)
+    assert "old-model" not in model_items(window)
+
+
+def test_a_list_arriving_after_the_controller_is_deleted_is_dropped(make):
+    # Real shutdown deletes the controller (and its bridge) while the thread may still wait on the service.
+    import shiboken6
+
+    errors = []
+    previous, threading.excepthook = threading.excepthook, errors.append
+    try:
+        lister = ModelLister(("hy-mt2:7b",))
+        lister.hold()
+        h = make(list_models=lister)
+        open_settings(h)
+        shiboken6.delete(h.controller.bridge)
+        lister.release()
+        h.qtbot.waitUntil(lambda: not any(t.name == "snapocr-models" for t in threading.enumerate()), timeout=WAIT)
+    finally:
+        threading.excepthook = previous
+    assert errors == []

@@ -306,3 +306,20 @@ def test_autostart_failed_text():
 
 def test_settings_saved_notice():
     assert settings_saved_notice() == Notice("设置已保存", "新设置已经生效。")
+
+
+# --- M3 WI-10: model list problem (F11-7) ------------------------------------------
+
+from snapocr.actions.messages import models_problem_text  # noqa: E402
+
+
+@pytest.mark.parametrize("kind, why", [
+    (TranslationErrorKind.UNREACHABLE, "翻译服务没有运行"),
+    (TranslationErrorKind.TIMEOUT, "翻译服务没有响应"),
+    (TranslationErrorKind.CONNECTION, "连接中断"),
+    (TranslationErrorKind.HTTP_STATUS, "服务不支持读取模型列表"),
+    (TranslationErrorKind.BAD_RESPONSE, "服务不支持读取模型列表"),
+])
+def test_models_problem_text(kind, why):
+    err = TranslationError(kind, base_url="http://127.0.0.1:11434", model="hy-mt2:7b")
+    assert models_problem_text(err) == f"没能读取模型列表（{why}），可以直接输入模型名。"
