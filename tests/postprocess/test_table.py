@@ -4,9 +4,9 @@ Blocks are drawn on a grid: row r spans ``Y0 + r * PITCH`` to ``+ H``;
 cells are placed by explicit x ranges so each F16-3 rule (1 to 5) gets a
 layout that only that rule resolves.
 
-Laws: every row has the same number of cells; every block text appears in
-exactly one cell (texts have no spaces, so a cell splits back into them); a
-global shift changes nothing; a clean grid with a full header row and
+Laws: every row has the same number of cells; without a row of column
+letters (F16-5) every block text appears in exactly one cell (texts have no
+spaces, so a cell splits back into them); a global shift changes nothing; a clean grid with a full header row and
 centred, jittered cells round-trips.
 """
 
@@ -208,7 +208,8 @@ def test_rows_that_barely_touch_stay_apart():
 
 # --- laws -------------------------------------------------------------------------------
 
-words = st.text(alphabet="abcdefghijXYZ0123456789", min_size=1, max_size=6)
+# No upper case: a row of column letters would be removed (F16-5, tests in test_table_headers.py).
+words = st.text(alphabet="abcdefghijxyz0123456789", min_size=1, max_size=6)
 raw_block = st.tuples(
     words,
     st.integers(0, 600), st.integers(0, 400),

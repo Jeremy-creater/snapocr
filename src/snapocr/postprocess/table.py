@@ -18,15 +18,23 @@ rules were fitted to the real OCR boxes of the M4 table screenshots (plan D19):
    times the shorter height and have no column in common merge (text of a
    cell merged over two rows); the pair with the most overlap goes first, so
    such a text joins the row it overlaps more. Ties go to the upper pair.
+
+Last, ``strip_sheet_headers`` removes spreadsheet column letters and row
+numbers (F16-5).
 """
 
 from __future__ import annotations
+
+import re
 
 from snapocr.engines.types import OcrResult
 from snapocr.postprocess.layout import group_blocks
 
 SAME_COLUMN_OVERLAP = 0.5
 SAME_ROW_OVERLAP = 0.25
+
+_COLUMN_LETTERS = re.compile(r"[A-Z]{1,2}")
+_ROW_NUMBER = re.compile(r"[0-9]+")
 
 # group_blocks' normalized block: (center_y, top, bottom, left, right, text, score).
 _Block = tuple[float, float, float, float, float, str, float]
@@ -133,7 +141,35 @@ def table_cells(result: OcrResult) -> list[list[str]]:
         rows.append((cells, min(b[1] for b in group), max(b[2] for b in group)))
     rows = _merge_rows(_merge_columns(rows, len(columns)))
     width = 1 + max(c for cells, _, _ in rows for c in cells)
-    return [
+    return strip_sheet_headers([
         [" ".join(b[5] for b in sorted(cells.get(c, []), key=lambda b: (b[3], b[4], b[5]))) for c in range(width)]
         for cells, _, _ in rows
-    ]
+    ])
+
+
+def _column_number(letters: str) -> int:
+    """Spreadsheet column number: A = 1, Z = 26, AA = 27."""
+    n = 0
+    for ch in letters:
+        n = n * 26 + ord(ch) - ord("A") + 1
+    return n
+
+
+def _is_letter_row(row: list[str]) -> bool:
+    """At least two cells of 1-2 capitals whose column numbers step with their positions."""
+    filled = [(i, text) for i, text in enumerate(row) if text]
+    if len(filled) < 2 or not all(_COLUMN_LETTERS.fullmatch(text) for _, text in filled):
+        return False
+    i0, first = filled[0]
+    return all(_column_number(text) - _column_number(first) == i - i0 for i, text in filled)
+
+
+def strip_sheet_headers(cells: list[list[str]]) -> list[list[str]]:
+    """F16-5: drop a first row of column letters and, below an empty corner, a column of row numbers."""
+    if not cells or not _is_letter_row(cells[0]):
+        return cells
+    corner, rest = cells[0][0], cells[1:]
+    numbers = [row[0] for row in rest if row[0]]
+    if not corner and numbers and 2 * sum(bool(_ROW_NUMBER.fullmatch(n)) for n in numbers) >= len(numbers):
+        return [row[1:] for row in rest]
+    return rest
