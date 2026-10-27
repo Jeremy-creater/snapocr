@@ -141,3 +141,23 @@ def toolbar_place(sel: Rect, size: tuple[int, int], area: Rect, gap: int) -> tup
     if above >= area.y:
         return x, above
     return x, _clamp(sel.y + sel.h - gap - h, area.y, bottom - h)
+
+
+ZOOM_MIN, ZOOM_MAX, ZOOM_STEP = 10, 500, 10  # pinned-image zoom, percent (F15-2)
+
+
+def zoom_percent(current: int, steps: int) -> int:
+    """The zoom after ``steps`` wheel notches (negative: smaller), within the limits."""
+    return max(ZOOM_MIN, min(current + steps * ZOOM_STEP, ZOOM_MAX))
+
+
+def _half_up(v: float) -> int:
+    return math.floor(v + 0.5)
+
+
+def zoom_rect(rect: Rect, anchor: tuple[float, float], base: tuple[int, int], percent: int) -> Rect:
+    """``rect`` resized to ``percent`` of ``base``, keeping ``anchor`` at the same place inside it."""
+    w = max(1, _half_up(base[0] * percent / 100))
+    h = max(1, _half_up(base[1] * percent / 100))
+    fx, fy = (anchor[0] - rect.x) / rect.w, (anchor[1] - rect.y) / rect.h
+    return Rect(_half_up(anchor[0] - fx * w), _half_up(anchor[1] - fy * h), w, h)
