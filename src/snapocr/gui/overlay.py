@@ -11,7 +11,8 @@ gets the annotation toolbar. While no tool is picked and nothing is drawn the
 selection still adjusts as before; after that it is fixed (F14-3) and drags
 inside it draw marks (``snapocr.annotate``, drawn by ``marks_paint``).
 The text tool opens a line editor at the click instead (F14-5); Enter or a
-click elsewhere keeps the text, Esc drops only the text.
+click elsewhere keeps the text, Esc drops only the text. The toolbar's save
+button or Ctrl+S ends it with ``saved`` (F17-1), keeping text being typed.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from enum import Enum
 
-from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, Qt, Signal, SignalInstance
 from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QLineEdit, QWidget
 
@@ -111,6 +112,7 @@ class SelectionOverlay(QWidget):
     cancelled = Signal()
     style_changed = Signal(object)  # Style, annotate mode only (M4 plan D13)
     pinned = Signal(object)  # Rect: the toolbar's pin button (F15-1)
+    saved = Signal(object)  # Rect: the toolbar's save button or Ctrl+S (F17-1)
 
     def __init__(
         self,
@@ -154,7 +156,8 @@ class SelectionOverlay(QWidget):
             self.toolbar.undo_requested.connect(self._undo)
             self.toolbar.cancel_requested.connect(lambda: self._finish(None))
             self.toolbar.done_requested.connect(self._done)
-            self.toolbar.pin_requested.connect(self._pin)
+            self.toolbar.pin_requested.connect(lambda: self._leave(self.pinned))
+            self.toolbar.save_requested.connect(lambda: self._leave(self.saved))
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setMouseTracking(True)
@@ -328,11 +331,12 @@ class SelectionOverlay(QWidget):
         self._close_editor(keep=True)
         self._confirm()
 
-    def _pin(self) -> None:
+    def _leave(self, signal: SignalInstance) -> None:
+        """Pin or save: like a confirm, but reported on ``signal`` (F15-1, F17-1)."""
         self._close_editor(keep=True)
         if self._state is OverlayState.ADJUSTING and self._drag is None and self._drawing is None:
             self.abandon()
-            self.pinned.emit(self._rect)
+            signal.emit(self._rect)
 
     def _confirm(self) -> None:
         if self._state is OverlayState.ADJUSTING and self._drag is None and self._drawing is None:
@@ -478,6 +482,12 @@ class SelectionOverlay(QWidget):
             self._picked = None
             self._marks_changed()
         elif (
+            event.key() == Qt.Key.Key_S
+            and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+            and self.toolbar is not None
+        ):
+            self._leave(self.saved)  # also from the text editor, which leaves Ctrl+S to us
+        elif (
             event.key() == Qt.Key.Key_Z
             and event.modifiers() == Qt.KeyboardModifier.ControlModifier
             and self.toolbar is not None
@@ -553,8 +563,9 @@ class OverlaySession(QObject):
     """All overlays of one capture; the first result ends the session (emitted once).
 
     Before ``result`` is emitted, ``marks`` holds the marks of the overlay that
-    was confirmed and ``action`` what to do with the picture: ``"copy"``, or
-    ``"pin"`` when its pin button ended it (M4 plan D10, F15-1).
+    was confirmed and ``action`` what to do with the picture: ``"copy"``,
+    ``"pin"`` when its pin button ended it (M4 plan D10, F15-1), or ``"save"``
+    for its save button or Ctrl+S (F17-1).
     """
 
     result = Signal(object)  # Rect, or None when cancelled
@@ -571,6 +582,7 @@ class OverlaySession(QObject):
         for overlay in self._overlays:
             overlay.selected.connect(lambda rect, o=overlay: self._on_selected(o, rect))
             overlay.pinned.connect(lambda rect, o=overlay: self._on_selected(o, rect, "pin"))
+            overlay.saved.connect(lambda rect, o=overlay: self._on_selected(o, rect, "save"))
             overlay.cancelled.connect(lambda: self._on_result(None))
 
     @property

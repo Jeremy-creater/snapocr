@@ -1165,3 +1165,94 @@ def test_relative_save_dir_is_refused(make):
     assert window.problems_label.text() == "「截图保存到」必须是完整的文件夹路径，例如 D:/截图。"
     assert not h.config_path.exists()
     assert h.titles() == []
+
+
+# --- M4 WI-23: saving a capture (PRD F17-1, F17-4, F17-5; plan D26) ---------------------------------
+#
+# Pinned here:
+# - The toolbar's save button (or Ctrl+S) writes the selection with its marks
+#   as a PNG into ``config.save_dir`` (created when missing) under
+#   ``snapocr_YYYYMMDD_HHMMSS.png``, puts the same PNG on the clipboard and
+#   shows "已保存截图" with the file's path. Nothing goes into "上次结果".
+# - A failed save still puts the PNG on the clipboard and shows "保存失败".
+
+import re  # noqa: E402
+
+SAVED_NAME = re.compile(r"snapocr_\d{8}_\d{6}(_\d+)?\.png")
+
+
+def saved_files(folder):
+    """The PNGs in ``folder``; empty (not an error) while it does not exist."""
+    return sorted(folder.glob("*.png"))
+
+
+def save_capture(h, area=(10, 20, 210, 170), mark=None, *, key=False):
+    h.controller.run(Command.CAPTURE)
+    overlay = h.controller.overlays[0]
+    qi.drag(overlay, *area)
+    if mark is not None:
+        annotate_tb(overlay, "tool-rect").click()
+        qi.drag(overlay, *mark)
+    if key:
+        mod = Qt.KeyboardModifier.ControlModifier
+        QApplication.sendEvent(overlay, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_S, mod, "\x13"))
+    else:
+        annotate_tb(overlay, "save").click()
+
+
+def test_save_writes_the_marked_png_and_copies_it(make, clipboard):
+    h = make()
+    save_capture(h, mark=(30, 40, 120, 100))
+    (path,) = saved_files(h.save_dir)
+    assert SAVED_NAME.fullmatch(path.name), path.name
+    marks = (Mark(Tool.RECT, ((30, 40), (120, 100)), PALETTE[0], 4),)
+    expected = render_marked(crop(h.capture.image, Rect(10, 20, 200, 150)), marks, (10, 20))
+    assert pixels(decode_png(path.read_bytes())) == pixels(expected)
+    assert bytes(clipboard.mimeData().data("image/png")) == path.read_bytes()
+    assert [(n.title, n.body) for n in h.notifier.notices] == [("已保存截图", str(path))]
+    assert h.controller.overlays == ()
+    assert h.controller.history.snapshot() == ()
+
+
+def test_ctrl_s_saves_too(make, clipboard):
+    h = make()
+    save_capture(h, key=True)
+    (path,) = saved_files(h.save_dir)
+    assert pixels(decode_png(path.read_bytes())) == pixels(crop(h.capture.image, Rect(10, 20, 200, 150)))
+    assert h.titles() == ["已保存截图"]
+
+
+def test_two_saves_keep_both_files(make):
+    h = make()
+    save_capture(h)
+    save_capture(h, area=(300, 300, 400, 380))
+    assert len(saved_files(h.save_dir)) == 2
+    assert h.titles() == ["已保存截图", "已保存截图"]
+
+
+def test_failed_save_still_copies(make, clipboard, tmp_path):
+    blocker = tmp_path / "taken"
+    blocker.write_bytes(b"a file, not a folder")
+    h = make(save_dir=blocker / "shots")
+    save_capture(h)
+    assert decode_png(bytes(clipboard.mimeData().data("image/png"))).size().toTuple() == (200, 150)
+    (notice,) = h.notifier.notices
+    assert notice.title == "保存失败"
+    assert str(blocker / "shots") in notice.body
+    assert blocker.read_bytes() == b"a file, not a folder"
+
+
+def test_ocr_overlay_has_no_save(make):
+    h = make()
+    h.controller.run(Command.OCR)
+    assert h.controller.overlays[0].toolbar is None
+
+
+def test_save_goes_to_the_folder_set_in_the_settings_window(make, tmp_path):
+    h = make()
+    window = open_settings(h)
+    window.save_dir_edit.setText(str(tmp_path / "chosen"))
+    window.save_button.click()
+    save_capture(h)
+    assert len(saved_files(tmp_path / "chosen")) == 1
+    assert saved_files(h.save_dir) == []

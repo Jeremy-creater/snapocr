@@ -1,4 +1,4 @@
-"""The annotation toolbar shown next to a screenshot selection (PRD F14-1, F14-4, F14-6; M4 plan D12).
+"""The annotation toolbar shown next to a screenshot selection (PRD F14-1, F14-4, F14-6, F17-1; M4 plan D12).
 
 A child widget of the selection overlay, not a window of its own, so it never
 takes focus from the overlay; its buttons take no keyboard focus either
@@ -83,6 +83,13 @@ def _pushpin(p: QPainter) -> None:
     p.drawRect(QRectF(7.5, 3, 5, 8))
 
 
+def _disk(p: QPainter) -> None:
+    p.drawRect(QRectF(3.5, 3.5, 13, 13))
+    p.drawRect(QRectF(6.5, 3.5, 7, 4.5))
+    p.setBrush(_INK)
+    p.drawRect(QRectF(6.5, 11.5, 7, 5))
+
+
 _TOOL_ICONS: dict[Tool, Callable[[QPainter], None]] = {
     Tool.RECT: lambda p: p.drawRect(QRectF(3.5, 4.5, 13, 11)),
     Tool.ELLIPSE: lambda p: p.drawEllipse(QRectF(3.5, 4.5, 13, 11)),
@@ -120,6 +127,7 @@ class AnnotateToolbar(QWidget):
     level_clicked = Signal(int)  # every level click, the current one too
     undo_requested = Signal()
     pin_requested = Signal()
+    save_requested = Signal()  # F17-1
     cancel_requested = Signal()
     done_requested = Signal()
 
@@ -164,6 +172,8 @@ class AnnotateToolbar(QWidget):
         pin = self._button(layout, "pin", "贴图：钉在屏幕上", _icon(_pushpin))
         pin.setVisible(show_pin)
         pin.clicked.connect(self.pin_requested)
+        save = self._button(layout, "save", "保存到截图文件夹，同时复制（Ctrl+S）", _icon(_disk))
+        save.clicked.connect(self.save_requested)
         self._button(layout, "cancel", "取消（Esc）", _icon(_glyph("✕"))).clicked.connect(self.cancel_requested)
         self._button(layout, "done", "完成：复制到剪贴板（Enter）", _icon(_glyph("✓"))).clicked.connect(
             self.done_requested

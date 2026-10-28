@@ -185,3 +185,35 @@ def test_every_colour_and_level_click_is_reported():
     btn(bar, "level-1").click()  # the current one
     btn(bar, "level-2").click()
     assert clicks == [("color", PALETTE[0]), ("color", PALETTE[4]), ("level", 1), ("level", 2)]
+
+
+# --- M4 WI-23: the save button (PRD F17-1) ----------------------------------------------
+#
+# Pinned here: a ``save`` button between pin and cancel, always shown (the
+# toolbar only exists for the capture action, F17-5), with a Chinese tooltip
+# naming Ctrl+S; no keyboard focus; a click emits ``save_requested``.
+
+
+def test_save_button_shown_with_tooltip_and_no_focus():
+    bar = AnnotateToolbar()
+    save = btn(bar, "save")
+    assert not save.isHidden()
+    assert "保存" in save.toolTip() and "Ctrl+S" in save.toolTip()
+    assert save.focusPolicy() == Qt.FocusPolicy.NoFocus
+    assert not save.icon().isNull()
+
+
+def test_save_sits_between_pin_and_cancel():
+    bar = AnnotateToolbar(show_pin=True)
+    bar.adjustSize()
+    xs = [btn(bar, n).geometry().x() for n in ("pin", "save", "cancel", "done")]
+    assert xs == sorted(xs) and len(set(xs)) == 4
+
+
+def test_save_click_emits_save_requested(qtbot):
+    bar = AnnotateToolbar()
+    qtbot.addWidget(bar)
+    seen = []
+    bar.save_requested.connect(lambda: seen.append("save"))
+    btn(bar, "save").click()
+    assert seen == ["save"]
