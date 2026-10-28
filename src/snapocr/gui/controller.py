@@ -114,6 +114,8 @@ class AppController(QObject):
         self._style: Style = DEFAULT_STYLE  # annotation colour and size (F14-4)
         self._pins: list[PinWindow] = []  # F15-3: memory only
         self._anchors: dict[int, tuple[Rect, Rect]] = {}  # translate job -> (anchor, available), logical
+        self._last_translate_job = -1  # the newest translate job submitted
+        self._dropped_through = -1  # F19-3 (v1.5): translate jobs up to this id were cleared by Alt+4
         self._quitting = False
         self._paused = False  # hotkeys released while the settings window is open (plan D5)
 
@@ -252,13 +254,19 @@ class AppController(QObject):
         elif command is Command.TABLE_OCR:
             self.runner.submit(table_ocr_job(png, self._deps))
         else:
-            job_id = self.runner.submit(translate_job(png, self._deps, self._translator, self.popup.target))
+            job_id = self._last_translate_job = self.runner.submit(
+                translate_job(png, self._deps, self._translator, self.popup.target)
+            )
             screen = screen_containing(rect, cap.screens)
             available = cap.work_areas.get(screen.name, screen.logical)
             self._anchors[job_id] = (logical_rect(screen, rect), available)
 
     def _open_translation_window(self) -> None:
-        """F19-3: blank, centred on the screen under the mouse when hidden; focus in the source."""
+        """F19-3: blank, centred on the screen under the mouse when hidden; focus in the source.
+
+        Every translation submitted so far is dropped (v1.5): no window, no clipboard.
+        """
+        self._dropped_through = self._last_translate_job
         popup = self.popup
         popup.clear()
         if not popup.isVisible():
@@ -274,7 +282,7 @@ class AppController(QObject):
     def _translate_text(self, text: str, target: str | None) -> None:
         """F19-5: the window's source box, translated where the window is (no anchor)."""
         if not self._quitting:
-            self.runner.submit(text_translate_job(text, self._translator, target))
+            self._last_translate_job = self.runner.submit(text_translate_job(text, self._translator, target))
 
     def _pin(self, image: QImage, geometry: Rect) -> None:
         window = PinWindow(image, geometry)
@@ -299,6 +307,8 @@ class AppController(QObject):
         if isinstance(event, OcrDone):
             self._anchors.pop(event.job_id, None)
             self._land(event.outcome)
+        elif isinstance(event, (TranslateStarted, TranslateDone)) and event.job_id <= self._dropped_through:
+            self._anchors.pop(event.job_id, None)  # cleared by Alt+4 (F19-3 v1.5)
         elif isinstance(event, TranslateStarted):
             # Recognition runs FIFO on one worker (F18-1 moves only the model request
             # off it): this is always the newest translate job. A screenshot job's anchor

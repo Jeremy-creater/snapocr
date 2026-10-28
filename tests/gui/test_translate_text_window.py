@@ -4,9 +4,10 @@ Pinned here: the hotkey, the tray menu item "文字翻译" and ``run()`` all sho
 the window centred in the work area of the screen under the mouse when it was
 hidden, leave it where it is when it is showing, give it focus in the source
 box, and take no capture. Since PRD v1.4 (M6 WI-7) every Alt+4 gives a blank
-window: source and translation cleared, hidden or showing; a translation still
-on its way when it was cleared stays out of the window (its clipboard copy is
-F19-7's business). The target box is kept (F19-6).
+window: source and translation cleared, hidden or showing. Since v1.5 (M6
+WI-8) every translation submitted before that Alt+4 is dropped: no window
+text, no move, no clipboard, even a screenshot one still being recognised.
+The target box is kept (F19-6).
 
 Uses the controller harness of ``test_controller.py``.
 """
@@ -19,11 +20,12 @@ from PySide6.QtGui import QCursor, QGuiApplication
 
 from snapocr.actions.outcomes import Done, Translating
 from snapocr.commands import Command
+from snapocr.engines.holder import EngineHolder
 from snapocr.geometry import Rect, center_in
 from snapocr.hotkeys import hotkey_id
 from snapocr.translators.types import TranslationResult
 from support import qt_input as qi
-from test_controller import WAIT, became_active, clipboard, make  # noqa: F401 (fixtures)
+from test_controller import RESULT, WAIT, became_active, clipboard, make  # noqa: F401 (fixtures)
 
 
 def cursor_work_area():
@@ -105,7 +107,13 @@ class GatedTranslator:
         return TranslationResult(f"T({text})", "en", False)
 
 
-def test_a_translation_cleared_on_its_way_stays_out_of_the_window(make, qtbot, clipboard):
+def clipboard_history(clipboard):
+    texts = []
+    clipboard.dataChanged.connect(lambda: texts.append(clipboard.text()))
+    return texts
+
+
+def test_a_translation_cleared_on_its_way_stays_out_of_window_and_clipboard(make, qtbot, clipboard):
     translator = GatedTranslator()
     h = make(translator=translator)
     popup = h.controller.popup
@@ -115,14 +123,55 @@ def test_a_translation_cleared_on_its_way_stays_out_of_the_window(make, qtbot, c
         qtbot.waitUntil(lambda: popup.state == Translating("Hello"), timeout=WAIT)
         h.controller.run(Command.TRANSLATE_TEXT)
         assert_blank(popup)
+        clipboard.setText("copied after Alt+4")  # copy -> Alt+4 -> paste must get this
+        history = clipboard_history(clipboard)
     finally:
         translator.gate.set()
-    qtbot.waitUntil(lambda: clipboard.text() == "T(Hello)", timeout=WAIT)  # F19-7 still holds
-    assert_blank(popup)
-    # The blank window translates the next text as usual.
+    # One translation thread, FIFO: "Again" ends after "Hello" was dropped.
     translate_typed(h, "Again")
     qtbot.waitUntil(lambda: popup.state == Done("Again", "T(Again)"), timeout=WAIT)
+    assert history == ["T(Again)"]
     assert popup.translation_view.toPlainText() == "T(Again)"
+
+
+class GatedEngine:
+    def __init__(self):
+        self.gate = threading.Event()
+
+    def recognize(self, data):
+        self.gate.wait(30)
+        return RESULT
+
+
+def test_a_screenshot_translation_still_recognising_leaves_the_typed_window_alone(make, qtbot, clipboard):
+    engine = GatedEngine()
+    h = make(holder=EngineHolder(lambda: engine))
+    popup = h.controller.popup
+    try:
+        h.controller.run(Command.TRANSLATE)
+        h.select(100, 100, 300, 160)
+        h.controller.run(Command.TRANSLATE_TEXT)
+        where = popup.geometry()
+        history = clipboard_history(clipboard)
+        # Queued behind the screenshot on the recognition thread, so it ends after it.
+        translate_typed(h, "typing now")
+    finally:
+        engine.gate.set()
+    qtbot.waitUntil(lambda: popup.state == Done("typing now", "T(typing now)"), timeout=WAIT)
+    assert history == ["T(typing now)"]
+    assert popup.geometry() == where
+    assert popup.source_view.toPlainText() == "typing now"
+
+
+def test_a_translation_after_alt4_is_not_dropped(make, qtbot, clipboard):
+    h = make()
+    popup = h.controller.popup
+    h.controller.run(Command.TRANSLATE_TEXT)
+    h.controller.run(Command.TRANSLATE)
+    h.select(100, 100, 300, 160)
+    qtbot.waitUntil(lambda: isinstance(popup.state, Done), timeout=WAIT)
+    assert clipboard.text() == popup.state.translation
+    assert popup.source_view.toPlainText() == popup.state.source != ""
 
 
 def test_translate_text_leaves_a_showing_window_where_it_is(make, qtbot):
