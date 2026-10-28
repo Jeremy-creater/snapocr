@@ -284,3 +284,33 @@ def center_in(size: tuple[int, int], available: Rect) -> Rect:
         raise ValueError(f"size must be two ints >= 0, got {size!r}")
     w, h = min(size[0], available.w), min(size[1], available.h)
     return Rect(available.x + (available.w - w) // 2, available.y + (available.h - h) // 2, w, h)
+
+
+def resize_edges(x: float, y: float, w: int, h: int, margin: int) -> frozenset[str]:
+    """F20-5: the edges of a ``w`` x ``h`` window under the window-local point, within ``margin``.
+
+    "left" / "top" / "right" / "bottom"; a corner gives two. When the window is
+    thinner than two margins, the nearer edge wins.
+    """
+    if not (0 <= x < w and 0 <= y < h):
+        return frozenset()
+    edges = set()
+    for near, far, lo, hi in ((x, w - 1 - x, "left", "right"), (y, h - 1 - y, "top", "bottom")):
+        if min(near, far) < margin:
+            edges.add(lo if near <= far else hi)
+    return frozenset(edges)
+
+
+def resized(rect: Rect, edges: frozenset[str], dx: int, dy: int, min_size: tuple[int, int]) -> Rect:
+    """F20-5: ``rect`` with the grabbed ``edges`` moved by (dx, dy); the other edges stay, size >= ``min_size``."""
+    left, top, right, bottom = rect.x, rect.y, rect.x + rect.w, rect.y + rect.h
+    min_w, min_h = min_size
+    if "left" in edges:
+        left = min(left + dx, right - min_w)
+    if "right" in edges:
+        right = max(right + dx, left + min_w)
+    if "top" in edges:
+        top = min(top + dy, bottom - min_h)
+    if "bottom" in edges:
+        bottom = max(bottom + dy, top + min_h)
+    return Rect(left, top, right - left, bottom - top)
