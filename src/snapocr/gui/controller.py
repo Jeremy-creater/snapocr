@@ -258,8 +258,9 @@ class AppController(QObject):
             self._anchors[job_id] = (logical_rect(screen, rect), available)
 
     def _open_translation_window(self) -> None:
-        """F19-3: centred on the screen under the mouse when hidden; focus, source selected."""
+        """F19-3: blank, centred on the screen under the mouse when hidden; focus in the source."""
         popup = self.popup
+        popup.clear()
         if not popup.isVisible():
             screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
             g = screen.availableGeometry()

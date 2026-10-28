@@ -99,6 +99,17 @@ class TranslationPopup(QWidget):
         self.source_view.setFocus()
         self.source_view.selectAll()
 
+    def clear(self) -> None:
+        """F19-3 (v1.4): blank source and translation; the target box stays.
+
+        The job id stays too, so the result of a job still on its way is
+        refused by ``apply`` (no ``Translating`` state to finish).
+        """
+        self._state = None
+        self.source_view.clear()
+        self._shown_source = ""
+        self._render(fill_source=False)
+
     def apply(self, job_id: int, state: PopupState) -> bool:
         """Take ``state`` for ``job_id`` if the transition is legal; see the module docstring."""
         if self._job_id is None or job_id > self._job_id:
