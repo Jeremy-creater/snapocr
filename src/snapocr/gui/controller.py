@@ -197,7 +197,13 @@ class AppController(QObject):
             return
         annotate = command is Command.CAPTURE
         overlays = tuple(
-            SelectionOverlay(crop(cap.image, crop_box(s.physical, cap.origin)), s, annotate=annotate, style=self._style)
+            SelectionOverlay(
+                crop(cap.image, crop_box(s.physical, cap.origin)),
+                s,
+                annotate=annotate,
+                style=self._style,
+                save_target=self._save_target,
+            )
             for s in cap.screens
         )
         for overlay in overlays:
@@ -206,6 +212,10 @@ class AppController(QObject):
         session.result.connect(lambda rect: self._on_selection(command, cap, rect))
         self._session, self._overlays = session, overlays
         session.start()
+
+    def _save_target(self) -> Path:
+        """F17-2, F17-3: where the save-as dialog starts."""
+        return suggest_path(self._config.save_dir, datetime.datetime.now())
 
     def _remember_style(self, style: Style) -> None:
         self._style = style
@@ -220,7 +230,8 @@ class AppController(QObject):
         self._session, self._overlays = None, ()
 
     def _on_selection(self, command: Command, cap: Capture, rect: Rect | None) -> None:
-        marks, action = self._session.marks, self._session.action  # only capture overlays annotate or pin
+        session = self._session  # only capture overlays annotate, pin or save
+        marks, action, save_path = session.marks, session.action, session.save_path
         self._end_session()
         if rect is None:  # F6-3: cancelled, nothing changes
             return
@@ -231,8 +242,8 @@ class AppController(QObject):
             self._pin(image, logical_rect(screen_containing(rect, cap.screens), rect))
             return
         png = encode_png(image)
-        if action == "save":  # F17-1: into the save folder, and onto the clipboard
-            self._land(save_flow(png, suggest_path(self._config.save_dir, datetime.datetime.now())))
+        if action == "save":  # F17-1: the picked file, and onto the clipboard
+            self._land(save_flow(png, save_path))
         elif command is Command.CAPTURE:
             self._land(capture_flow(png))
         elif command is Command.OCR:

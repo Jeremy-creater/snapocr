@@ -1167,16 +1167,21 @@ def test_relative_save_dir_is_refused(make):
     assert h.titles() == []
 
 
-# --- M4 WI-23: saving a capture (PRD F17-1, F17-4, F17-5; plan D26) ---------------------------------
+# --- M4 WI-23, WI-26: saving a capture (PRD v1.1 F17-1, F17-2, F17-4, F17-5; plan D26, D28) ---------
 #
 # Pinned here:
-# - The toolbar's save button (or Ctrl+S) writes the selection with its marks
-#   as a PNG into ``config.save_dir`` (created when missing) under
-#   ``snapocr_YYYYMMDD_HHMMSS.png``, puts the same PNG on the clipboard and
-#   shows no notice (PRD v1.1). Nothing goes into "上次结果".
+# - The toolbar's save button (or Ctrl+S) opens the overlay's save-as dialog,
+#   preset to ``snapocr_YYYYMMDD_HHMMSS.png`` in ``config.save_dir`` (created
+#   when missing). Picking a file writes the selection with its marks as a PNG
+#   there, puts the same PNG on the clipboard and shows no notice (PRD v1.1).
+#   Nothing goes into "上次结果". Another folder picked in the dialog does not
+#   change the save folder setting.
+# - Cancelling the dialog writes nothing and keeps the capture going.
 # - A failed save still puts the PNG on the clipboard and shows "保存失败".
 
 import re  # noqa: E402
+
+from snapocr.gui.overlay import OverlayState  # noqa: E402
 
 SAVED_NAME = re.compile(r"snapocr_\d{8}_\d{6}(_\d+)?\.png")
 
@@ -1198,11 +1203,56 @@ def save_capture(h, area=(10, 20, 210, 170), mark=None, *, key=False):
         QApplication.sendEvent(overlay, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_S, mod, "\x13"))
     else:
         annotate_tb(overlay, "save").click()
+    dialog = getattr(overlay, "save_dialog", None)
+    assert dialog is not None and dialog.isVisible(), "no save dialog"
+    return overlay, dialog
+
+
+def save_capture_to(h, path=None, **kwargs):
+    """Save a capture, picking ``path`` in the dialog, or else its preset file."""
+    overlay, dialog = save_capture(h, **kwargs)
+    dialog.fileSelected.emit(str(path) if path is not None else dialog.selectedFiles()[0])
+    return overlay
+
+
+def test_the_dialog_is_preset_in_the_save_folder(make):
+    h = make()
+    assert not h.save_dir.exists()
+    _, dialog = save_capture(h)
+    (preset,) = (Path(f) for f in dialog.selectedFiles())
+    assert preset.parent == h.save_dir
+    assert SAVED_NAME.fullmatch(preset.name), preset.name
+    assert h.save_dir.is_dir()
+    assert saved_files(h.save_dir) == []
+
+
+def test_cancelling_the_dialog_writes_nothing(make, clipboard):
+    clipboard.setText("before")
+    h = make()
+    overlay, dialog = save_capture(h)
+    dialog.reject()
+    assert saved_files(h.save_dir) == []
+    assert clipboard.text() == "before"
+    assert h.controller.overlays[0] is overlay
+    assert len(h.controller.overlays) == 2  # both screens still up
+    assert overlay.state is OverlayState.ADJUSTING
+    assert h.titles() == []
+
+
+def test_another_folder_picked_in_the_dialog(make, tmp_path):
+    h = make()
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    save_capture_to(h, other / "named by me.png")
+    assert (other / "named by me.png").is_file()
+    assert saved_files(h.save_dir) == []
+    _, dialog = save_capture(h)
+    assert Path(dialog.selectedFiles()[0]).parent == h.save_dir
 
 
 def test_save_writes_the_marked_png_and_copies_it(make, clipboard):
     h = make()
-    save_capture(h, mark=(30, 40, 120, 100))
+    save_capture_to(h, mark=(30, 40, 120, 100))
     (path,) = saved_files(h.save_dir)
     assert SAVED_NAME.fullmatch(path.name), path.name
     marks = (Mark(Tool.RECT, ((30, 40), (120, 100)), PALETTE[0], 4),)
@@ -1216,7 +1266,7 @@ def test_save_writes_the_marked_png_and_copies_it(make, clipboard):
 
 def test_ctrl_s_saves_too(make, clipboard):
     h = make()
-    save_capture(h, key=True)
+    save_capture_to(h, key=True)
     (path,) = saved_files(h.save_dir)
     assert pixels(decode_png(path.read_bytes())) == pixels(crop(h.capture.image, Rect(10, 20, 200, 150)))
     assert h.titles() == []
@@ -1224,8 +1274,8 @@ def test_ctrl_s_saves_too(make, clipboard):
 
 def test_two_saves_keep_both_files(make):
     h = make()
-    save_capture(h)
-    save_capture(h, area=(300, 300, 400, 380))
+    save_capture_to(h)
+    save_capture_to(h, area=(300, 300, 400, 380))
     assert len(saved_files(h.save_dir)) == 2
     assert h.titles() == []
 
@@ -1234,7 +1284,7 @@ def test_failed_save_still_copies(make, clipboard, tmp_path):
     blocker = tmp_path / "taken"
     blocker.write_bytes(b"a file, not a folder")
     h = make(save_dir=blocker / "shots")
-    save_capture(h)
+    save_capture_to(h)
     assert decode_png(bytes(clipboard.mimeData().data("image/png"))).size().toTuple() == (200, 150)
     (notice,) = h.notifier.notices
     assert notice.title == "保存失败"
@@ -1253,6 +1303,6 @@ def test_save_goes_to_the_folder_set_in_the_settings_window(make, tmp_path):
     window = open_settings(h)
     window.save_dir_edit.setText(str(tmp_path / "chosen"))
     window.save_button.click()
-    save_capture(h)
+    save_capture_to(h)
     assert len(saved_files(tmp_path / "chosen")) == 1
     assert saved_files(h.save_dir) == []

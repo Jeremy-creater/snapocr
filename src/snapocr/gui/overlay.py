@@ -12,7 +12,8 @@ selection still adjusts as before; after that it is fixed (F14-3) and drags
 inside it draw marks (``snapocr.annotate``, drawn by ``marks_paint``).
 The text tool opens a line editor at the click instead (F14-5); Enter or a
 click elsewhere keeps the text, Esc drops only the text. The toolbar's save
-button or Ctrl+S ends it with ``saved`` (F17-1), keeping text being typed.
+button or Ctrl+S opens a save-as dialog, keeping text being typed; a picked
+file ends it with ``saved`` and ``save_path`` (F17-1, M4 plan D28).
 """
 
 from __future__ import annotations
@@ -21,10 +22,11 @@ import math
 from collections.abc import Callable
 from dataclasses import replace
 from enum import Enum
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, Qt, Signal, SignalInstance
 from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent, QPen
-from PySide6.QtWidgets import QLineEdit, QWidget
+from PySide6.QtWidgets import QFileDialog, QLineEdit, QWidget
 
 from snapocr.annotate import (
     DEFAULT_STYLE,
@@ -112,7 +114,7 @@ class SelectionOverlay(QWidget):
     cancelled = Signal()
     style_changed = Signal(object)  # Style, annotate mode only (M4 plan D13)
     pinned = Signal(object)  # Rect: the toolbar's pin button (F15-1)
-    saved = Signal(object)  # Rect: the toolbar's save button or Ctrl+S (F17-1)
+    saved = Signal(object)  # Rect: a file picked in the save dialog, in save_path (F17-1)
 
     def __init__(
         self,
@@ -122,8 +124,12 @@ class SelectionOverlay(QWidget):
         *,
         annotate: bool = False,
         style: Style = DEFAULT_STYLE,
+        save_target: Callable[[], Path] | None = None,
     ) -> None:
         super().__init__(parent)
+        self._save_target = save_target
+        self.save_dialog: QFileDialog | None = None  # created on the first save (M4 plan D28)
+        self.save_path: Path | None = None  # the file picked in it
         p = screen.physical
         if (frozen.width(), frozen.height()) != (p.w, p.h):
             raise ValueError(f"frozen image is {frozen.width()}x{frozen.height()}, screen {screen.name} is {p.w}x{p.h}")
@@ -157,7 +163,7 @@ class SelectionOverlay(QWidget):
             self.toolbar.cancel_requested.connect(lambda: self._finish(None))
             self.toolbar.done_requested.connect(self._done)
             self.toolbar.pin_requested.connect(lambda: self._leave(self.pinned))
-            self.toolbar.save_requested.connect(lambda: self._leave(self.saved))
+            self.toolbar.save_requested.connect(self._ask_save)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setMouseTracking(True)
@@ -193,6 +199,8 @@ class SelectionOverlay(QWidget):
         self._state = OverlayState.FINISHED
         self._drag = None
         self._drawing = None
+        if self.save_dialog is not None:
+            self.save_dialog.reject()
 
     # --- annotation ----------------------------------------------------------
 
@@ -337,6 +345,28 @@ class SelectionOverlay(QWidget):
         if self._state is OverlayState.ADJUSTING and self._drag is None and self._drawing is None:
             self.abandon()
             signal.emit(self._rect)
+
+    def _ask_save(self) -> None:
+        """F17-1: the save-as dialog, over the overlay; a picked file ends the overlay with ``saved``."""
+        self._close_editor(keep=True)
+        if self._state is not OverlayState.ADJUSTING or self._drag is not None or self._drawing is not None:
+            return
+        if self.save_dialog is None:
+            self.save_dialog = QFileDialog(self, "保存截图")
+            self.save_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+            self.save_dialog.setNameFilter("PNG 图片 (*.png)")
+            self.save_dialog.setDefaultSuffix("png")
+            self.save_dialog.fileSelected.connect(self._save_to)
+        if self._save_target is not None:
+            target = self._save_target()
+            self.save_dialog.setDirectory(str(target.parent))
+            self.save_dialog.selectFile(str(target))
+        self.save_dialog.open()
+
+    def _save_to(self, path: str) -> None:
+        if self._state is OverlayState.ADJUSTING:  # not abandoned meanwhile
+            self.save_path = Path(path)
+            self._leave(self.saved)
 
     def _confirm(self) -> None:
         if self._state is OverlayState.ADJUSTING and self._drag is None and self._drawing is None:
@@ -486,7 +516,7 @@ class SelectionOverlay(QWidget):
             and event.modifiers() == Qt.KeyboardModifier.ControlModifier
             and self.toolbar is not None
         ):
-            self._leave(self.saved)  # also from the text editor, which leaves Ctrl+S to us
+            self._ask_save()  # also from the text editor, which leaves Ctrl+S to us
         elif (
             event.key() == Qt.Key.Key_Z
             and event.modifiers() == Qt.KeyboardModifier.ControlModifier
@@ -565,7 +595,7 @@ class OverlaySession(QObject):
     Before ``result`` is emitted, ``marks`` holds the marks of the overlay that
     was confirmed and ``action`` what to do with the picture: ``"copy"``,
     ``"pin"`` when its pin button ended it (M4 plan D10, F15-1), or ``"save"``
-    for its save button or Ctrl+S (F17-1).
+    for its save button or Ctrl+S, with the picked file in ``save_path`` (F17-1).
     """
 
     result = Signal(object)  # Rect, or None when cancelled
@@ -579,6 +609,7 @@ class OverlaySession(QObject):
         self._finished = False
         self.marks: tuple[Mark, ...] = ()
         self.action = "copy"
+        self.save_path: Path | None = None
         for overlay in self._overlays:
             overlay.selected.connect(lambda rect, o=overlay: self._on_selected(o, rect))
             overlay.pinned.connect(lambda rect, o=overlay: self._on_selected(o, rect, "pin"))
@@ -601,6 +632,7 @@ class OverlaySession(QObject):
     def _on_selected(self, overlay: SelectionOverlay, rect: Rect, action: str = "copy") -> None:
         self.marks = overlay.marks
         self.action = action
+        self.save_path = overlay.save_path
         self._on_result(rect)
 
     def _on_result(self, rect: Rect | None) -> None:
