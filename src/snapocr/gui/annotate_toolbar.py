@@ -2,7 +2,9 @@
 
 A child widget of the selection overlay, not a window of its own, so it never
 takes focus from the overlay; its buttons take no keyboard focus either
-(Enter and Esc belong to the overlay). Icons are drawn here with QPainter.
+(Enter and Esc belong to the overlay). Icons are drawn here with QPainter,
+once per screen scale in ``ICON_SCALES`` (F18-4), so they stay sharp at 150%
+and 200% instead of being the 100% picture blown up.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QToolButton, QWidget
 from snapocr.annotate import COLOR_NAMES, DEFAULT_STYLE, LEVEL_NAMES, PALETTE, Style, Tool, arrow_shape
 
 ICON = 20
+ICON_SCALES = (1, 1.25, 1.5, 1.75, 2, 2.5, 3)  # F18-4: the Windows display scales
 _INK = QColor("#333333")
 
 _TOOLS = (
@@ -30,14 +33,20 @@ _TOOLS = (
 
 
 def _icon(draw: Callable[[QPainter], None]) -> QIcon:
-    pixmap = QPixmap(ICON, ICON)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(QPen(_INK, 1.6))
-    draw(painter)
-    painter.end()
-    return QIcon(pixmap)
+    """``draw`` paints in logical 20x20 coordinates; each scale gets its own pixmap."""
+    icon = QIcon()
+    for scale in ICON_SCALES:
+        side = round(ICON * scale)
+        pixmap = QPixmap(side, side)
+        pixmap.setDevicePixelRatio(scale)  # the painter then works in logical coordinates
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(_INK, 1.6))
+        draw(painter)
+        painter.end()
+        icon.addPixmap(pixmap)
+    return icon
 
 
 def _glyph(text: str) -> Callable[[QPainter], None]:

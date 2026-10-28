@@ -224,3 +224,37 @@ def test_save_click_emits_save_requested(qtbot):
 
 def test_save_tooltip_says_save_as():
     assert btn(AnnotateToolbar(), "save").toolTip() == "另存为图片，同时复制（Ctrl+S）"
+
+
+# --- M5 WI-4: icons drawn for each screen scale (PRD F18-4; M5 plan D6) ------------------
+#
+# Pinned here: every button's icon has its own pixmap for 100%, 125%, 150%,
+# 175%, 200%, 250% and 300%: round(20 x scale) pixels at that device pixel
+# ratio, drawn at that size (lines land where the scale puts them), not the
+# 100% pixmap blown up.
+
+from PySide6.QtCore import QSize  # noqa: E402
+
+SCALES = (1, 1.25, 1.5, 1.75, 2, 2.5, 3)
+ALL_BUTTONS = [*NAMES, "tool-number", "tool-pen", "tool-mosaic", "save"]
+
+
+@pytest.mark.parametrize("scale", SCALES)
+def test_every_icon_has_a_pixmap_for_the_scale(scale):
+    bar = AnnotateToolbar(show_pin=True)
+    side = round(20 * scale)
+    for name in ALL_BUTTONS:
+        pm = btn(bar, name).icon().pixmap(QSize(20, 20), scale)
+        assert (pm.width(), pm.height(), pm.devicePixelRatio()) == (side, side, scale), name
+
+
+@pytest.mark.parametrize("scale", [2, 3])
+def test_icon_lines_are_drawn_at_the_scale(scale):
+    image = btn(AnnotateToolbar(), "tool-rect").icon().pixmap(QSize(20, 20), scale).toImage()
+    # The rectangle's left edge is at x = 3.5 (pen 1.6), its middle row at y = 10, in logical px.
+    edge = image.pixelColor(round(3.5 * scale), 10 * scale)
+    inside = image.pixelColor(10 * scale, 10 * scale)
+    beside = image.pixelColor(round(3.5 * scale) + scale + 1, 10 * scale)
+    assert edge.alpha() > 200 and edge.lightness() < 100
+    assert inside.alpha() == 0
+    assert beside.alpha() == 0  # a 100% line blown up would be about scale x 1.6 px wide and blurred
