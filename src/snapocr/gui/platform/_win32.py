@@ -109,3 +109,47 @@ gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
 gdi32.DeleteObject.restype = wintypes.BOOL
 gdi32.DeleteDC.argtypes = [wintypes.HDC]
 gdi32.DeleteDC.restype = wintypes.BOOL
+
+# --- user32 / dwmapi / kernel32: translation-window acrylic (F20-4, M7 plan D4, D6) ---------
+dwmapi = ctypes.WinDLL("dwmapi", use_last_error=True)
+
+WCA_ACCENT_POLICY = 19
+ACCENT_DISABLED = 0
+ACCENT_ENABLE_ACRYLICBLURBEHIND = 4
+ACCENT_FLAG_GRADIENT_COLOR = 2
+DWMWA_WINDOW_CORNER_PREFERENCE = 33
+DWMWCP_ROUND = 2
+
+
+class ACCENT_POLICY(ctypes.Structure):
+    _fields_ = [
+        ("AccentState", ctypes.c_int),
+        ("AccentFlags", ctypes.c_int),
+        ("GradientColor", ctypes.c_uint),  # 0xAABBGGRR
+        ("AnimationId", ctypes.c_int),
+    ]
+
+
+class WINDOWCOMPOSITIONATTRIBDATA(ctypes.Structure):
+    _fields_ = [("Attrib", ctypes.c_int), ("pvData", ctypes.c_void_p), ("cbData", ctypes.c_size_t)]
+
+
+class SYSTEM_POWER_STATUS(ctypes.Structure):
+    _fields_ = [
+        ("ACLineStatus", ctypes.c_ubyte),
+        ("BatteryFlag", ctypes.c_ubyte),
+        ("BatteryLifePercent", ctypes.c_ubyte),
+        ("SystemStatusFlag", ctypes.c_ubyte),  # 1: battery saver is on
+        ("BatteryLifeTime", wintypes.DWORD),
+        ("BatteryFullLifeTime", wintypes.DWORD),
+    ]
+
+
+user32.SetWindowCompositionAttribute.argtypes = [wintypes.HWND, ctypes.POINTER(WINDOWCOMPOSITIONATTRIBDATA)]
+user32.SetWindowCompositionAttribute.restype = wintypes.BOOL
+user32.GetWindowCompositionAttribute.argtypes = [wintypes.HWND, ctypes.POINTER(WINDOWCOMPOSITIONATTRIBDATA)]
+user32.GetWindowCompositionAttribute.restype = wintypes.BOOL
+dwmapi.DwmSetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, wintypes.LPCVOID, wintypes.DWORD]
+dwmapi.DwmSetWindowAttribute.restype = ctypes.c_long
+kernel32.GetSystemPowerStatus.argtypes = [ctypes.POINTER(SYSTEM_POWER_STATUS)]
+kernel32.GetSystemPowerStatus.restype = wintypes.BOOL
