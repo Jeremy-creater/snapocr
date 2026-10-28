@@ -22,6 +22,7 @@ from snapocr.config.schema import (
     HOTKEY_COMMANDS,
     KNOWN_KEYS,
     RENAMED_KEYS,
+    THEMES,
     AppConfig,
     ConfigIssue,
     default_save_dir,
@@ -168,6 +169,18 @@ def _bool(table: Mapping, section: str, key: str, default: bool, issues: _Issues
     return default
 
 
+def _theme(table: Mapping, issues: _Issues) -> str:
+    """F20-1: one of ``THEMES``, else ``system``."""
+    default = AppConfig.theme
+    if "theme" not in table:
+        return default
+    v = table["theme"]
+    if isinstance(v, str) and v in THEMES:
+        return v
+    issues.add("ui.theme", f"must be one of {', '.join(THEMES)}, got {v!r}; using {default}")
+    return default
+
+
 def _translator(table: Mapping, issues: _Issues) -> TranslatorConfig:
     """Drop each field TranslatorConfig rejects and retry; the defaults are valid, so this ends."""
     kwargs = dict(table)
@@ -193,7 +206,8 @@ def build_config(data: object, *, source: Path) -> tuple[AppConfig, list[ConfigI
     ocr = _ocr(_section(data, "ocr", issues), issues, source)
     postprocess, replacements = _postprocess(_section(data, "postprocess", issues), issues)
     show_text = _bool(_section(data, "notify", issues), "notify", "show_text", AppConfig.show_text, issues)
+    theme = _theme(_section(data, "ui", issues), issues)
     debug = _bool(_section(data, "debug", issues), "debug", "enabled", AppConfig.debug, issues)
     translator = _translator(_section(data, "translator", issues), issues)
-    config = AppConfig(hotkeys, ocr, postprocess, replacements, translator, show_text, debug, save_dir)
+    config = AppConfig(hotkeys, ocr, postprocess, replacements, translator, show_text, debug, save_dir, theme)
     return config, issues.items

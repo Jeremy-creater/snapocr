@@ -65,6 +65,7 @@ def test_missing_file_starts_from_template(tmp_path):
         "ocr": {},
         "postprocess": {"spacing": False},
         "notify": {},  # M3 WI-11: the template has a [notify] section
+        "ui": {},  # M7 WI-1: and a [ui] section
         "debug": {},  # M3 WI-12: and a [debug] section
         "translator": {"target_lang": "en"},
     }

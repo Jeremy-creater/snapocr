@@ -36,6 +36,7 @@ KNOWN_KEYS: Mapping[str, tuple[str, ...]] = MappingProxyType(
         "ocr": ("min_score", "model_dir"),
         "postprocess": ("paragraphs", "spacing", "punctuation", "replacements"),
         "notify": ("show_text",),
+        "ui": ("theme",),
         "debug": ("enabled",),
         "translator": (
             "base_url",
@@ -49,6 +50,10 @@ KNOWN_KEYS: Mapping[str, tuple[str, ...]] = MappingProxyType(
         ),
     }
 )
+
+
+# [ui] theme (F20-1): the translation window's look; "system" follows the Windows light / dark mode.
+THEMES = ("system", "light_glass", "dark_glass", "light_solid")
 
 
 def default_save_dir() -> Path:
@@ -68,6 +73,7 @@ class AppConfig:
     show_text: bool = True  # [notify] show_text: OCR notices show the text (F7-2)
     debug: bool = False  # [debug] enabled: save screenshots and full text (F12)
     save_dir: Path = field(default_factory=default_save_dir)  # [capture] save_dir (F17-2)
+    theme: str = "system"  # [ui] theme (F20-1)
 
 
 @dataclass(frozen=True)

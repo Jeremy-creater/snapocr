@@ -14,7 +14,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from snapocr.commands import Command
-from snapocr.config.schema import HOTKEY_COMMANDS, KNOWN_KEYS, AppConfig, default_save_dir
+from snapocr.config.schema import HOTKEY_COMMANDS, KNOWN_KEYS, THEMES, AppConfig, default_save_dir
 from snapocr.hotkeys import Hotkey, format_hotkey
 from snapocr.translators.config import TranslatorConfig
 from snapocr.translators.errors import TranslatorConfigError
@@ -36,6 +36,7 @@ class Settings:
     model: str
     show_text: bool = True  # F11-8; defaulted so older call sites stay valid
     save_dir: Path = field(default_factory=default_save_dir)  # F17-2
+    theme: str = "system"  # F20-2
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "hotkeys", MappingProxyType(dict(self.hotkeys)))
@@ -65,14 +66,21 @@ class BadSaveDir:
     value: Path
 
 
-Problem = DuplicateHotkey | BadModel | BadTargetLang | BadSaveDir
+@dataclass(frozen=True)
+class BadTheme:
+    """F20-1: one of ``THEMES``."""
+
+    value: object
+
+
+Problem = DuplicateHotkey | BadModel | BadTargetLang | BadSaveDir | BadTheme
 
 
 def settings_of(config: AppConfig) -> Settings:
     pp = config.postprocess
     tr = config.translator
     return Settings(config.hotkeys, pp.paragraphs, pp.spacing, pp.punctuation, tr.target_lang, tr.model,
-                    config.show_text, config.save_dir)
+                    config.show_text, config.save_dir, config.theme)
 
 
 def check(s: Settings) -> list[Problem]:
@@ -90,6 +98,8 @@ def check(s: Settings) -> list[Problem]:
         problems.append(BadTargetLang(s.target_lang))
     if not s.save_dir.is_absolute():
         problems.append(BadSaveDir(s.save_dir))
+    if not isinstance(s.theme, str) or s.theme not in THEMES:
+        problems.append(BadTheme(s.theme))
     return problems
 
 
@@ -98,6 +108,7 @@ def _values(s: Settings) -> dict[str, bool | str]:
     out["capture.save_dir"] = str(s.save_dir)
     out |= {f"postprocess.{name}": getattr(s, name) for name in _SWITCHES}
     out["notify.show_text"] = s.show_text
+    out["ui.theme"] = s.theme
     out |= {f"translator.{name}": getattr(s, name) for name in _TRANSLATOR_KEYS}
     return out
 
@@ -120,4 +131,5 @@ def apply(config: AppConfig, s: Settings) -> AppConfig:
         translator=dataclasses.replace(config.translator, model=s.model, target_lang=s.target_lang),
         show_text=s.show_text,
         save_dir=s.save_dir,
+        theme=s.theme,
     )

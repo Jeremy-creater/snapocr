@@ -74,6 +74,7 @@ def test_known_keys():
         "ocr": ("min_score", "model_dir"),
         "postprocess": ("paragraphs", "spacing", "punctuation", "replacements"),
         "notify": ("show_text",),  # M3 WI-11 (F7-2, F11-8)
+        "ui": ("theme",),  # M7 WI-1 (F20-1)
         "debug": ("enabled",),  # M3 WI-12 (F12)
         "translator": ("base_url", "model", "timeout_s", "target_lang", "direction_threshold",
                        "prompt_template", "max_input_chars", "sampling"),
