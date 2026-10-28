@@ -4,7 +4,8 @@ A child widget of the selection overlay, not a window of its own, so it never
 takes focus from the overlay; its buttons take no keyboard focus either
 (Enter and Esc belong to the overlay). Icons are drawn here with QPainter,
 once per screen scale in ``ICON_SCALES`` (F18-4), so they stay sharp at 150%
-and 200% instead of being the 100% picture blown up.
+and 200% instead of being the 100% picture blown up. It always wears the light
+solid palette of the translation window (F20-7), whatever the window theme.
 """
 
 from __future__ import annotations
@@ -16,10 +17,17 @@ from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap, QPolygo
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QToolButton, QWidget
 
 from snapocr.annotate import COLOR_NAMES, DEFAULT_STYLE, LEVEL_NAMES, PALETTE, Style, Tool, arrow_shape
+from snapocr.theme import PALETTES, Color, over
 
 ICON = 20
 ICON_SCALES = (1, 1.25, 1.5, 1.75, 2, 2.5, 3)  # F18-4: the Windows display scales
-_INK = QColor("#333333")
+_LOOK = PALETTES["light_solid"]  # F20-7: fixed
+_INK = QColor(*_LOOK.text)
+_RADIUS = 8
+
+
+def _css(c: Color | tuple[int, ...]) -> str:
+    return f"rgba({c[0]}, {c[1]}, {c[2]}, {c[3] if len(c) > 3 else 255})"
 
 _TOOLS = (
     (Tool.RECT, "tool-rect", "矩形"),
@@ -146,13 +154,14 @@ class AnnotateToolbar(QWidget):
         self._tool: Tool | None = None
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)  # else the stylesheet panel is not painted
         self.setStyleSheet(
-            "AnnotateToolbar { background: #f7f7f7; border: 1px solid #c8c8c8; border-radius: 4px; }"
-            "QToolButton { border: none; padding: 3px; border-radius: 3px; }"
-            "QToolButton:checked { background: #d6e6fb; }"
-            "QToolButton:hover { background: #e6e6e6; }"
+            f"AnnotateToolbar {{ background: {_css(_LOOK.window)}; border: 1px solid {_css(_LOOK.border)};"
+            f" border-radius: {_RADIUS}px; }}"
+            "QToolButton { border: none; padding: 3px; border-radius: 6px; }"
+            f"QToolButton:checked {{ background: {_css(over(_LOOK.focus, _LOOK.window))}; }}"
+            f"QToolButton:hover {{ background: {_css(_LOOK.close_bg)}; }}"
         )
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 3, 6, 3)
+        layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(2)
         self._tools: dict[Tool, QToolButton] = {}
         for tool, name, tip in _TOOLS:
@@ -203,7 +212,7 @@ class AnnotateToolbar(QWidget):
     def _separator(self, layout: QHBoxLayout) -> None:
         line = QFrame(self)
         line.setFrameShape(QFrame.Shape.VLine)
-        line.setStyleSheet("color: #d0d0d0;")
+        line.setStyleSheet(f"color: {_css(_LOOK.field_border)};")
         layout.addWidget(line)
 
     @property
