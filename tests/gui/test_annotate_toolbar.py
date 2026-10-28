@@ -198,7 +198,7 @@ def test_save_button_shown_with_tooltip_and_no_focus():
     bar = AnnotateToolbar()
     save = btn(bar, "save")
     assert not save.isHidden()
-    assert "保存" in save.toolTip() and "Ctrl+S" in save.toolTip()
+    assert "另存为" in save.toolTip() and "Ctrl+S" in save.toolTip()  # F18-5 (v1.2): was "保存"
     assert save.focusPolicy() == Qt.FocusPolicy.NoFocus
     assert not save.icon().isNull()
 
