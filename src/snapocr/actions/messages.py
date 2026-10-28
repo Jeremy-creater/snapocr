@@ -15,7 +15,7 @@ from types import MappingProxyType
 from snapocr.actions.outcomes import NOTICE_BODY_MAX, Notice
 from snapocr.commands import Command
 from snapocr.config.schema import ConfigIssue
-from snapocr.config.settings import BadModel, DuplicateHotkey, Problem
+from snapocr.config.settings import BadModel, BadSaveDir, DuplicateHotkey, Problem
 from snapocr.engines.errors import EngineLoadError, OcrError
 from snapocr.hotkeys import ERROR_HOTKEY_ALREADY_REGISTERED, HotkeyFailure, format_hotkey
 from snapocr.translators.errors import TranslationError, TranslationErrorKind
@@ -160,6 +160,8 @@ def settings_problem_text(p: Problem) -> str:
         return f"「{first}」和「{second}」用了同一个热键 {format_hotkey(p.hotkey)}。"
     if isinstance(p, BadModel):
         return f"模型名不能用：{p.reason}"
+    if isinstance(p, BadSaveDir):
+        return "「截图保存到」必须是完整的文件夹路径，例如 D:/截图。"
     return "目标语言只能是自动、中文或英文。"
 
 

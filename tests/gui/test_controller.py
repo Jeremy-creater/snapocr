@@ -85,7 +85,7 @@ def clipboard(qapp):
 class Harness:
     def __init__(self, qtbot, tmp_path, *, engine=RESULT, load_error=None, holder=None, translator=None,
                  capture_error=None, issues=(), preoccupy=(), config_path=None, make_translator=None,
-                 autostart=None, list_models=None, show_text=True, debug=False):
+                 autostart=None, list_models=None, show_text=True, debug=False, save_dir=None):
         self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error)
         self.notifier = RecordingNotifier()
         self.table = FakeHotkeyTable()
@@ -97,7 +97,8 @@ class Harness:
         self.quits: list[bool] = []
         self.config_path = config_path or tmp_path / "config.local.toml"
         self.autostart = autostart or FakeAutostart()
-        config = AppConfig(replacements=TABLE, show_text=show_text, debug=debug)
+        self.save_dir = save_dir or tmp_path / "shots"  # never the real Pictures folder (F17-2)
+        config = AppConfig(replacements=TABLE, show_text=show_text, debug=debug, save_dir=self.save_dir)
         self.debug_dir = tmp_path / "debug"  # never the real D:\DevLocal\runtime\snapocr\debug
         deps = FlowDeps(holder or holder_for(engine, load_error=load_error), config.postprocess, config.replacements)
         self.controller = AppController(
@@ -1127,3 +1128,40 @@ def test_quit_closes_all_pins(make):
     h.controller.run(Command.QUIT)
     assert h.controller.pins == ()
     assert not any(p.isVisible() for p in pins)
+
+
+# --- M4 WI-24: the save folder in the settings window (PRD F17-2) ---------------------------------
+#
+# Pinned here:
+# - The window opens with the configured folder; saving it unchanged writes
+#   nothing (``test_save_without_changes_writes_nothing`` with the harness's
+#   non-default folder).
+# - A new absolute folder is written to ``[capture] save_dir`` and applied.
+# - A relative one is refused with the problem text; nothing is written.
+
+
+def test_settings_show_the_save_dir(make):
+    h = make()
+    window = open_settings(h)
+    assert window.save_dir_edit.text() == str(h.save_dir)
+
+
+def test_new_save_dir_is_written_and_applied(make, tmp_path):
+    h = make()
+    window = open_settings(h)
+    window.save_dir_edit.setText(str(tmp_path / "new shots"))
+    window.save_button.click()
+    assert h.titles() == ["设置已保存"]
+    assert load_config_file(h.config_path).config.save_dir == tmp_path / "new shots"
+    assert open_settings(h).save_dir_edit.text() == str(tmp_path / "new shots")
+
+
+def test_relative_save_dir_is_refused(make):
+    h = make()
+    window = open_settings(h)
+    window.save_dir_edit.setText("shots")
+    window.save_button.click()
+    assert window.isVisible()
+    assert window.problems_label.text() == "「截图保存到」必须是完整的文件夹路径，例如 D:/截图。"
+    assert not h.config_path.exists()
+    assert h.titles() == []

@@ -3,17 +3,22 @@
 Only shows and collects values: the controller checks them, writes the file,
 re-registers the hotkeys and calls ``finish()`` when saving worked, or
 ``show_problems()`` when it did not. Hidden, not destroyed, when closed.
+
+"浏览…" opens a ``QFileDialog`` instance with ``open()`` (M4 plan D27), kept
+in ``folder_dialog``, so tests drive the real dialog instead of a static call.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -71,9 +76,20 @@ class SettingsWindow(QWidget):
         general = QGroupBox("常规")
         self.autostart_box = QCheckBox("开机时自动启动 snapocr")
         self.show_text_box = QCheckBox("OCR 完成的通知里显示识别出的文字")  # F11-8
+        # F17-2: where the capture toolbar's "保存" puts screenshots.
+        self.save_dir_label = QLabel("截图保存到")
+        self.save_dir_edit = QLineEdit()
+        self.browse_button = QPushButton("浏览…")
+        self.browse_button.clicked.connect(self._browse)
+        self.folder_dialog: QFileDialog | None = None
+        save_dir_row = QHBoxLayout()
+        save_dir_row.addWidget(self.save_dir_label)
+        save_dir_row.addWidget(self.save_dir_edit, 1)
+        save_dir_row.addWidget(self.browse_button)
         general_layout = QVBoxLayout(general)
         general_layout.addWidget(self.autostart_box)
         general_layout.addWidget(self.show_text_box)
+        general_layout.addLayout(save_dir_row)
 
         translate = QGroupBox("翻译")
         tform = QFormLayout(translate)
@@ -133,6 +149,7 @@ class SettingsWindow(QWidget):
             edit.set_hotkey(settings.hotkeys.get(command))
         self.autostart_box.setChecked(autostart)
         self.show_text_box.setChecked(settings.show_text)
+        self.save_dir_edit.setText(str(settings.save_dir))
         self.target_lang_box.setCurrentIndex(self.target_lang_box.findData(settings.target_lang))
         self.model_edit.setText(settings.model)
         self.set_models((), None)
@@ -153,6 +170,15 @@ class SettingsWindow(QWidget):
         self.problems_label.setText("\n".join(problems))
         self.problems_label.setVisible(bool(problems))
 
+    def _browse(self) -> None:
+        if self.folder_dialog is None:
+            self.folder_dialog = QFileDialog(self, "选择截图保存文件夹")
+            self.folder_dialog.setFileMode(QFileDialog.FileMode.Directory)
+            self.folder_dialog.setOption(QFileDialog.Option.ShowDirsOnly)
+            self.folder_dialog.fileSelected.connect(lambda path: self.save_dir_edit.setText(str(Path(path))))
+        self.folder_dialog.setDirectory(self.save_dir_edit.text().strip())
+        self.folder_dialog.open()
+
     def finish(self) -> None:
         """Close after a successful save."""
         self.close()
@@ -165,6 +191,7 @@ class SettingsWindow(QWidget):
             target_lang=self.target_lang_box.currentData(),
             model=self.model_box.currentText().strip(),
             show_text=self.show_text_box.isChecked(),
+            save_dir=Path(self.save_dir_edit.text().strip()),
             **switches,
         )
         self.save_requested.emit(settings, self.autostart_box.isChecked())

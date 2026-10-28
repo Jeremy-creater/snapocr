@@ -248,3 +248,92 @@ def test_show_text_is_saved(window):
     window.show_text_box.setChecked(False)
     window.save_button.click()
     assert spy.saved == [(dataclasses.replace(CUSTOM, show_text=False), True)]
+
+
+# --- M4 WI-24: "截图保存到" (PRD F17-2; plan D27) ------------------------------------------
+#
+# Pinned here:
+# - The general group has a "截图保存到" row: a path text box and "浏览…".
+# - ``load`` shows the folder as a Windows path; "保存" sends the stripped text
+#   as a Path (an empty or relative one too: the controller's check refuses it).
+# - "浏览…" opens a folder-only ``QFileDialog`` (``folder_dialog``, opened with
+#   ``open()``, not a static function) at the folder in the box; picking a
+#   folder puts it in the box as a Windows path; cancelling keeps the text.
+
+from pathlib import Path  # noqa: E402
+
+from PySide6.QtWidgets import QFileDialog  # noqa: E402
+
+
+def test_save_dir_row_is_in_general(window):
+    assert window.save_dir_label.text() == "截图保存到"
+    assert window.browse_button.text() == "浏览…"
+    general = window.autostart_box.parentWidget()
+    assert window.save_dir_edit.parentWidget() is general or general.isAncestorOf(window.save_dir_edit)
+    assert general.isAncestorOf(window.browse_button)
+
+
+def test_load_shows_the_save_dir(window):
+    assert window.save_dir_edit.text() == str(DEFAULTS.save_dir)
+    window.load(dataclasses.replace(CUSTOM, save_dir=Path("E:/shots/snap")), False)
+    assert window.save_dir_edit.text() == "E:\\shots\\snap"
+
+
+def test_save_dir_is_saved_stripped(window):
+    spy = Spy(window)
+    window.load(CUSTOM, False)
+    window.save_dir_edit.setText("  D:/a b/截图 ")
+    window.save_button.click()
+    assert spy.saved == [(dataclasses.replace(CUSTOM, save_dir=Path("D:/a b/截图")), False)]
+
+
+@pytest.mark.parametrize("text", ["", "   ", "shots"])
+def test_relative_or_empty_save_dir_is_sent_for_the_check(window, text):
+    spy = Spy(window)
+    window.save_dir_edit.setText(text)
+    window.save_button.click()
+    ((saved, _),) = spy.saved
+    assert not saved.save_dir.is_absolute()
+
+
+def test_browse_opens_a_folder_dialog_at_the_current_folder(window, tmp_path):
+    assert window.folder_dialog is None
+    window.save_dir_edit.setText(str(tmp_path))
+    window.browse_button.click()
+    dialog = window.folder_dialog
+    assert isinstance(dialog, QFileDialog)
+    assert dialog.isVisible()
+    assert dialog.fileMode() == QFileDialog.FileMode.Directory
+    assert Path(dialog.directory().absolutePath()) == tmp_path
+    dialog.reject()
+
+
+def test_picking_a_folder_fills_the_box(window, tmp_path):
+    spy = Spy(window)
+    window.browse_button.click()
+    picked = tmp_path / "picked"
+    window.folder_dialog.fileSelected.emit(picked.as_posix())
+    assert window.save_dir_edit.text() == str(picked)
+    window.save_button.click()
+    assert spy.saved[0][0].save_dir == picked
+
+
+def test_cancelling_the_dialog_keeps_the_text(window):
+    window.save_dir_edit.setText("E:\\keep")
+    window.browse_button.click()
+    window.folder_dialog.reject()
+    assert window.save_dir_edit.text() == "E:\\keep"
+    assert not window.folder_dialog.isVisible()
+
+
+def test_browse_again_reuses_the_dialog_at_the_new_folder(window, tmp_path):
+    window.browse_button.click()
+    first = window.folder_dialog
+    first.reject()
+    (tmp_path / "other").mkdir()
+    window.save_dir_edit.setText(str(tmp_path / "other"))
+    window.browse_button.click()
+    assert window.folder_dialog is first
+    assert first.isVisible()
+    assert Path(first.directory().absolutePath()) == tmp_path / "other"
+    first.reject()

@@ -362,3 +362,13 @@ def test_code_ok_notice_titles_the_code_and_follows_show_text():
 def test_table_ok_notice_gives_rows_and_columns():
     assert table_ok_notice(12, 3) == Notice("已复制表格", "12 行 × 3 列")
     assert table_ok_notice(1, 1) == Notice("已复制表格", "1 行 × 1 列")
+
+
+# --- M4 WI-24: the save folder in the settings window (PRD F17-2) ---------------------------
+
+from snapocr.config.settings import BadSaveDir  # noqa: E402
+
+
+def test_save_dir_problem_text():
+    text = settings_problem_text(BadSaveDir(Path("shots")))
+    assert text == "「截图保存到」必须是完整的文件夹路径，例如 D:/截图。"
