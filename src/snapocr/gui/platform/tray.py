@@ -7,6 +7,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from snapocr.actions.outcomes import Notice
+from snapocr.gui.tray_menu import notice_icon
 
 NOTICE_MS = 5000
 
@@ -29,4 +30,4 @@ class Tray(QObject):
         self._icon.hide()
 
     def notify(self, notice: Notice) -> None:
-        self._icon.showMessage(notice.title, notice.body, QSystemTrayIcon.MessageIcon.Information, NOTICE_MS)
+        self._icon.showMessage(notice.title, notice.body, notice_icon(notice), NOTICE_MS)

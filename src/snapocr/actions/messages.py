@@ -64,7 +64,7 @@ def table_ok_notice(rows: int, cols: int) -> Notice:
 
 def save_failed_notice(path: Path, reason: str) -> Notice:
     """F17-4: why, and the file it was meant to be; the image is on the clipboard anyway."""
-    return Notice("保存失败", f"{reason}\n{path}")
+    return Notice("保存失败", f"{reason}\n{path}", warning=True)
 
 
 def ocr_empty_notice() -> Notice:
@@ -95,11 +95,11 @@ def engine_failed_notice(err: EngineLoadError, log_file: Path) -> Notice:
     room = NOTICE_BODY_MAX - len(where) - 1
     if len(reason) > room:
         reason = reason[: max(room - 1, 0)] + "…"
-    return Notice("OCR 引擎加载失败", f"{reason}\n{where}")
+    return Notice("OCR 引擎加载失败", f"{reason}\n{where}", warning=True)
 
 
 def ocr_failed_notice(err: OcrError) -> Notice:
-    return Notice("OCR 失败", f"{err}\n{_UNCHANGED}")
+    return Notice("OCR 失败", f"{err}\n{_UNCHANGED}", warning=True)
 
 
 def translation_error_text(err: TranslationError) -> str:
@@ -119,18 +119,18 @@ def hotkey_failed_notice(failures: Sequence[HotkeyFailure]) -> Notice:
         raise ValueError("no hotkey failures to report")
     lines = [hotkey_failure_line(f) for f in failures]
     lines.append("其余热键照常工作。可以在托盘菜单的“设置…”里换一个组合（或改 config.local.toml 的 [hotkeys]）。")
-    return Notice(f"有 {len(failures)} 个热键注册失败", "\n".join(lines))
+    return Notice(f"有 {len(failures)} 个热键注册失败", "\n".join(lines), warning=True)
 
 
 def config_issues_notice(issues: Sequence[ConfigIssue]) -> Notice:
     if not issues:
         raise ValueError("no config issues to report")
-    return Notice(f"配置文件有 {len(issues)} 个问题", "\n".join(str(i) for i in issues))
+    return Notice(f"配置文件有 {len(issues)} 个问题", "\n".join(str(i) for i in issues), warning=True)
 
 
 
 def capture_failed_notice(detail: str) -> Notice:
-    return Notice("截图失败", f"{detail}\n{_UNCHANGED}")
+    return Notice("截图失败", f"{detail}\n{_UNCHANGED}", warning=True)
 
 
 def job_crashed_text(exc_type_name: str) -> str:
@@ -138,7 +138,7 @@ def job_crashed_text(exc_type_name: str) -> str:
 
 
 def job_crashed_notice(exc_type_name: str) -> Notice:
-    return Notice("操作失败", f"{job_crashed_text(exc_type_name)}。{_UNCHANGED}")
+    return Notice("操作失败", f"{job_crashed_text(exc_type_name)}。{_UNCHANGED}", warning=True)
 
 
 def config_opened_notice() -> Notice:
@@ -146,7 +146,7 @@ def config_opened_notice() -> Notice:
 
 
 def open_config_failed_notice(path: os.PathLike[str] | str, detail: str) -> Notice:
-    return Notice("无法打开配置文件", f"{os.fspath(path)}\n{detail}")
+    return Notice("无法打开配置文件", f"{os.fspath(path)}\n{detail}", warning=True)
 
 
 def settings_problem_text(p: Problem) -> str:

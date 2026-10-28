@@ -14,14 +14,19 @@ def _require(value: object, kind: type, name: str) -> None:
 
 @dataclass(frozen=True)
 class Notice:
-    """A tray notice. A body over 240 code points keeps 239 and ends with "…"."""
+    """A tray notice. A body over 240 code points keeps 239 and ends with "…".
+
+    ``warning`` marks a failure: the tray shows it with the warning icon (F18-3).
+    """
 
     title: str
     body: str
+    warning: bool = False
 
     def __post_init__(self) -> None:
         _require(self.title, str, "title")
         _require(self.body, str, "body")
+        _require(self.warning, bool, "warning")
         if len(self.body) > NOTICE_BODY_MAX:
             object.__setattr__(self, "body", self.body[: NOTICE_BODY_MAX - 1] + "…")
 

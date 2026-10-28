@@ -94,4 +94,5 @@ def test_failure_still_copies_and_names_the_file(tmp_path):
 
 def test_failed_notice_text():
     path = Path("D:/shots/snapocr_20261027_210509.png")
-    assert save_failed_notice(path, "拒绝访问。") == Notice("保存失败", f"拒绝访问。\n{path}")
+    # M5 WI-3 (F18-3): a failure, so with the warning icon.
+    assert save_failed_notice(path, "拒绝访问。") == Notice("保存失败", f"拒绝访问。\n{path}", warning=True)

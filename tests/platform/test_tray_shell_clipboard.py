@@ -67,6 +67,7 @@ def test_tray_shows_icon_and_menu(qtbot, qapp):
         assert seen == [Command.OCR]
         tray.notify(Notice("snapocr gui 测试", "这条通知来自自动测试，可以忽略。"))
         tray.notify(Notice("snapocr gui 测试", ""))
+        tray.notify(Notice("snapocr gui 测试", "警告图标（F18-3）", warning=True))
     finally:
         tray.hide()
     assert not tray.icon.isVisible()

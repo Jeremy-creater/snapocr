@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 
-from PySide6.QtWidgets import QMenu, QWidget
+from PySide6.QtWidgets import QMenu, QSystemTrayIcon, QWidget
+
+from snapocr.actions.outcomes import Notice
 
 from snapocr.actions.messages import COMMAND_LABELS
 from snapocr.commands import Command
@@ -35,3 +37,10 @@ def update_tray_menu(menu: QMenu, bindings: Mapping[Command, Hotkey]) -> None:
     """Show new hotkeys on the menu built by ``build_tray_menu`` (F11-3)."""
     for action, command in zip(menu.actions(), HOTKEY_COMMANDS, strict=False):
         action.setText(_text(command, bindings))
+
+
+def notice_icon(notice: Notice) -> QSystemTrayIcon.MessageIcon:
+    """F18-3: failures with the warning icon, everything else with the information icon."""
+    if notice.warning:
+        return QSystemTrayIcon.MessageIcon.Warning
+    return QSystemTrayIcon.MessageIcon.Information
