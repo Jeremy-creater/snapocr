@@ -194,3 +194,14 @@ def test_instance_name_differs_per_file(tmp_path):
 
 def test_default_config_gets_a_stable_name():
     assert instance_name(default_config_path()) == instance_name(default_config_path())
+
+
+# --- M4 WI-22: [capture] save_dir (F17-2) ------------------------------------------------
+
+
+def test_template_capture_section_after_hotkeys_with_its_help():
+    headers = [line for line in DEFAULT_TEMPLATE.split("\n") if line.startswith("[")]
+    assert headers[:3] == ["[hotkeys]", "[capture]", "[ocr]"]
+    section = DEFAULT_TEMPLATE.split("[capture]\n")[1].split("\n[ocr]")[0]
+    assert "绝对路径" in section and "/" in section
+    assert tomllib.loads(uncomment(section)) == {"save_dir": str(AppConfig().save_dir)}

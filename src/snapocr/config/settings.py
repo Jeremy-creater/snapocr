@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from types import MappingProxyType
 
 from snapocr.commands import Command
-from snapocr.config.schema import HOTKEY_COMMANDS, KNOWN_KEYS, AppConfig
+from snapocr.config.schema import HOTKEY_COMMANDS, KNOWN_KEYS, AppConfig, default_save_dir
 from snapocr.hotkeys import Hotkey, format_hotkey
 from snapocr.translators.config import TranslatorConfig
 from snapocr.translators.errors import TranslatorConfigError
@@ -34,6 +35,7 @@ class Settings:
     target_lang: str
     model: str
     show_text: bool = True  # F11-8; defaulted so older call sites stay valid
+    save_dir: Path = field(default_factory=default_save_dir)  # F17-2
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "hotkeys", MappingProxyType(dict(self.hotkeys)))
@@ -56,14 +58,21 @@ class BadTargetLang:
     value: object
 
 
-Problem = DuplicateHotkey | BadModel | BadTargetLang
+@dataclass(frozen=True)
+class BadSaveDir:
+    """F17-2: the save folder must be an absolute path."""
+
+    value: Path
+
+
+Problem = DuplicateHotkey | BadModel | BadTargetLang | BadSaveDir
 
 
 def settings_of(config: AppConfig) -> Settings:
     pp = config.postprocess
     tr = config.translator
     return Settings(config.hotkeys, pp.paragraphs, pp.spacing, pp.punctuation, tr.target_lang, tr.model,
-                    config.show_text)
+                    config.show_text, config.save_dir)
 
 
 def check(s: Settings) -> list[Problem]:
@@ -79,11 +88,14 @@ def check(s: Settings) -> list[Problem]:
         problems.append(BadModel(str(e).removeprefix(f"{e.key}: ")))
     if not isinstance(s.target_lang, str) or s.target_lang not in TARGET_LANGS:
         problems.append(BadTargetLang(s.target_lang))
+    if not s.save_dir.is_absolute():
+        problems.append(BadSaveDir(s.save_dir))
     return problems
 
 
 def _values(s: Settings) -> dict[str, bool | str]:
     out: dict[str, bool | str] = {f"hotkeys.{c.value}": format_hotkey(h) for c, h in s.hotkeys.items()}
+    out["capture.save_dir"] = str(s.save_dir)
     out |= {f"postprocess.{name}": getattr(s, name) for name in _SWITCHES}
     out["notify.show_text"] = s.show_text
     out |= {f"translator.{name}": getattr(s, name) for name in _TRANSLATOR_KEYS}
@@ -107,4 +119,5 @@ def apply(config: AppConfig, s: Settings) -> AppConfig:
         postprocess=dataclasses.replace(config.postprocess, **{name: getattr(s, name) for name in _SWITCHES}),
         translator=dataclasses.replace(config.translator, model=s.model, target_lang=s.target_lang),
         show_text=s.show_text,
+        save_dir=s.save_dir,
     )

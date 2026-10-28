@@ -29,6 +29,7 @@ DEFAULT_HOTKEYS: Mapping[Command, Hotkey] = MappingProxyType(
 KNOWN_KEYS: Mapping[str, tuple[str, ...]] = MappingProxyType(
     {
         "hotkeys": tuple(c.value for c in HOTKEY_COMMANDS),
+        "capture": ("save_dir",),
         "ocr": ("min_score", "model_dir"),
         "postprocess": ("paragraphs", "spacing", "punctuation", "replacements"),
         "notify": ("show_text",),
@@ -47,6 +48,11 @@ KNOWN_KEYS: Mapping[str, tuple[str, ...]] = MappingProxyType(
 )
 
 
+def default_save_dir() -> Path:
+    """F17-2: screenshots are the user's files, so they go to the Pictures folder (M4 plan D25)."""
+    return Path.home() / "Pictures" / "snapocr"
+
+
 @dataclass(frozen=True)
 class AppConfig:
     """A hotkey left out of ``hotkeys`` is disabled."""
@@ -58,6 +64,7 @@ class AppConfig:
     translator: TranslatorConfig = field(default_factory=TranslatorConfig)
     show_text: bool = True  # [notify] show_text: OCR notices show the text (F7-2)
     debug: bool = False  # [debug] enabled: save screenshots and full text (F12)
+    save_dir: Path = field(default_factory=default_save_dir)  # [capture] save_dir (F17-2)
 
 
 @dataclass(frozen=True)

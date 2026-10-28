@@ -61,6 +61,7 @@ def test_missing_file_starts_from_template(tmp_path):
     assert (got.spacing, got.target_lang) == (False, "en")
     assert data(path) == {
         "hotkeys": {"capture": "Ctrl+Q"},
+        "capture": {},  # M4 WI-22: and a [capture] section
         "ocr": {},
         "postprocess": {"spacing": False},
         "notify": {},  # M3 WI-11: the template has a [notify] section

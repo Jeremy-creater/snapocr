@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from snapocr.config.schema import DEFAULT_HOTKEY_TEXT, HOTKEY_COMMANDS, AppConfig
+from snapocr.config.schema import DEFAULT_HOTKEY_TEXT, HOTKEY_COMMANDS, AppConfig, default_save_dir
 from snapocr.engines.config import OcrEngineConfig
 from snapocr.postprocess import PostprocessOptions
 from snapocr.translators.config import SAMPLING_KEYS, TranslatorConfig
@@ -55,6 +55,11 @@ def _build() -> str:
         out += [f"## {command.value}：{_HOTKEY_HELP[command.value]}",
                 f"# {command.value} = {_toml(DEFAULT_HOTKEY_TEXT[command])}"]
     out += [
+        "",
+        "[capture]",
+        "## 截图工具栏“保存”存到这个文件夹，必须是绝对路径；不存在时保存那一刻创建。",
+        "## 路径里用 / 分隔（如 D:/截图），或用单引号包起来；双引号里的 \\ 要写两个。",
+        f"# save_dir = {_toml(str(default_save_dir()))}",
         "",
         "[ocr]",
         "## 置信度低于这个值的文本块丢弃，范围 0 到 1。",

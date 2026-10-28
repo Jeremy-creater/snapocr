@@ -23,6 +23,7 @@ from snapocr.config.schema import (
     KNOWN_KEYS,
     AppConfig,
     ConfigIssue,
+    default_save_dir,
 )
 from snapocr.engines.config import OcrEngineConfig
 from snapocr.hotkeys import Hotkey, HotkeyError, format_hotkey, parse_hotkey
@@ -96,6 +97,18 @@ def _hotkeys(table: Mapping, issues: _Issues) -> Mapping[Command, Hotkey]:
 
 def _is_real(value: object) -> bool:
     return isinstance(value, numbers.Real) and not isinstance(value, bool)
+
+
+def _save_dir(table: Mapping, issues: _Issues) -> Path:
+    """F17-2: an absolute folder; unlike ocr.model_dir, a relative one is an error."""
+    default = default_save_dir()
+    if "save_dir" not in table:
+        return default
+    v = table["save_dir"]
+    if isinstance(v, str) and Path(v).is_absolute():
+        return Path(v)
+    issues.add("capture.save_dir", f"must be an absolute folder path, got {v!r}; using {default}")
+    return default
 
 
 def _ocr(table: Mapping, issues: _Issues, source: Path) -> OcrEngineConfig:
@@ -173,9 +186,11 @@ def build_config(data: object, *, source: Path) -> tuple[AppConfig, list[ConfigI
         if name not in KNOWN_KEYS:
             _unknown(issues, str(name), name, tuple(KNOWN_KEYS), "section")
     hotkeys = _hotkeys(_section(data, "hotkeys", issues), issues)
+    save_dir = _save_dir(_section(data, "capture", issues), issues)
     ocr = _ocr(_section(data, "ocr", issues), issues, source)
     postprocess, replacements = _postprocess(_section(data, "postprocess", issues), issues)
     show_text = _bool(_section(data, "notify", issues), "notify", "show_text", AppConfig.show_text, issues)
     debug = _bool(_section(data, "debug", issues), "debug", "enabled", AppConfig.debug, issues)
     translator = _translator(_section(data, "translator", issues), issues)
-    return AppConfig(hotkeys, ocr, postprocess, replacements, translator, show_text, debug), issues.items
+    config = AppConfig(hotkeys, ocr, postprocess, replacements, translator, show_text, debug, save_dir)
+    return config, issues.items

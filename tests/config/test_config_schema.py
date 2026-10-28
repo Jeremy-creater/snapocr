@@ -70,6 +70,7 @@ def test_empty_is_all_defaults():
 def test_known_keys():
     assert dict(KNOWN_KEYS) == {
         "hotkeys": ("capture", "ocr", "translate", "last_result", "code_ocr", "table_ocr"),  # M3 WI-14, M4 WI-15
+        "capture": ("save_dir",),  # M4 WI-22 (F17-2)
         "ocr": ("min_score", "model_dir"),
         "postprocess": ("paragraphs", "spacing", "punctuation", "replacements"),
         "notify": ("show_text",),  # M3 WI-11 (F7-2, F11-8)
@@ -321,6 +322,7 @@ def valid_configs(draw):
     hk_keys = draw(st.lists(st.sampled_from(KNOWN_KEYS["hotkeys"]), unique=True))
     data = {
         "hotkeys": {k: hk_texts[i] for i, k in enumerate(hk_keys)},
+        "capture": {"save_dir": draw(st.sampled_from(["E:/shots", "D:\\a b\\截图", "\\\\nas\\share\\s"]))},
         "ocr": {"min_score": draw(st.floats(0, 1)), "model_dir": draw(st.sampled_from(["m", "a/b", "E:/x"]))},
         "postprocess": {
             "paragraphs": draw(st.booleans()), "spacing": draw(st.booleans()),
@@ -353,6 +355,7 @@ def expected_for(data):
         postprocess=PostprocessOptions(p["paragraphs"], p["spacing"], p["punctuation"]),
         replacements=Replacements.from_mapping(p["replacements"]),
         translator=TranslatorConfig(**t),
+        save_dir=Path(data["capture"]["save_dir"]),
     )
 
 
@@ -365,6 +368,7 @@ def test_valid_config_no_issues_and_faithful(data):
 
 BAD_VALUES = [
     ("hotkeys", "capture", "Alt+Foo"), ("hotkeys", "last_result", 7),
+    ("capture", "save_dir", "shots"),
     ("ocr", "min_score", True), ("ocr", "model_dir", ""),
     ("postprocess", "spacing", "no"), ("postprocess", "replacements", {"ab": "abc"}),
     ("translator", "base_url", "http://10.0.0.1:1"), ("translator", "model", "a:b-cloud"),
@@ -380,6 +384,8 @@ def reset(expected, section, key):
         hk = dict(expected.hotkeys)
         hk[Command(key)] = DEFAULT_HK[Command(key)]
         return dataclasses.replace(expected, hotkeys=MappingProxyType(hk))
+    if section == "capture":
+        return dataclasses.replace(expected, save_dir=AppConfig().save_dir)
     if section == "ocr":
         default = getattr(OcrEngineConfig(), key)
         return dataclasses.replace(expected, ocr=dataclasses.replace(expected.ocr, **{key: default}))
@@ -482,3 +488,51 @@ def test_debug_is_not_a_window_setting():
 
     config = dataclasses.replace(AppConfig(), debug=True)
     assert apply(config, settings_of(config)).debug is True
+
+
+# --- M4 WI-22: [capture] save_dir (F17-2) ------------------------------------------------
+
+
+def test_capture_section_follows_hotkeys():
+    assert list(KNOWN_KEYS)[:3] == ["hotkeys", "capture", "ocr"]
+
+
+def test_save_dir_defaults_to_pictures_snapocr():
+    assert AppConfig().save_dir == Path.home() / "Pictures" / "snapocr"
+    cfg, issues = build({"capture": {}})
+    assert issues == [] and cfg == AppConfig()
+
+
+@pytest.mark.parametrize("text", ["E:/shots/snap", "D:\\a b\\截图", "\\\\nas\\share\\shots"])
+def test_save_dir_absolute_kept(text):
+    cfg, issues = build({"capture": {"save_dir": text}})
+    assert issues == []
+    assert cfg == dataclasses.replace(AppConfig(), save_dir=Path(text))
+
+
+@pytest.mark.parametrize("value", ["", "  ", "shots", "./shots", "/shots", "C:shots", 3, True, ["E:/x"]])
+def test_save_dir_not_absolute_falls_back(value):
+    cfg, issues = build({"capture": {"save_dir": value}})
+    issue = only_issue(issues, "capture.save_dir")
+    assert "absolute" in issue.reason and repr(value) in issue.reason
+    assert str(AppConfig().save_dir) in issue.reason
+    assert cfg == AppConfig()
+
+
+def test_save_dir_is_not_relative_to_the_config_file():
+    """Unlike ocr.model_dir: a relative save_dir is an error, not a path next to the file."""
+    cfg, _ = build({"capture": {"save_dir": "shots"}})
+    assert cfg.save_dir != SRC.parent / "shots"
+
+
+def test_capture_unknown_key_suggests():
+    cfg, issues = build({"capture": {"savedir": "E:/x"}})
+    issue = only_issue(issues, "capture.savedir")
+    assert "save_dir" in issue.reason
+    assert cfg == AppConfig()
+
+
+def test_capture_not_a_table():
+    cfg, issues = build({"capture": "E:/x"})
+    only_issue(issues, "capture")
+    assert cfg == AppConfig()

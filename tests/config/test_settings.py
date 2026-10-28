@@ -23,6 +23,7 @@ from snapocr.config.load import build_config
 from snapocr.config.schema import DEFAULT_HOTKEYS, HOTKEY_COMMANDS, KNOWN_KEYS, AppConfig
 from snapocr.config.settings import (
     BadModel,
+    BadSaveDir,
     BadTargetLang,
     DuplicateHotkey,
     Settings,
@@ -35,6 +36,7 @@ from snapocr.engines.config import OcrEngineConfig
 from snapocr.hotkeys import Hotkey, parse_hotkey
 from snapocr.postprocess import PostprocessOptions, Replacements
 from snapocr.translators.config import TranslatorConfig
+from support.settings_strategies import save_dirs
 
 DEFAULTS = settings_of(AppConfig())
 
@@ -186,6 +188,7 @@ def settings(draw):
         punctuation=draw(st.booleans()),
         target_lang=draw(st.sampled_from(["auto", "zh", "en"])),
         model=draw(st.sampled_from(["hy-mt2:7b", "qwen3:8b", "llama3", "my/model:q4_K_M"])),
+        save_dir=draw(save_dirs),  # M4 WI-22
     )
 
 
@@ -259,3 +262,68 @@ def test_show_text_written_into_the_template_and_read_back(tmp_path):
     assert loaded.issues == []
     assert loaded.config.show_text is False
     assert "show_text = false" in path.read_text(encoding="utf-8").split("[notify]")[1].split("[translator]")[0]
+
+
+# --- M4 WI-22: save_dir (F17-2) ---------------------------------------------------------
+
+SHOTS = Path("E:/shots/snap")
+
+
+def test_save_dir_is_a_window_setting():
+    assert DEFAULTS.save_dir == Path.home() / "Pictures" / "snapocr"
+    assert settings_of(dataclasses.replace(AppConfig(), save_dir=SHOTS)).save_dir == SHOTS
+
+
+@pytest.mark.parametrize("folder", [Path(""), Path("shots"), Path("/shots"), Path("C:shots")])
+def test_check_save_dir_not_absolute(folder):
+    assert check(dataclasses.replace(DEFAULTS, save_dir=folder)) == [BadSaveDir(folder)]
+
+
+@pytest.mark.parametrize("folder", [SHOTS, Path("//nas/share/snap"), Path("D:/a b/截图")])
+def test_check_save_dir_absolute_is_clean(folder):
+    assert check(dataclasses.replace(DEFAULTS, save_dir=folder)) == []
+
+
+def test_check_save_dir_reported_last():
+    s = dataclasses.replace(with_hotkeys(DEFAULTS, ocr="Alt+1"), model="", target_lang="fr", save_dir=Path("x"))
+    assert [type(p) for p in check(s)] == [DuplicateHotkey, BadModel, BadTargetLang, BadSaveDir]
+
+
+def test_changes_save_dir_is_the_windows_path_after_hotkeys():
+    new = dataclasses.replace(with_hotkeys(DEFAULTS, ocr="Ctrl+Q"), save_dir=SHOTS, spacing=False)
+    assert list(changes(DEFAULTS, new).items()) == [
+        ("hotkeys.ocr", "Ctrl+Q"),
+        ("capture.save_dir", "E:\\shots\\snap"),
+        ("postprocess.spacing", False),
+    ]
+
+
+def test_changes_same_folder_spelled_differently_is_no_change():
+    old = dataclasses.replace(DEFAULTS, save_dir=Path("E:/shots/snap"))
+    new = dataclasses.replace(DEFAULTS, save_dir=Path("E:\\shots\\snap"))
+    assert changes(old, new) == {}
+
+
+def test_apply_save_dir():
+    out = apply(AppConfig(), dataclasses.replace(DEFAULTS, save_dir=SHOTS))
+    assert out == dataclasses.replace(AppConfig(), save_dir=SHOTS)
+
+
+def test_apply_rejects_relative_save_dir():
+    with pytest.raises(ValueError):
+        apply(AppConfig(), dataclasses.replace(DEFAULTS, save_dir=Path("shots")))
+
+
+def test_save_dir_written_into_the_template_and_read_back(tmp_path):
+    from snapocr.config.files import load_config_file
+    from snapocr.config.writer import write_changes
+
+    path = tmp_path / "config.local.toml"
+    folder = Path("D:/a b/截图")
+    assert load_config_file(path).created
+    write_changes(path, changes(DEFAULTS, dataclasses.replace(DEFAULTS, save_dir=folder)))
+    loaded = load_config_file(path)
+    assert loaded.issues == []
+    assert loaded.config.save_dir == folder
+    section = path.read_text(encoding="utf-8").split("[capture]")[1].split("[ocr]")[0]
+    assert [ln for ln in section.splitlines() if ln.startswith("save_dir")] == [r'save_dir = "D:\\a b\\截图"']
