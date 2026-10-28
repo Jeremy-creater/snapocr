@@ -1395,3 +1395,96 @@ def test_an_open_save_dialog_comes_back_on_top(make, qtbot):
     assert dialog.isVisible()
     assert became_active(qtbot, dialog)
     assert len(h.capture.taken) == 1
+
+
+# --- M6 WI-4: the translation window takes typed and edited text (PRD F19-4 to F19-7) ----------
+# Pinned: "翻译" / Ctrl+Enter in the window translates the source box as it is,
+# with the chosen target, without a capture and without moving the window; the
+# translation lands on the clipboard (failure: clipboard unchanged). A
+# screenshot translation uses the chosen target too and gives the window focus.
+# Typed text keeps no record, so debug mode writes nothing for it.
+
+from snapocr.translators.errors import TranslationError, TranslationErrorKind  # noqa: E402
+
+CTRL = Qt.KeyboardModifier.ControlModifier
+
+
+def finish_screenshot_translation(h, target=None):
+    popup = h.controller.popup
+    h.controller.run(Command.TRANSLATE)
+    h.select(100, 100, 300, 160)
+    h.qtbot.waitUntil(lambda: isinstance(popup.state, Done), timeout=WAIT)
+    return popup
+
+
+def test_edited_source_is_translated_again_in_place(make, clipboard):
+    h = make()
+    popup = finish_screenshot_translation(h)
+    assert clipboard.text() == f"T({EXPECTED})"
+    where = popup.geometry()
+    popup.source_view.setPlainText("改过的原文")
+    h.qtbot.mouseClick(popup.translate_button, Qt.MouseButton.LeftButton)
+    h.qtbot.waitUntil(lambda: popup.state == Done("改过的原文", "T(改过的原文)"), timeout=WAIT)
+    assert clipboard.text() == "T(改过的原文)"
+    assert popup.geometry() == where
+    assert popup.source_view.toPlainText() == "改过的原文"
+    assert len(h.capture.taken) == 1
+
+
+def test_typed_text_with_a_chosen_target(make, clipboard):
+    h = make()
+    popup = h.controller.popup
+    popup.show()
+    popup.source_view.setPlainText("Hello")
+    popup.target_box.setCurrentIndex(1)  # 译成中文
+    h.qtbot.keyClick(popup.source_view, Qt.Key.Key_Return, CTRL)
+    h.qtbot.waitUntil(lambda: popup.state == Done("Hello", "zh:T(Hello)"), timeout=WAIT)
+    assert clipboard.text() == "zh:T(Hello)"
+    assert popup.translation_view.toPlainText() == "zh:T(Hello)"
+    assert h.capture.taken == []
+
+
+def test_screenshot_translation_uses_the_chosen_target(make, clipboard):
+    h = make()
+    h.controller.popup.target_box.setCurrentIndex(2)  # 译成英文
+    popup = finish_screenshot_translation(h)
+    assert popup.state == Done(EXPECTED, f"en:T({EXPECTED})")
+    assert clipboard.text() == f"en:T({EXPECTED})"
+
+
+def test_typed_text_failure_keeps_the_clipboard(make, clipboard):
+    err = TranslationError(TranslationErrorKind.UNREACHABLE, base_url="http://127.0.0.1:11434", model="m")
+    h = make(translator=ScriptedTranslator(err))
+    popup = h.controller.popup
+    popup.show()
+    popup.source_view.setPlainText("Hello")
+    h.qtbot.mouseClick(popup.translate_button, Qt.MouseButton.LeftButton)
+    h.qtbot.waitUntil(lambda: isinstance(popup.state, Failed), timeout=WAIT)
+    assert clipboard.text() == SENTINEL
+    assert popup.source_view.toPlainText() == "Hello"
+    assert popup.translation_view.toPlainText() == popup.state.message
+
+
+def test_screenshot_translation_gives_the_window_focus(make, qtbot, clipboard):
+    h = make()
+    popup = finish_screenshot_translation(h)
+    assert became_active(qtbot, popup)
+
+
+def test_debug_writes_nothing_for_typed_text(make, clipboard):
+    h = make(debug=True)
+    popup = h.controller.popup
+    popup.show()
+    popup.source_view.setPlainText("Hello")
+    h.qtbot.mouseClick(popup.translate_button, Qt.MouseButton.LeftButton)
+    h.qtbot.waitUntil(lambda: isinstance(popup.state, Done), timeout=WAIT)
+    assert debug_files(h) == []
+
+
+def test_a_request_after_quit_does_nothing(make, clipboard):
+    h = make()
+    h.controller.run(Command.QUIT)
+    h.controller.popup.translate_requested.emit("Hello", None)  # the runner is shut down: no submit
+    h.qtbot.wait(50)
+    assert h.controller.popup.state is None
+    assert clipboard.text() == SENTINEL

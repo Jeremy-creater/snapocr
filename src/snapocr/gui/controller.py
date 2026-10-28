@@ -38,6 +38,7 @@ from snapocr.actions.runner import (
     code_ocr_job,
     ocr_job,
     table_ocr_job,
+    text_translate_job,
     translate_job,
 )
 from snapocr.annotate import DEFAULT_STYLE, Style
@@ -125,6 +126,7 @@ class AppController(QObject):
         on_record = DebugDump(debug_dir) if config.debug else None  # F12: read once at start
         self.runner = JobRunner(self.bridge.post, self.history, on_record)
         self.popup = TranslationPopup()
+        self.popup.translate_requested.connect(self._translate_text)
         self.history_window = LastResultWindow(self.history)
         self.menu = build_tray_menu(config.hotkeys, self._on_menu)
         self.settings_window = SettingsWindow()
@@ -254,10 +256,15 @@ class AppController(QObject):
         elif command is Command.TABLE_OCR:
             self.runner.submit(table_ocr_job(png, self._deps))
         else:
-            job_id = self.runner.submit(translate_job(png, self._deps, self._translator))
+            job_id = self.runner.submit(translate_job(png, self._deps, self._translator, self.popup.target))
             screen = screen_containing(rect, cap.screens)
             available = cap.work_areas.get(screen.name, screen.logical)
             self._anchors[job_id] = (logical_rect(screen, rect), available)
+
+    def _translate_text(self, text: str, target: str | None) -> None:
+        """F19-5: the window's source box, translated where the window is (no anchor)."""
+        if not self._quitting:
+            self.runner.submit(text_translate_job(text, self._translator, target))
 
     def _pin(self, image: QImage, geometry: Rect) -> None:
         window = PinWindow(image, geometry)
@@ -285,10 +292,15 @@ class AppController(QObject):
             self.history_window.on_new_result()
         elif isinstance(event, TranslateStarted):
             # Recognition runs FIFO on one worker (F18-1 moves only the model request
-            # off it): this is always the newest translate job. Its anchor is
-            # set in _on_selection, which returns before any queued event is handled.
+            # off it): this is always the newest translate job. A screenshot job's anchor
+            # is set in _on_selection, which returns before any queued event is handled;
+            # typed text (F19-5) has none.
             self.popup.apply(event.job_id, Translating(event.stage.text))
-            self.popup.place(*self._anchors[event.job_id])
+            anchor = self._anchors.get(event.job_id)
+            if anchor is not None:  # a screenshot translation: next to the selection, with focus (F19-4)
+                self.popup.place(*anchor)
+                self.popup.activateWindow()
+                self.popup.source_view.setFocus()
         elif isinstance(event, TranslateDone):
             self._anchors.pop(event.job_id, None)
             self.popup.apply(event.job_id, event.outcome.popup)
