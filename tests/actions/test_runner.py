@@ -1,4 +1,4 @@
-"""M2 WI-11: single-worker FIFO job runner (PRD F8-2, F7-5, F7-6; plan D2).
+"""M2 WI-11: FIFO job runner (PRD F8-2, F7-5, F7-6; plan D2). M5 WI-1: model requests on a second queue (F18-1).
 
 Pinned here:
 - A job is a callable returning an iterable (usually a generator) of flow
@@ -16,8 +16,12 @@ Pinned here:
 - Warm-up (plan D2) ends with ``WarmedUp(ok)``; an ``EngineLoadError`` is
   ``ok=False``, not a crash, and leaves no record.
 - Job ids start at 1 and increase by one per submit.
-- ``on_event`` runs on the worker thread ("snapocr-jobs", a daemon). An
+- ``on_event`` runs on the worker threads ("snapocr-jobs" for recognition,
+  "snapocr-translate" for the rest of a translate job after its
+  ``OcrStage``; both daemons; see ``test_runner_translate_queue.py``). An
   exception from it is logged (without the event) and the worker carries on.
+- Terminal events of recognition jobs follow submission order; so do the
+  ``TranslateDone`` events among themselves (F18-1: not across the two).
 - ``shutdown`` returns within ``timeout`` even while a job blocks; queued jobs
   are dropped, no event is delivered after it returns, and ``submit``
   afterwards raises ``RuntimeError``.
@@ -223,15 +227,17 @@ def test_translate_job_without_text_ends_like_ocr_without_started(make_runner, l
     assert col.events == [OcrDone(job_id, translate_ocr_stage(PNG, d))]
 
 
-def test_callbacks_run_on_the_worker_thread(make_runner):
+def test_callbacks_run_on_the_worker_threads(make_runner):
+    # F18-1 (v1.2): the translation's model request moved to its own worker.
     runner, col = make_runner()
     runner.submit(outcome_job("a"))
     runner.submit(translate_job(PNG, deps(), ScriptedTranslator()))
     col.wait_terminal(2)
-    threads = {tid for _, tid in col.items}
     assert len(col.items) == 3
-    assert len(threads) == 1
-    assert threading.get_ident() not in threads
+    (_, a), (_, started), (_, done) = col.items
+    assert a == started
+    assert done != started
+    assert threading.get_ident() not in {a, done}
 
 
 # --- crashes and warm-up ----------------------------------------------------
@@ -288,8 +294,10 @@ def test_job_without_terminal_result_is_incomplete(make_runner):
     runner.submit(lambda: iter([stage]))
     runner.submit(lambda: [])
     col.wait_terminal(2)
-    assert col.events == [
-        TranslateStarted(1, stage),
+    events = col.events
+    assert events[0] == TranslateStarted(1, stage)
+    # F18-1: job 1 ends on the translate worker, so the two crashes may come in either order.
+    assert sorted(events[1:], key=lambda e: e.job_id) == [
         JobCrashed(1, "IncompleteJobError"),
         JobCrashed(2, "IncompleteJobError"),
     ]
@@ -491,13 +499,12 @@ def test_shutdown_with_zero_timeout_does_not_wait(make_runner):
     release.set()
 
 
-def test_worker_is_a_daemon_thread(make_runner):
+def test_workers_are_daemon_threads(make_runner):
     before = {t.ident for t in threading.enumerate()}
     make_runner()
     new = [t for t in threading.enumerate() if t.ident not in before]
-    assert len(new) == 1
-    assert new[0].daemon
-    assert new[0].name == "snapocr-jobs"
+    assert sorted(t.name for t in new) == ["snapocr-jobs", "snapocr-translate"]  # F18-1
+    assert all(t.daemon for t in new)
 
 
 EXIT_SCRIPT = textwrap.dedent(
@@ -618,11 +625,20 @@ def test_one_terminal_event_per_job_and_one_record_per_ocr_or_translate(kinds):
         done = col.wait_terminal(len(ids))
     finally:
         runner.shutdown(timeout=WAIT_S)
-    assert [e.job_id for e in done] == ids
-    assert [type(e) for e in done] == [EXPECTED_TERMINAL[k] for k in kinds]
+    terminal = {e.job_id: type(e) for e in done}
+    assert sorted(terminal) == ids and len(done) == len(ids)
+    assert [terminal[i] for i in ids] == [EXPECTED_TERMINAL[k] for k in kinds]
+    # F18-1: each queue keeps submission order, the two may interleave.
+    recognised = [e.job_id for e in done if not isinstance(e, TranslateDone)]
+    translated = [e.job_id for e in done if isinstance(e, TranslateDone)]
+    assert recognised == sorted(recognised)
+    assert translated == sorted(translated)
     assert len(history.snapshot()) == sum(k in RECORDED for k in kinds)
-    started = [e.job_id for e in col.events if isinstance(e, TranslateStarted)]
+    events = col.events
+    started = [e.job_id for e in events if isinstance(e, TranslateStarted)]
     assert started == [i for i, k in zip(ids, kinds) if k in ("tr_ok", "tr_err", "tr_skip")]
+    position = {(type(e), e.job_id): n for n, e in enumerate(events)}
+    assert all(position[(TranslateStarted, i)] < position[(TranslateDone, i)] for i in translated)
 
 
 # --- shutdown edge cases (added after the first green: coverage) ------------

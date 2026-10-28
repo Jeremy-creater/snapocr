@@ -1,8 +1,15 @@
-"""Single-worker FIFO job runner (PRD F8-2, F7-5, F7-6; plan D2). No Qt.
+"""FIFO job runner with two workers (PRD F8-2, F7-5, F7-6, F18-1; plan D2, M5 plan D3). No Qt.
 
 A job is a callable returning an iterable (usually a generator) of flow
 results. Each result becomes an event tagged with the job id and is handed to
-``on_event`` on the worker thread; the GUI bridge moves it to the GUI thread.
+``on_event`` on a worker thread; the GUI bridge moves it to the GUI thread.
+
+Recognition runs on "snapocr-jobs", one job at a time. When a job yields an
+``OcrStage`` (a translate job), the rest of the same iterator, the model
+request, moves to "snapocr-translate", so a translation waiting for the model
+never holds up the next OCR (F18-1). Model requests also run one at a time.
+Whatever a job does after its ``OcrStage`` runs on the translate worker, so
+it must not use the OCR engine.
 Every job ends with exactly one terminal event (``OcrDone``, ``TranslateDone``,
 ``WarmedUp`` or ``JobCrashed``). A terminal result's history record is pushed
 before its event is delivered.
@@ -19,7 +26,7 @@ import queue
 import threading
 import time
 import traceback
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 
 from snapocr.actions.flows import (
@@ -41,6 +48,7 @@ _log = logging.getLogger(__name__)
 Job = Callable[[], Iterable[object]]
 
 THREAD_NAME = "snapocr-jobs"
+TRANSLATE_THREAD_NAME = "snapocr-translate"
 
 
 class IncompleteJobError(RuntimeError):
@@ -147,13 +155,18 @@ class JobRunner:
         self._on_event = on_event
         self._history = history
         self._on_record = on_record  # F12: debug mode; called on the worker thread
-        self._queue: queue.SimpleQueue[object] = queue.SimpleQueue()
+        self._queue: queue.SimpleQueue[object] = queue.SimpleQueue()  # (job id, job)
+        self._translate_queue: queue.SimpleQueue[object] = queue.SimpleQueue()  # (job id, the job's iterator)
         self._lock = threading.Lock()  # guards _next_id and the stopped check in submit
         self._deliver_lock = threading.RLock()  # a callback may call shutdown()
         self._stopped = threading.Event()
         self._next_id = 1
-        self._thread = threading.Thread(target=self._run, name=THREAD_NAME, daemon=True)
+        self._thread = threading.Thread(target=self._run, args=(self._queue,), name=THREAD_NAME, daemon=True)
+        self._translate_thread = threading.Thread(
+            target=self._run, args=(self._translate_queue,), name=TRANSLATE_THREAD_NAME, daemon=True
+        )
         self._thread.start()
+        self._translate_thread.start()
 
     def submit(self, job: Job) -> int:
         with self._lock:
@@ -161,7 +174,7 @@ class JobRunner:
                 raise RuntimeError("job runner is shut down")
             job_id = self._next_id
             self._next_id += 1
-            self._queue.put((job_id, job))
+            self._queue.put((job_id, lambda: iter(job())))
         return job_id
 
     def submit_warmup(self, holder: EngineHolder) -> int:
@@ -181,27 +194,33 @@ class JobRunner:
             with self._lock:
                 self._stopped.set()
                 self._queue.put(_STOP)
+                self._translate_queue.put(_STOP)
         finally:
             if got:
                 self._deliver_lock.release()
-        if threading.current_thread() is not self._thread:
-            self._thread.join(max(0.0, deadline - time.monotonic()))
+        for thread in (self._thread, self._translate_thread):
+            if threading.current_thread() is not thread:
+                thread.join(max(0.0, deadline - time.monotonic()))
 
-    def _run(self) -> None:
+    def _run(self, jobs: queue.SimpleQueue[object]) -> None:
         while True:
-            item = self._queue.get()
+            item = jobs.get()
             if item is _STOP or self._stopped.is_set():
                 return
-            job_id, job = item
-            self._run_one(job_id, job)
+            job_id, start = item
+            self._run_one(job_id, start)
 
-    def _run_one(self, job_id: int, job: Job) -> None:
+    def _run_one(self, job_id: int, start: Callable[[], Iterator[object]]) -> None:
         try:
-            for result in job():
+            results = start()
+            for result in results:
                 if self._stopped.is_set():
                     return
                 if isinstance(result, OcrStage):
                     self._deliver(TranslateStarted(job_id, result))
+                    if threading.current_thread() is self._thread:  # F18-1: the model request queues apart
+                        self._translate_queue.put((job_id, lambda: results))
+                        return
                     continue
                 if isinstance(result, Outcome):
                     record, event = result.record, OcrDone(job_id, result)

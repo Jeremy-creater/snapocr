@@ -283,7 +283,8 @@ class AppController(QObject):
             self._land(event.outcome)
             self.history_window.on_new_result()
         elif isinstance(event, TranslateStarted):
-            # One FIFO worker: this is always the newest translate job. Its anchor is
+            # Recognition runs FIFO on one worker (F18-1 moves only the model request
+            # off it): this is always the newest translate job. Its anchor is
             # set in _on_selection, which returns before any queued event is handled.
             self.popup.apply(event.job_id, Translating(event.stage.text))
             self.popup.place(*self._anchors[event.job_id])
