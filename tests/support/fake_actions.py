@@ -6,6 +6,7 @@ exception. They never record calls; tests assert on the flows' outputs.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
 from snapocr.engines.holder import EngineHolder
@@ -52,3 +53,20 @@ class ScriptedTranslator:
                 return TranslationResult(f"T({text})", "en", False)
             return TranslationResult(f"{target}:T({text})", target, False)
         return self.behaviour
+
+
+class RecordLog:
+    """An ``on_record`` hook for ``JobRunner`` that keeps every record (M6: replaces ResultHistory in tests)."""
+
+    def __init__(self) -> None:
+        self._records: list = []
+        self._lock = threading.Lock()
+
+    def __call__(self, job_id: int, record) -> None:
+        with self._lock:
+            self._records.append(record)
+
+    def snapshot(self) -> tuple:
+        """Newest first."""
+        with self._lock:
+            return tuple(reversed(self._records))

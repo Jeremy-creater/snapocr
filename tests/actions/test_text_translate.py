@@ -14,7 +14,6 @@ import threading
 import pytest
 
 from snapocr.actions.flows import FlowDeps, translate_stage
-from snapocr.actions.history import ResultHistory
 from snapocr.actions.outcomes import ClipboardText, Done, Failed, NoClipboardChange, OcrStage
 from snapocr.actions.runner import JobRunner, TranslateDone, TranslateStarted, text_translate_job, translate_job
 from snapocr.engines.types import OcrResult
@@ -47,7 +46,7 @@ class Log:
 def run(job):
     """Run one job; (events with thread names, records handed to on_record)."""
     log, records = Log(), []
-    runner = JobRunner(log, ResultHistory(), lambda job_id, record: records.append(record))
+    runner = JobRunner(log, lambda job_id, record: records.append(record))
     try:
         runner.submit(job)
         assert log.done.wait(WAIT_S), f"job did not finish: {log.items}"

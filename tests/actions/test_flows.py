@@ -1,9 +1,9 @@
 """M2 WI-9: capture, OCR and translate flows (PRD F7-1 to F7-6, F8-4; plan A1 to A4).
 
 Pinned here:
-- ``HistoryRecord.raw`` is the layout-only text without replacements (A1);
+- ``RunRecord.raw`` is the layout-only text without replacements (A1);
   ``text`` is what goes to the clipboard.
-- ``HistoryRecord.error`` is ``str(err)`` for OCR errors, the popup message for
+- ``RunRecord.error`` is ``str(err)`` for OCR errors, the popup message for
   translation errors and for "nothing to translate"; ``None`` otherwise.
 - An empty OCR result records ``raw == text == ""`` with no error.
 - The capture notice is ``Notice("已复制截图", "")``; capture keeps no record.
@@ -44,7 +44,7 @@ from snapocr.actions.outcomes import (
     ClipboardText,
     Done,
     Failed,
-    HistoryRecord,
+    RunRecord,
     NoClipboardChange,
     Notice,
     OcrStage,
@@ -99,7 +99,7 @@ def test_ocr_success():
     raw = postprocess(RESULT, LAYOUT_ONLY)
     assert "OCR" in expected and "0CR" in raw  # replacements apply to text, not raw
     assert ocr_flow(PNG, deps()) == Outcome(
-        ClipboardText(expected), ocr_ok_notice(expected), HistoryRecord(PNG, raw, expected)
+        ClipboardText(expected), ocr_ok_notice(expected), RunRecord(PNG, raw, expected)
     )
 
 
@@ -111,13 +111,13 @@ def test_ocr_options_respected():
 
 @pytest.mark.parametrize("result", EMPTY_RESULTS)
 def test_ocr_empty(result):
-    assert ocr_flow(PNG, deps(result)) == Outcome(NoClipboardChange(), ocr_empty_notice(), HistoryRecord(PNG, "", ""))
+    assert ocr_flow(PNG, deps(result)) == Outcome(NoClipboardChange(), ocr_empty_notice(), RunRecord(PNG, "", ""))
 
 
 def test_ocr_engine_load_error():
     out = ocr_flow(PNG, deps(load_error=LOAD_ERROR))
     assert out == Outcome(NoClipboardChange(), engine_failed_notice(LOAD_ERROR, DEFAULT_LOG_DIR / LOG_FILE_NAME),
-                          HistoryRecord(PNG, "", "", error=str(LOAD_ERROR)))
+                          RunRecord(PNG, "", "", error=str(LOAD_ERROR)))
 
 
 def test_ocr_factory_crash_becomes_load_error():
@@ -158,7 +158,7 @@ def test_successful_ocr_logs_nothing(caplog):
 @pytest.mark.parametrize("err", RECOGNIZE_ERRORS, ids=["runtime", "invalid-image"])
 def test_ocr_recognize_error(err):
     assert ocr_flow(PNG, deps(err)) == Outcome(NoClipboardChange(), ocr_failed_notice(err),
-                                               HistoryRecord(PNG, "", "", error=str(err)))
+                                               RunRecord(PNG, "", "", error=str(err)))
 
 
 def test_ocr_unexpected_exception_propagates():
@@ -207,7 +207,7 @@ def test_translate_success_translates_postprocessed_text():
     assert out == TranslateOutcome(
         ClipboardText("T(使用 OCR 截图)"),
         Done("使用 OCR 截图", "T(使用 OCR 截图)"),
-        HistoryRecord(PNG, "raw text", "使用 OCR 截图", translation="T(使用 OCR 截图)"),
+        RunRecord(PNG, "raw text", "使用 OCR 截图", translation="T(使用 OCR 截图)"),
     )
 
 
@@ -216,7 +216,7 @@ def test_translate_skipped():
     assert out == TranslateOutcome(
         NoClipboardChange(),
         Failed("使用 OCR 截图", NOTHING_TO_TRANSLATE),
-        HistoryRecord(PNG, "raw text", "使用 OCR 截图", error=NOTHING_TO_TRANSLATE),
+        RunRecord(PNG, "raw text", "使用 OCR 截图", error=NOTHING_TO_TRANSLATE),
     )
 
 
@@ -228,7 +228,7 @@ def test_translate_error_kinds(kind):
     assert out == TranslateOutcome(
         NoClipboardChange(),
         Failed("使用 OCR 截图", message),
-        HistoryRecord(PNG, "raw text", "使用 OCR 截图", error=message),
+        RunRecord(PNG, "raw text", "使用 OCR 截图", error=message),
     )
 
 
@@ -273,9 +273,9 @@ def run_translate(engine_case, translator_case):
 @given(engine_cases, translator_cases)
 def test_exactly_one_record_per_flow(engine_case, translator_case):
     out = ocr_flow(PNG, deps(engine_case[0], load_error=engine_case[1]))
-    assert isinstance(out.record, HistoryRecord) and out.record.png == PNG
+    assert isinstance(out.record, RunRecord) and out.record.png == PNG
     records, _, _ = run_translate(engine_case, translator_case)
-    assert len(records) == 1 and isinstance(records[0], HistoryRecord) and records[0].png == PNG
+    assert len(records) == 1 and isinstance(records[0], RunRecord) and records[0].png == PNG
 
 
 @given(engine_cases, translator_cases)
@@ -322,7 +322,7 @@ def test_ocr_success_without_text_in_the_notice():
     out = ocr_flow(PNG, d)
     expected = postprocess(RESULT, PostprocessOptions(), TABLE)
     assert out == Outcome(ClipboardText(expected), ocr_ok_notice(expected, show_text=False),
-                          HistoryRecord(PNG, postprocess(RESULT, LAYOUT_ONLY), expected))
+                          RunRecord(PNG, postprocess(RESULT, LAYOUT_ONLY), expected))
     assert out.notice.body.startswith("共 ")
 
 
@@ -351,7 +351,7 @@ def test_code_ocr_flow_copies_the_indented_code():
     assert out == Outcome(
         ClipboardText(CODE),
         code_ok_notice(CODE),
-        HistoryRecord(PNG, postprocess(CODE_RESULT, LAYOUT_ONLY), CODE),
+        RunRecord(PNG, postprocess(CODE_RESULT, LAYOUT_ONLY), CODE),
     )
     assert out.notice.title == "已复制代码"
 
@@ -398,7 +398,7 @@ def test_table_ocr_flow_copies_markdown_and_html():
     assert out == Outcome(
         ClipboardTable(TABLE_MD, TABLE_HTML),
         table_ok_notice(3, 2),
-        HistoryRecord(PNG, postprocess(TABLE_RESULT, LAYOUT_ONLY), TABLE_MD),
+        RunRecord(PNG, postprocess(TABLE_RESULT, LAYOUT_ONLY), TABLE_MD),
     )
     assert out.notice == Notice("已复制表格", "3 行 × 2 列")
 
@@ -407,7 +407,7 @@ def test_table_ocr_flow_with_only_column_letters_is_empty():
     letters = OcrResult((rect("A", 100, 0, 120, 20), rect("B", 200, 0, 220, 20)))
     out = table_ocr_flow(PNG, deps(letters))
     assert out == Outcome(NoClipboardChange(), ocr_empty_notice(),
-                          HistoryRecord(PNG, postprocess(letters, LAYOUT_ONLY), ""))
+                          RunRecord(PNG, postprocess(letters, LAYOUT_ONLY), ""))
 
 
 @pytest.mark.parametrize("make_deps", [

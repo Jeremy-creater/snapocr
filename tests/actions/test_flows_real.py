@@ -16,7 +16,6 @@ from pathlib import Path
 import pytest
 
 from snapocr.actions.flows import FlowDeps, ocr_flow, translate_ocr_stage, translate_stage
-from snapocr.actions.history import ResultHistory
 from snapocr.actions.outcomes import ClipboardText, Done, Failed, NoClipboardChange, OcrStage
 from snapocr.actions.runner import JobRunner, OcrDone, TranslateDone, TranslateStarted, ocr_job, translate_job
 from snapocr.engines.holder import EngineHolder
@@ -25,7 +24,7 @@ from snapocr.translators import OpenAICompatTranslator
 from snapocr.translators.config import TranslatorConfig
 from snapocr.translators.direction import detect_target_lang
 from support.cer_check import assert_cer_within
-from support.fake_actions import ScriptedTranslator
+from support.fake_actions import RecordLog, ScriptedTranslator
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 # Same literal as tests/engines/test_postprocess_real.MIXED_EXPECTED (F2 WI-8).
@@ -61,7 +60,7 @@ def _run_jobs(jobs, history=None, terminal=2):
         if sum(isinstance(e, (OcrDone, TranslateDone)) for e in events) >= terminal:
             done.set()
 
-    runner = JobRunner(on_event, history if history is not None else ResultHistory())
+    runner = JobRunner(on_event, history)
     try:
         for job in jobs:
             runner.submit(job)
@@ -132,7 +131,7 @@ def test_translate_job_real_engine_hands_postprocessed_text_to_translator(real_d
 
 @pytest.mark.engine
 def test_ocr_flow_real_engine_through_runner_records_history(real_deps):
-    history = ResultHistory()
+    history = RecordLog()
     events = _run_jobs(
         [ocr_job(_read(FIXTURES / "zh.png"), real_deps()), ocr_job(_read(FIXTURES / "blank.png"), real_deps())],
         history,

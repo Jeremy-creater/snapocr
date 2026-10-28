@@ -11,8 +11,8 @@ never holds up the next OCR (F18-1). Model requests also run one at a time.
 Whatever a job does after its ``OcrStage`` runs on the translate worker, so
 it must not use the OCR engine.
 Every job ends with exactly one terminal event (``OcrDone``, ``TranslateDone``,
-``WarmedUp`` or ``JobCrashed``). A terminal result's history record is pushed
-before its event is delivered.
+``WarmedUp`` or ``JobCrashed``). A terminal result's record goes to ``on_record``
+(debug mode) before its event is delivered.
 
 The worker is a daemon thread, so a translation stuck in its socket timeout
 never holds up interpreter exit (D2: no ``ThreadPoolExecutor``).
@@ -38,8 +38,7 @@ from snapocr.actions.flows import (
     translate_ocr_stage,
     translate_stage,
 )
-from snapocr.actions.history import ResultHistory
-from snapocr.actions.outcomes import HistoryRecord, OcrStage, Outcome, TranslateOutcome
+from snapocr.actions.outcomes import RunRecord, OcrStage, Outcome, TranslateOutcome
 from snapocr.engines.errors import EngineLoadError
 from snapocr.engines.holder import EngineHolder
 from snapocr.translators.types import TargetLang, Translator
@@ -161,11 +160,9 @@ class JobRunner:
     def __init__(
         self,
         on_event: Callable[[Event], None],
-        history: ResultHistory,
-        on_record: Callable[[int, HistoryRecord], None] | None = None,
+        on_record: Callable[[int, RunRecord], None] | None = None,
     ) -> None:
         self._on_event = on_event
-        self._history = history
         self._on_record = on_record  # F12: debug mode; called on the worker thread
         self._queue: queue.SimpleQueue[object] = queue.SimpleQueue()  # (job id, job)
         self._translate_queue: queue.SimpleQueue[object] = queue.SimpleQueue()  # (job id, the job's iterator)
@@ -243,7 +240,6 @@ class JobRunner:
                 else:
                     raise TypeError(f"job yielded {type(result).__name__}, not a flow result")
                 if record is not None:
-                    self._history.push(record)
                     self._record_hook(job_id, record)
                 self._deliver(event)
                 return
@@ -254,7 +250,7 @@ class JobRunner:
             _log.error("job %d crashed: %s\n%s", job_id, type(exc).__name__, frames)
             self._deliver(JobCrashed(job_id, type(exc).__name__))
 
-    def _record_hook(self, job_id: int, record: HistoryRecord) -> None:
+    def _record_hook(self, job_id: int, record: RunRecord) -> None:
         if self._on_record is None:
             return
         try:

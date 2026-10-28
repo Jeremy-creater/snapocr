@@ -275,3 +275,12 @@ def label_place(sel: Rect, size: tuple[int, int], bounds: Rect, gap: int) -> tup
     if y < bounds.y:
         y = sel.y + gap
     return x, y
+
+
+
+def center_in(size: tuple[int, int], available: Rect) -> Rect:
+    """F19-3: ``size`` shrunk to ``available`` and centred in it (logical coordinates)."""
+    if not (_is_int(size[0]) and _is_int(size[1])) or min(size) < 0:
+        raise ValueError(f"size must be two ints >= 0, got {size!r}")
+    w, h = min(size[0], available.w), min(size[1], available.h)
+    return Rect(available.x + (available.w - w) // 2, available.y + (available.h - h) // 2, w, h)

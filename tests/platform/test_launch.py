@@ -35,9 +35,9 @@ from support.win_input import press_combo, register_raw, unregister_raw
 pytestmark = pytest.mark.gui
 
 KEYS = {"capture": "Ctrl+Alt+Shift+F21", "ocr": "Ctrl+Alt+Shift+F22", "translate": "Ctrl+Alt+Shift+F23",
-        "last_result": "Ctrl+Alt+Shift+F24", "code_ocr": "Ctrl+Alt+Shift+F17",
+        "translate_text": "Ctrl+Alt+Shift+F24", "code_ocr": "Ctrl+Alt+Shift+F17",
         "table_ocr": "Ctrl+Alt+Shift+F18"}
-HISTORY_TITLE = "snapocr 上次结果"
+WINDOW_TITLE = "snapocr 翻译"  # the translation window (Alt+4 since PRD v1.3)
 
 _user32 = ctypes.WinDLL("user32", use_last_error=True)
 _user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
@@ -52,8 +52,8 @@ def write_config(path: Path) -> Path:
     return path
 
 
-def history_window_visible() -> bool:
-    hwnd = _user32.FindWindowW(None, HISTORY_TITLE)
+def translation_window_visible() -> bool:
+    hwnd = _user32.FindWindowW(None, WINDOW_TITLE)
     return bool(hwnd) and bool(_user32.IsWindowVisible(hwnd))
 
 
@@ -77,9 +77,9 @@ def test_start_shows_tray_and_registers_live_hotkeys(qtbot, running, tmp_path):
     assert app is not None
     assert app.tray.icon.isVisible()
     assert sorted(c.value for c in app.controller.registered_commands()) == sorted(KEYS)
-    hk = parse_hotkey(KEYS["last_result"])
+    hk = parse_hotkey(KEYS["translate_text"])
     press_combo(hk.mods, hk.vk)
-    qtbot.waitUntil(lambda: app.controller.history_window.isVisible(), timeout=2000)
+    qtbot.waitUntil(lambda: app.controller.popup.isVisible(), timeout=2000)
 
 
 def test_missing_config_is_created_from_the_template(running, tmp_path):
@@ -132,12 +132,12 @@ def test_second_process_exits_and_the_first_keeps_working(tmp_path):
         assert second.returncode == 0
         assert time.monotonic() - t0 < 5
         assert first.poll() is None
-        hk = parse_hotkey(KEYS["last_result"])
+        hk = parse_hotkey(KEYS["translate_text"])
         press_combo(hk.mods, hk.vk)
         deadline = time.monotonic() + 3
-        while not history_window_visible() and time.monotonic() < deadline:
+        while not translation_window_visible() and time.monotonic() < deadline:
             time.sleep(0.05)
-        assert history_window_visible()
+        assert translation_window_visible()
     finally:
         first.terminate()
         first.wait(10)

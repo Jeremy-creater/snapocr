@@ -34,7 +34,7 @@ DEFAULT_HK = {
     C.CAPTURE: Hotkey(MOD_ALT, 0x31),
     C.OCR: Hotkey(MOD_ALT, 0x32),
     C.TRANSLATE: Hotkey(MOD_ALT, 0x33),
-    C.LAST_RESULT: Hotkey(MOD_ALT, 0x34),
+    C.TRANSLATE_TEXT: Hotkey(MOD_ALT, 0x34),
     C.CODE_OCR: Hotkey(MOD_ALT, 0x35),  # M3 WI-14 (F13-1)
     C.TABLE_OCR: Hotkey(MOD_ALT, 0x36),  # M4 WI-15 (F16-1)
 }
@@ -69,7 +69,7 @@ def test_empty_is_all_defaults():
 
 def test_known_keys():
     assert dict(KNOWN_KEYS) == {
-        "hotkeys": ("capture", "ocr", "translate", "last_result", "code_ocr", "table_ocr"),  # M3 WI-14, M4 WI-15
+        "hotkeys": ("capture", "ocr", "translate", "translate_text", "code_ocr", "table_ocr"),  # M3 WI-14, M4 WI-15
         "capture": ("save_dir",),  # M4 WI-22 (F17-2)
         "ocr": ("min_score", "model_dir"),
         "postprocess": ("paragraphs", "spacing", "punctuation", "replacements"),
@@ -92,7 +92,7 @@ def test_issue_str():
 
 def test_full_valid_config():
     data = {
-        "hotkeys": {"capture": "Ctrl+Alt+1", "ocr": "ctrl + alt + 2", "translate": "Win+T", "last_result": "Alt+F4"},
+        "hotkeys": {"capture": "Ctrl+Alt+1", "ocr": "ctrl + alt + 2", "translate": "Win+T", "translate_text": "Alt+F4"},
         "ocr": {"min_score": 0.7, "model_dir": "models"},
         "postprocess": {"paragraphs": False, "spacing": True, "punctuation": False,
                         "replacements": {"0CR": "OCR"}},
@@ -107,7 +107,7 @@ def test_full_valid_config():
         C.CAPTURE: Hotkey(MOD_CONTROL | MOD_ALT, 0x31),
         C.OCR: Hotkey(MOD_CONTROL | MOD_ALT, 0x32),
         C.TRANSLATE: Hotkey(0x8, 0x54),
-        C.LAST_RESULT: Hotkey(MOD_ALT, 0x73),
+        C.TRANSLATE_TEXT: Hotkey(MOD_ALT, 0x73),
         C.CODE_OCR: DEFAULT_HK[C.CODE_OCR],  # not in the file: default (M3 WI-14)
         C.TABLE_OCR: DEFAULT_HK[C.TABLE_OCR],  # not in the file: default (M4 WI-15)
     }
@@ -189,7 +189,7 @@ def test_duplicate_whose_default_is_taken_is_disabled():
     assert paths(issues) == ["hotkeys.ocr", "hotkeys.ocr"]
     assert "hotkeys.capture" in issues[0].reason and "disabled" in issues[1].reason
     assert dict(cfg.hotkeys) == {C.CAPTURE: Hotkey(MOD_ALT, 0x32), C.TRANSLATE: DEFAULT_HK[C.TRANSLATE],
-                                 C.LAST_RESULT: DEFAULT_HK[C.LAST_RESULT], C.CODE_OCR: DEFAULT_HK[C.CODE_OCR],
+                                 C.TRANSLATE_TEXT: DEFAULT_HK[C.TRANSLATE_TEXT], C.CODE_OCR: DEFAULT_HK[C.CODE_OCR],
                                  C.TABLE_OCR: DEFAULT_HK[C.TABLE_OCR]}
 
 
@@ -367,7 +367,7 @@ def test_valid_config_no_issues_and_faithful(data):
 
 
 BAD_VALUES = [
-    ("hotkeys", "capture", "Alt+Foo"), ("hotkeys", "last_result", 7),
+    ("hotkeys", "capture", "Alt+Foo"), ("hotkeys", "translate_text", 7),
     ("capture", "save_dir", "shots"),
     ("ocr", "min_score", True), ("ocr", "model_dir", ""),
     ("postprocess", "spacing", "no"), ("postprocess", "replacements", {"ab": "abc"}),

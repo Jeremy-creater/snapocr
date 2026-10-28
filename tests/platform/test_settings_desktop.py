@@ -31,7 +31,7 @@ KEYS = {
     "capture": "Ctrl+Alt+Shift+F21",
     "ocr": "Ctrl+Alt+Shift+F19",
     "translate": "Ctrl+Alt+Shift+F20",
-    "last_result": "Ctrl+Alt+Shift+F22",
+    "translate_text": "Ctrl+Alt+Shift+F22",
     "code_ocr": "Ctrl+Alt+Shift+F17",  # M3 WI-14: never the user's Alt+5
     "table_ocr": "Ctrl+Alt+Shift+F16",  # M4 WI-15: never the user's Alt+6; not F18, the new capture key below
 }
@@ -56,8 +56,8 @@ def test_own_hotkeys_are_recorded_and_saved_ones_work(qtbot, qapp, tmp_path):
     try:
         c = app.controller
         # A hotkey gives this process the right to bring its windows to the front (FIX-4).
-        press(KEYS["last_result"])
-        qtbot.waitUntil(c.history_window.isVisible, timeout=3000)
+        press(KEYS["translate_text"])
+        qtbot.waitUntil(c.popup.isVisible, timeout=3000)
         c.run(Command.SETTINGS)
         window = c.settings_window
         qtbot.waitUntil(lambda: foreground() == int(window.winId()), timeout=3000)
@@ -65,10 +65,10 @@ def test_own_hotkeys_are_recorded_and_saved_ones_work(qtbot, qapp, tmp_path):
         capture.setFocus()
         qtbot.waitUntil(capture.hasFocus, timeout=2000)
 
-        c.history_window.hide()
-        press(KEYS["last_result"])  # snapocr's own, paused while the window is open
-        qtbot.waitUntil(lambda: capture.text() == KEYS["last_result"], timeout=2000)
-        assert not c.history_window.isVisible()
+        c.popup.hide()
+        press(KEYS["translate_text"])  # snapocr's own, paused while the window is open
+        qtbot.waitUntil(lambda: capture.text() == KEYS["translate_text"], timeout=2000)
+        assert not c.popup.isVisible()
         press(KEYS["capture"])
         qtbot.waitUntil(lambda: capture.text() == KEYS["capture"], timeout=2000)
         assert c.overlays == ()

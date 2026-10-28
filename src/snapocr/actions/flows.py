@@ -2,7 +2,7 @@
 
 Synchronous; run on a worker thread.
 
-Every OCR or translate run yields exactly one ``HistoryRecord`` (F7-6). The
+Every OCR or screenshot translate run yields exactly one ``RunRecord`` (F12-1). The
 clipboard changes only on success. Only ``OcrError`` and ``TranslationError``
 are handled here; anything else propagates to the job runner (WI-11).
 """
@@ -29,7 +29,7 @@ from snapocr.actions.outcomes import (
     ClipboardText,
     Done,
     Failed,
-    HistoryRecord,
+    RunRecord,
     NoClipboardChange,
     Notice,
     OcrStage,
@@ -48,7 +48,7 @@ from snapocr.translators.types import TargetLang, Translator
 
 _log = logging.getLogger(__name__)
 
-# Plan A1: the "raw" OCR text in F10 is layout only, without replacements.
+# Plan A1: the "raw" OCR text of a record is layout only, without replacements.
 _LAYOUT_ONLY = PostprocessOptions(paragraphs=False, spacing=False, punctuation=False)
 
 
@@ -62,7 +62,7 @@ class FlowDeps:
 
 
 def capture_flow(png: bytes) -> Outcome:
-    """F7-1: the PNG goes to the clipboard; no history record."""
+    """F7-1: the PNG goes to the clipboard; no record."""
     return Outcome(ClipboardPng(png), Notice("已复制截图", ""), None)
 
 
@@ -73,11 +73,11 @@ def _recognize(png: bytes, deps: FlowDeps) -> OcrResult | Outcome:
     except EngineLoadError as err:
         # F7-4: the full story (paths, fix command, cause) goes to the log; never OCR text.
         _log.warning("OCR engine failed to load: %s", err)
-        return Outcome(NoClipboardChange(), engine_failed_notice(err, deps.log_file), HistoryRecord(png, "", "", error=str(err)))
+        return Outcome(NoClipboardChange(), engine_failed_notice(err, deps.log_file), RunRecord(png, "", "", error=str(err)))
     try:
         return engine.recognize(png)
     except OcrError as err:
-        return Outcome(NoClipboardChange(), ocr_failed_notice(err), HistoryRecord(png, "", "", error=str(err)))
+        return Outcome(NoClipboardChange(), ocr_failed_notice(err), RunRecord(png, "", "", error=str(err)))
 
 
 def _ocr(png: bytes, deps: FlowDeps, *, code: bool = False) -> OcrStage | Outcome:
@@ -91,7 +91,7 @@ def _ocr(png: bytes, deps: FlowDeps, *, code: bool = False) -> OcrStage | Outcom
     raw = postprocess(result, _LAYOUT_ONLY)
     text = code_text(result) if code else postprocess(result, deps.options, deps.replacements)
     if not text:
-        return Outcome(NoClipboardChange(), ocr_empty_notice(), HistoryRecord(png, raw, text))
+        return Outcome(NoClipboardChange(), ocr_empty_notice(), RunRecord(png, raw, text))
     return OcrStage(png, raw, text)
 
 
@@ -101,7 +101,7 @@ def ocr_flow(png: bytes, deps: FlowDeps) -> Outcome:
     if isinstance(stage, Outcome):
         return stage
     notice = ocr_ok_notice(stage.text, deps.show_text)
-    return Outcome(ClipboardText(stage.text), notice, HistoryRecord(png, stage.raw, stage.text))
+    return Outcome(ClipboardText(stage.text), notice, RunRecord(png, stage.raw, stage.text))
 
 
 def code_ocr_flow(png: bytes, deps: FlowDeps) -> Outcome:
@@ -110,7 +110,7 @@ def code_ocr_flow(png: bytes, deps: FlowDeps) -> Outcome:
     if isinstance(stage, Outcome):
         return stage
     notice = code_ok_notice(stage.text, deps.show_text)
-    return Outcome(ClipboardText(stage.text), notice, HistoryRecord(png, stage.raw, stage.text))
+    return Outcome(ClipboardText(stage.text), notice, RunRecord(png, stage.raw, stage.text))
 
 
 def table_ocr_flow(png: bytes, deps: FlowDeps) -> Outcome:
@@ -124,12 +124,12 @@ def table_ocr_flow(png: bytes, deps: FlowDeps) -> Outcome:
     raw = postprocess(result, _LAYOUT_ONLY)
     cells = table_cells(result)
     if not cells:
-        return Outcome(NoClipboardChange(), ocr_empty_notice(), HistoryRecord(png, raw, ""))
+        return Outcome(NoClipboardChange(), ocr_empty_notice(), RunRecord(png, raw, ""))
     markdown = to_markdown(cells)
     return Outcome(
         ClipboardTable(markdown, to_html(cells)),
         table_ok_notice(len(cells), len(cells[0])),
-        HistoryRecord(png, raw, markdown),
+        RunRecord(png, raw, markdown),
     )
 
 
@@ -158,16 +158,16 @@ def translate_stage(stage: OcrStage, translator: Translator, target: TargetLang 
         return TranslateOutcome(
             NoClipboardChange(),
             Failed(stage.text, message),
-            HistoryRecord(stage.png, stage.raw, stage.text, error=message) if keep else None,
+            RunRecord(stage.png, stage.raw, stage.text, error=message) if keep else None,
         )
     if result.skipped:  # plan A3
         return TranslateOutcome(
             NoClipboardChange(),
             Failed(stage.text, NOTHING_TO_TRANSLATE),
-            HistoryRecord(stage.png, stage.raw, stage.text, error=NOTHING_TO_TRANSLATE) if keep else None,
+            RunRecord(stage.png, stage.raw, stage.text, error=NOTHING_TO_TRANSLATE) if keep else None,
         )
     return TranslateOutcome(
         ClipboardText(result.text),
         Done(stage.text, result.text),
-        HistoryRecord(stage.png, stage.raw, stage.text, translation=result.text) if keep else None,
+        RunRecord(stage.png, stage.raw, stage.text, translation=result.text) if keep else None,
     )

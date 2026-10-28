@@ -24,8 +24,8 @@ COMMAND_LABELS: Mapping[Command, str] = MappingProxyType(
     {
         Command.CAPTURE: "截图",
         Command.OCR: "OCR",
-        Command.TRANSLATE: "翻译",
-        Command.LAST_RESULT: "上次结果",
+        Command.TRANSLATE: "截图翻译",
+        Command.TRANSLATE_TEXT: "文字翻译",
         Command.SETTINGS: "设置…",
         Command.OPEN_CONFIG: "打开配置文件",
         Command.QUIT: "退出",
@@ -79,7 +79,7 @@ def engine_failed_notice(err: EngineLoadError, log_file: Path) -> Notice:
     """A short reason, then the log file (F7-4, M3 WI-9).
 
     The fix command, every model path and the cause are in the log (written by
-    ``actions.flows``) and in the "last result" record, not here: the real fix
+    ``actions.flows``; debug mode also has them in its record), not here: the real fix
     command alone is about 200 code points. The log path always shows whole;
     the reason is shortened to make room for it.
     """

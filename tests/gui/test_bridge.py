@@ -13,7 +13,6 @@ import threading
 import pytest
 
 from snapocr.actions.flows import FlowDeps
-from snapocr.actions.history import ResultHistory
 from snapocr.actions.runner import JobRunner, OcrDone, TranslateDone, TranslateStarted, ocr_job, translate_job
 from snapocr.engines.types import OcrResult
 from snapocr.gui.bridge import EventBridge
@@ -70,7 +69,7 @@ def test_runner_events_arrive_on_gui_thread_in_order(qtbot, bridge):
     seen = []
     bridge.event.connect(lambda e: seen.append((e, threading.get_ident())))
     deps = FlowDeps(holder_for(OcrResult((rect("你好", 0, 0, 40, 20),))), PostprocessOptions(), Replacements.from_mapping({}))
-    runner = JobRunner(bridge.post, ResultHistory())
+    runner = JobRunner(bridge.post)
     try:
         runner.submit(ocr_job(PNG, deps))
         runner.submit(translate_job(PNG, deps, ScriptedTranslator()))

@@ -29,7 +29,7 @@ IDS = {
     Command.CAPTURE: 1,
     Command.OCR: 2,
     Command.TRANSLATE: 3,
-    Command.LAST_RESULT: 4,
+    Command.TRANSLATE_TEXT: 4,
     Command.OPEN_CONFIG: 5,
     Command.QUIT: 6,
     Command.SETTINGS: 7,  # M3 WI-6: added at the end
@@ -41,13 +41,13 @@ DEFAULTS = {
     Command.CAPTURE: parse_hotkey("Alt+1"),
     Command.OCR: parse_hotkey("Alt+2"),
     Command.TRANSLATE: parse_hotkey("Alt+3"),
-    Command.LAST_RESULT: parse_hotkey("Alt+4"),
+    Command.TRANSLATE_TEXT: parse_hotkey("Alt+4"),
 }
 
 
 def test_command_members():
     assert [c.name for c in Command] == list(n.name for n in IDS)
-    assert [c.value for c in Command] == ["capture", "ocr", "translate", "last_result", "open_config", "quit",
+    assert [c.value for c in Command] == ["capture", "ocr", "translate", "translate_text", "open_config", "quit",
                                          "settings", "code_ocr", "table_ocr"]
 
 
@@ -61,7 +61,7 @@ def test_second_of_four_taken_by_other_program():
     table.preoccupy(MOD_ALT, 0x32)
     report = register_all(DEFAULTS, table.register)
     assert report == RegistrationReport(
-        registered={1: Command.CAPTURE, 3: Command.TRANSLATE, 4: Command.LAST_RESULT},
+        registered={1: Command.CAPTURE, 3: Command.TRANSLATE, 4: Command.TRANSLATE_TEXT},
         failed=[HotkeyFailure(Command.OCR, "Alt+2", ERROR_HOTKEY_ALREADY_REGISTERED)],
     )
     assert table.snapshot() == {
@@ -129,7 +129,7 @@ def test_same_combination_twice_later_command_fails():
 
 def test_other_error_codes_reported_as_given():
     report = register_all(DEFAULTS, lambda i, m, v: 5 if i == 3 else 0)
-    assert report.registered == {1: Command.CAPTURE, 2: Command.OCR, 4: Command.LAST_RESULT}
+    assert report.registered == {1: Command.CAPTURE, 2: Command.OCR, 4: Command.TRANSLATE_TEXT}
     assert report.failed == [HotkeyFailure(Command.TRANSLATE, "Alt+3", 5)]
 
 

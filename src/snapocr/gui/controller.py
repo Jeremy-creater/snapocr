@@ -1,4 +1,4 @@
-"""Application controller: commands, capture sessions, jobs and what they show (F5, F7, F8, F9-3, F10, F11).
+"""Application controller: commands, capture sessions, jobs and what they show (F5, F7, F8, F9-3, F11, F19).
 
 The capture action's overlays are in annotation mode (F14); the last style
 picked there is remembered for the next capture, in memory only (M4 plan D13).
@@ -21,12 +21,11 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer
-from PySide6.QtGui import QImage
+from PySide6.QtGui import QCursor, QGuiApplication, QImage
 
 from snapocr.actions import messages
 from snapocr.actions.debug import DEBUG_DIR, DebugDump
 from snapocr.actions.flows import FlowDeps, capture_flow
-from snapocr.actions.history import ResultHistory
 from snapocr.actions.outcomes import Failed, Outcome, Translating
 from snapocr.actions.saving import save_flow, suggest_path
 from snapocr.actions.runner import (
@@ -47,11 +46,10 @@ from snapocr.config.files import load_config_file
 from snapocr.config.schema import AppConfig, ConfigIssue
 from snapocr.config.settings import Settings, apply, changes, check, settings_of
 from snapocr.config.writer import ConfigWriteError, write_changes
-from snapocr.geometry import Rect, crop_box, logical_rect, screen_containing
+from snapocr.geometry import Rect, center_in, crop_box, logical_rect, screen_containing
 from snapocr.gui import clipboard
 from snapocr.gui.boundaries import Autostart, Capture, CaptureError, CaptureProvider, HotkeyBackend, Notifier
 from snapocr.gui.bridge import EventBridge
-from snapocr.gui.history_window import LastResultWindow
 from snapocr.gui.imageops import crop, encode_png
 from snapocr.gui.marks_paint import render_marked
 from snapocr.gui.overlay import OverlaySession, SelectionOverlay
@@ -119,15 +117,13 @@ class AppController(QObject):
         self._quitting = False
         self._paused = False  # hotkeys released while the settings window is open (plan D5)
 
-        self.history = ResultHistory()
         self.bridge = EventBridge(self)
         self.bridge.event.connect(self._on_event)
         self._debug_dir = debug_dir
         on_record = DebugDump(debug_dir) if config.debug else None  # F12: read once at start
-        self.runner = JobRunner(self.bridge.post, self.history, on_record)
+        self.runner = JobRunner(self.bridge.post, on_record)
         self.popup = TranslationPopup()
         self.popup.translate_requested.connect(self._translate_text)
-        self.history_window = LastResultWindow(self.history)
         self.menu = build_tray_menu(config.hotkeys, self._on_menu)
         self.settings_window = SettingsWindow()
         self.settings_window.save_requested.connect(self._save_settings)
@@ -178,8 +174,8 @@ class AppController(QObject):
             return
         if command in _CAPTURE_COMMANDS:
             self._begin_capture(command)
-        elif command is Command.LAST_RESULT:
-            self.history_window.show_latest()
+        elif command is Command.TRANSLATE_TEXT:
+            self._open_translation_window()
         elif command is Command.SETTINGS:
             self._open_settings()
         elif command is Command.OPEN_CONFIG:
@@ -261,6 +257,19 @@ class AppController(QObject):
             available = cap.work_areas.get(screen.name, screen.logical)
             self._anchors[job_id] = (logical_rect(screen, rect), available)
 
+    def _open_translation_window(self) -> None:
+        """F19-3: centred on the screen under the mouse when hidden; focus, source selected."""
+        popup = self.popup
+        if not popup.isVisible():
+            screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+            g = screen.availableGeometry()
+            r = center_in((popup.width(), popup.height()), Rect(g.x(), g.y(), g.width(), g.height()))
+            popup.setGeometry(r.x, r.y, r.w, r.h)
+            popup.show()
+        popup.raise_()
+        popup.activateWindow()
+        popup.focus_source()
+
     def _translate_text(self, text: str, target: str | None) -> None:
         """F19-5: the window's source box, translated where the window is (no anchor)."""
         if not self._quitting:
@@ -289,7 +298,6 @@ class AppController(QObject):
         if isinstance(event, OcrDone):
             self._anchors.pop(event.job_id, None)
             self._land(event.outcome)
-            self.history_window.on_new_result()
         elif isinstance(event, TranslateStarted):
             # Recognition runs FIFO on one worker (F18-1 moves only the model request
             # off it): this is always the newest translate job. A screenshot job's anchor
@@ -305,7 +313,6 @@ class AppController(QObject):
             self._anchors.pop(event.job_id, None)
             self.popup.apply(event.job_id, event.outcome.popup)
             clipboard.apply(event.outcome.clipboard)
-            self.history_window.on_new_result()
         elif isinstance(event, JobCrashed):
             self._anchors.pop(event.job_id, None)
             self._notifier.notify(messages.job_crashed_notice(event.exc_type_name))
@@ -437,6 +444,5 @@ class AppController(QObject):
         for pin in tuple(self._pins):
             pin.close()
         self.popup.hide()
-        self.history_window.hide()
         self.settings_window.hide()
         self._quit_app()

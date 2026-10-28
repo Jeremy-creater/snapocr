@@ -32,7 +32,7 @@ _HOTKEY_HELP = {
     "capture": "截图，图片复制到剪贴板",
     "ocr": "截图并识别文字，文字复制到剪贴板",
     "translate": "截图、识别并翻译，译文复制到剪贴板",
-    "last_result": "显示最近的结果",
+    "translate_text": "打开翻译窗口，手动输入文字翻译",
     "code_ocr": "截图识别代码，保留换行和缩进，复制到剪贴板",
     "table_ocr": "截图识别表格，表格（HTML）和 Markdown 文本一起复制到剪贴板",
 }

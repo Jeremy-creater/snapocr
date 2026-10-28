@@ -21,6 +21,7 @@ from snapocr.config.schema import (
     DEFAULT_HOTKEYS,
     HOTKEY_COMMANDS,
     KNOWN_KEYS,
+    RENAMED_KEYS,
     AppConfig,
     ConfigIssue,
     default_save_dir,
@@ -59,7 +60,9 @@ def _section(data: Mapping, name: str, issues: _Issues) -> Mapping:
         return {}
     known = KNOWN_KEYS[name]
     for key in table:
-        if key not in known:
+        if (name, key) in RENAMED_KEYS:
+            issues.add(f"{name}.{key}", f"renamed to {RENAMED_KEYS[name, key]!r}, ignored")
+        elif key not in known:
             _unknown(issues, f"{name}.{key}", key, known, "key")
     return {k: table[k] for k in known if k in table}
 

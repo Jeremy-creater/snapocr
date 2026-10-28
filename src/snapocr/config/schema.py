@@ -14,9 +14,9 @@ from snapocr.postprocess import PostprocessOptions, Replacements
 from snapocr.translators.config import TranslatorConfig
 
 # Order: default hotkeys Alt+1, Alt+2, ...; tray menu and settings window rows
-# (CODE_OCR: M3 F13-1; TABLE_OCR: M4 F16-1).
+# (CODE_OCR: M3 F13-1; TABLE_OCR: M4 F16-1; TRANSLATE_TEXT replaced LAST_RESULT in M6, F19-1).
 HOTKEY_COMMANDS = (
-    Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT, Command.CODE_OCR, Command.TABLE_OCR,
+    Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.TRANSLATE_TEXT, Command.CODE_OCR, Command.TABLE_OCR,
 )
 DEFAULT_HOTKEY_TEXT: Mapping[Command, str] = MappingProxyType(
     {c: f"Alt+{n}" for n, c in enumerate(HOTKEY_COMMANDS, 1)}
@@ -24,6 +24,9 @@ DEFAULT_HOTKEY_TEXT: Mapping[Command, str] = MappingProxyType(
 DEFAULT_HOTKEYS: Mapping[Command, Hotkey] = MappingProxyType(
     {c: parse_hotkey(t) for c, t in DEFAULT_HOTKEY_TEXT.items()}
 )
+
+# Old key -> its new name; reported as renamed and ignored (F19-1: the user's file is never changed).
+RENAMED_KEYS: Mapping[tuple[str, str], str] = MappingProxyType({("hotkeys", "last_result"): "translate_text"})
 
 # Section -> keys, in the order the template lists them (WI-7 checks the template against this).
 KNOWN_KEYS: Mapping[str, tuple[str, ...]] = MappingProxyType(

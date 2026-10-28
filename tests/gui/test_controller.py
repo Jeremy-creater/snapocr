@@ -20,9 +20,9 @@ Pinned here:
   TranslateStarted -> popup Translating, placed next to the selection inside
   the screen's work area (logical; the screen's logical rect if none given);
   TranslateDone -> popup state and clipboard (F7-5, F8). Each finished job
-  refreshes an open last-results window.
+  (The last-results window is gone since PRD v1.3, F19-8.)
 - JobCrashed -> "操作失败" notice; a popup waiting on that job shows Failed.
-- LAST_RESULT opens the last-results window on the newest entry (F10-1).
+- TRANSLATE_TEXT opens the translation window (F19-3; section at the end).
 - OPEN_CONFIG: a missing file is first created from the template (never
   overwriting); then ``open_file(path)`` and "修改后重启 snapocr 生效".
   Creation failure -> config-issues notice and nothing opened; ``open_file``
@@ -133,7 +133,7 @@ class Harness:
             qi.key(overlay, Qt.Key.Key_Return)
 
     def menu_action(self, command):
-        labels = {Command.CAPTURE: "截图", Command.OCR: "OCR", Command.TRANSLATE: "翻译", Command.LAST_RESULT: "上次结果",
+        labels = {Command.CAPTURE: "截图", Command.OCR: "OCR", Command.TRANSLATE: "截图翻译", Command.TRANSLATE_TEXT: "文字翻译",
                   Command.CODE_OCR: "代码 OCR", Command.TABLE_OCR: "表格 OCR", Command.SETTINGS: "设置…",
                   Command.QUIT: "退出"}
         return next(a for a in self.controller.menu.actions() if a.text().split("\t")[0] == labels[command])
@@ -159,7 +159,7 @@ def make(qtbot, tmp_path, clipboard):
 
 def test_start_registers_all_default_hotkeys(make):
     h = make()
-    assert sorted(h.table.ours) == sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT,
+    assert sorted(h.table.ours) == sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.TRANSLATE_TEXT,
                                                                  Command.CODE_OCR, Command.TABLE_OCR))
     assert h.notifier.notices == []
 
@@ -292,14 +292,15 @@ def test_menu_and_hotkey_give_the_same_result(make, clipboard):
     h.controller.handle_hotkey(hotkey_id(Command.OCR))
     h.select()
     h.qtbot.waitUntil(lambda: clipboard.text() == EXPECTED, timeout=WAIT)
-    via_hotkey = (clipboard.text(), len(h.controller.history.snapshot()))
+    via_hotkey = (clipboard.text(), h.titles()[-1])
     clipboard.setText(SENTINEL)
     h.menu_action(Command.OCR).trigger()
     assert h.controller.overlays == ()  # deferred until the menu has closed
     h.qtbot.waitUntil(lambda: len(h.controller.overlays) == 2, timeout=WAIT)
     h.select()
     h.qtbot.waitUntil(lambda: clipboard.text() == EXPECTED, timeout=WAIT)
-    assert (clipboard.text(), len(h.controller.history.snapshot()) - 1) == via_hotkey
+    assert (clipboard.text(), h.titles()[-1]) == via_hotkey
+    assert len(h.titles()) == 2
 
 
 # --- CODE OCR (M3 WI-14, PRD F13-1) ----------------------------------------------------------
@@ -315,7 +316,6 @@ def test_code_ocr_hotkey_puts_code_text_on_clipboard(make, clipboard):
     h.qtbot.waitUntil(lambda: clipboard.text() == CODE, timeout=WAIT)
     h.qtbot.waitUntil(lambda: h.titles() == ["已复制代码"], timeout=WAIT)
     assert h.notifier.notices[0].body == preview(CODE)
-    assert h.controller.history.snapshot()[-1].text == CODE
 
 
 def test_code_ocr_from_the_menu(make, clipboard):
@@ -351,7 +351,6 @@ def test_table_ocr_hotkey_puts_the_table_on_clipboard(make, clipboard):
     assert "<td>Pear</td><td>12</td>" in clipboard.mimeData().html()
     h.qtbot.waitUntil(lambda: h.titles() == ["已复制表格"], timeout=WAIT)
     assert h.notifier.notices[0].body == "2 行 × 2 列"
-    assert h.controller.history.snapshot()[-1].text == TABLE_MD
 
 
 def test_table_ocr_from_the_menu(make, clipboard):
@@ -423,31 +422,6 @@ def test_translator_crash_fails_the_popup(make, clipboard):
     assert clipboard.text() == SENTINEL
 
 
-# --- LAST_RESULT (F10-1) ------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("via", ["hotkey", "menu"])
-def test_last_result_opens_the_window(make, via):
-    h = make()
-    window = h.controller.history_window
-    if via == "hotkey":
-        h.controller.handle_hotkey(hotkey_id(Command.LAST_RESULT))
-    else:
-        h.menu_action(Command.LAST_RESULT).trigger()
-    assert window.isVisible()
-    assert window.empty_label.isVisible()
-
-
-def test_open_window_follows_new_results(make, clipboard):
-    h = make()
-    window = h.controller.history_window
-    h.controller.run(Command.LAST_RESULT)
-    h.controller.run(Command.OCR)
-    h.select()
-    h.qtbot.waitUntil(lambda: window.position_label.text() == "1 / 1", timeout=WAIT)
-    assert window.text_view.toPlainText() == EXPECTED
-
-
 # --- OPEN_CONFIG (F9) -----------------------------------------------------------------------------
 
 
@@ -490,13 +464,13 @@ def test_open_config_open_failure_is_reported(make):
 
 def test_quit_releases_everything(make):
     h = make()
-    h.controller.run(Command.LAST_RESULT)
+    h.controller.run(Command.TRANSLATE_TEXT)
     h.controller.run(Command.CAPTURE)
     overlays = h.controller.overlays
     h.menu_action(Command.QUIT).trigger()
     assert h.table.ours == {}
     assert h.quits == [True]
-    assert not h.controller.history_window.isVisible()
+    assert not h.controller.popup.isVisible()
     assert not any(o.isVisible() for o in overlays)
     with pytest.raises(RuntimeError, match="shut down"):
         h.controller.runner.submit(lambda: iter(()))
@@ -531,7 +505,7 @@ def test_outcome_without_notice_changes_clipboard_silently(make, clipboard):
 
 def test_registered_commands_lists_live_hotkeys(make):
     h = make(preoccupy=["Alt+3"])
-    live = (Command.CAPTURE, Command.OCR, Command.LAST_RESULT, Command.CODE_OCR, Command.TABLE_OCR)
+    live = (Command.CAPTURE, Command.OCR, Command.TRANSLATE_TEXT, Command.CODE_OCR, Command.TABLE_OCR)
     assert h.controller.registered_commands() == live
     h.controller.run(Command.QUIT)
     assert h.controller.registered_commands() == live  # what start() got
@@ -561,7 +535,7 @@ from PySide6.QtGui import QKeyEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 M = Qt.KeyboardModifier
-DEFAULT_IDS = sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.LAST_RESULT,
+DEFAULT_IDS = sorted(hotkey_id(c) for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.TRANSLATE_TEXT,
                                            Command.CODE_OCR, Command.TABLE_OCR))
 
 
@@ -603,7 +577,7 @@ def test_menu_opens_settings_with_current_values(make):
     window = h.controller.settings_window
     h.qtbot.waitUntil(window.isVisible)
     assert [window.hotkey_edits[c].text() for c in (Command.CAPTURE, Command.OCR, Command.TRANSLATE,
-                                                    Command.LAST_RESULT)] == ["Alt+1", "Alt+2", "Alt+3", "Alt+4"]
+                                                    Command.TRANSLATE_TEXT)] == ["Alt+1", "Alt+2", "Alt+3", "Alt+4"]
     assert window.hotkey_edits[Command.CODE_OCR].text() == "Alt+5"  # M3 WI-14
     assert window.hotkey_edits[Command.TABLE_OCR].text() == "Alt+6"  # M4 WI-15
     assert window.autostart_box.isChecked()
@@ -960,10 +934,11 @@ def test_debug_on_reminds_at_start_and_saves_each_result(make, clipboard):
     h.qtbot.waitUntil(lambda: len(debug_files(h)) == 2, timeout=WAIT)
     png_name, txt_name = debug_files(h)
     assert png_name.endswith("-2.png") and txt_name == png_name[:-4] + ".txt"  # job 1 is the warm-up
-    [record] = h.controller.history.snapshot()
-    assert (h.debug_dir / png_name).read_bytes() == record.png
-    assert (h.debug_dir / txt_name).read_text(encoding="utf-8") == debug_text(record)
-    assert EXPECTED in debug_text(record)
+    # The last-results history that held the record is gone (F19-8): check the files themselves.
+    shot = decode_png((h.debug_dir / png_name).read_bytes())
+    assert (shot.width(), shot.height()) == (100, 60)
+    text = (h.debug_dir / txt_name).read_text(encoding="utf-8")
+    assert text.startswith("## OCR 原文\n") and f"## 后处理文本\n{EXPECTED}\n" in text
 
 
 def test_debug_saves_translations_too(make, clipboard):
@@ -1174,7 +1149,7 @@ def test_relative_save_dir_is_refused(make):
 #   preset to ``snapocr_YYYYMMDD_HHMMSS.png`` in ``config.save_dir`` (created
 #   when missing). Picking a file writes the selection with its marks as a PNG
 #   there, puts the same PNG on the clipboard and shows no notice (PRD v1.1).
-#   Nothing goes into "上次结果". Another folder picked in the dialog does not
+#   Another folder picked in the dialog does not
 #   change the save folder setting.
 # - Cancelling the dialog writes nothing and keeps the capture going.
 # - A failed save still puts the PNG on the clipboard and shows "保存失败".
@@ -1261,7 +1236,6 @@ def test_save_writes_the_marked_png_and_copies_it(make, clipboard):
     assert bytes(clipboard.mimeData().data("image/png")) == path.read_bytes()
     assert h.notifier.notices == []  # PRD v1.1: no notice on success
     assert h.controller.overlays == ()
-    assert h.controller.history.snapshot() == ()
 
 
 def test_ctrl_s_saves_too(make, clipboard):
@@ -1488,3 +1462,4 @@ def test_a_request_after_quit_does_nothing(make, clipboard):
     h.qtbot.wait(50)
     assert h.controller.popup.state is None
     assert clipboard.text() == SENTINEL
+

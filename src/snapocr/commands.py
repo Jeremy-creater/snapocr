@@ -11,7 +11,7 @@ class Command(Enum):
     CAPTURE = "capture"
     OCR = "ocr"
     TRANSLATE = "translate"
-    LAST_RESULT = "last_result"
+    TRANSLATE_TEXT = "translate_text"  # M6 (F19-1): in the place of LAST_RESULT, so the id stays 4
     OPEN_CONFIG = "open_config"
     QUIT = "quit"
     SETTINGS = "settings"  # M3: added last so the existing ids stay

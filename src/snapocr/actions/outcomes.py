@@ -68,8 +68,12 @@ ClipboardAction = ClipboardText | ClipboardPng | ClipboardTable | NoClipboardCha
 
 
 @dataclass(frozen=True)
-class HistoryRecord:
-    """One entry of "last results" (F7-6, F10). ``raw`` is layout-only text (plan A1)."""
+class RunRecord:
+    """What one OCR or screenshot translation saw and produced, for debug mode (F12-1).
+
+    ``raw`` is layout-only text (plan A1). "Last results" (F10), the other user, was
+    removed in M6 (F19-8).
+    """
 
     png: bytes
     raw: str
@@ -82,7 +86,7 @@ class HistoryRecord:
 class Outcome:
     clipboard: ClipboardAction
     notice: Notice | None
-    record: HistoryRecord | None
+    record: RunRecord | None
 
 
 # Popup states (F8).
@@ -119,4 +123,4 @@ class OcrStage:
 class TranslateOutcome:
     clipboard: ClipboardAction
     popup: Done | Failed
-    record: HistoryRecord | None  # None for typed text (F19-5)
+    record: RunRecord | None  # None for typed text (F19-5)

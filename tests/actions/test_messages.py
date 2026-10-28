@@ -167,8 +167,8 @@ def test_translation_error_text():
 
 def test_command_labels():
     assert COMMAND_LABELS == {
-        Command.CAPTURE: "截图", Command.OCR: "OCR", Command.TRANSLATE: "翻译",
-        Command.LAST_RESULT: "上次结果", Command.SETTINGS: "设置…", Command.OPEN_CONFIG: "打开配置文件",
+        Command.CAPTURE: "截图", Command.OCR: "OCR", Command.TRANSLATE: "截图翻译",
+        Command.TRANSLATE_TEXT: "文字翻译", Command.SETTINGS: "设置…", Command.OPEN_CONFIG: "打开配置文件",
         Command.QUIT: "退出", Command.CODE_OCR: "代码 OCR",
         Command.TABLE_OCR: "表格 OCR",
     }
@@ -180,7 +180,7 @@ def test_hotkey_failed_notice_names_hotkey_and_action():
     assert n.title == "有 2 个热键注册失败"
     lines = n.body.split("\n")
     assert lines[0] == "Alt+2（OCR）：已被其他软件占用"
-    assert lines[1] == "Alt+3（翻译）：注册失败，错误码 5"
+    assert lines[1] == "Alt+3（截图翻译）：注册失败，错误码 5"
     assert "其余热键照常工作" in n.body
     assert "config.local.toml" in n.body
 
@@ -292,12 +292,12 @@ def test_hotkey_failed_notice_points_to_settings():
 
 def test_hotkey_failure_line():
     assert hotkey_failure_line(HotkeyFailure(Command.CAPTURE, "Ctrl+Q", 1409)) == "Ctrl+Q（截图）：已被其他软件占用"
-    assert hotkey_failure_line(HotkeyFailure(Command.TRANSLATE, "Ctrl+Q", 87)) == "Ctrl+Q（翻译）：注册失败，错误码 87"
+    assert hotkey_failure_line(HotkeyFailure(Command.TRANSLATE, "Ctrl+Q", 87)) == "Ctrl+Q（截图翻译）：注册失败，错误码 87"
 
 
 def test_settings_problem_texts():
-    dup = DuplicateHotkey(Command.CAPTURE, Command.LAST_RESULT, parse_hotkey("alt+1"))
-    assert settings_problem_text(dup) == "「截图」和「上次结果」用了同一个热键 Alt+1。"
+    dup = DuplicateHotkey(Command.CAPTURE, Command.TRANSLATE_TEXT, parse_hotkey("alt+1"))
+    assert settings_problem_text(dup) == "「截图」和「文字翻译」用了同一个热键 Alt+1。"
     assert settings_problem_text(BadModel("must be a non-empty str")) == "模型名不能用：must be a non-empty str"
     assert settings_problem_text(BadTargetLang("fr")) == "目标语言只能是自动、中文或英文。"
 

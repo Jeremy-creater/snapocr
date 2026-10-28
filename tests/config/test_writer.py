@@ -240,7 +240,7 @@ def test_no_changes_still_valid(tmp_path):
 
 # --- property: template with random active keys, random settings ----------------------
 
-_WINDOW_KEYS = {"capture", "ocr", "translate", "last_result", "code_ocr", "table_ocr", "paragraphs", "spacing", "punctuation",
+_WINDOW_KEYS = {"capture", "ocr", "translate", "translate_text", "code_ocr", "table_ocr", "paragraphs", "spacing", "punctuation",
                 "model", "target_lang"}
 
 

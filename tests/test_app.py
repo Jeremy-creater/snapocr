@@ -23,7 +23,6 @@ from pathlib import Path
 import pytest
 
 from snapocr.actions.flows import FlowDeps
-from snapocr.actions.history import ResultHistory
 from snapocr.actions.runner import JobRunner, ocr_job
 from snapocr.app import DEFAULT_LOG_DIR, LOG_FILE_NAME, install_excepthook, parse_args, safe_traceback, setup_logging
 from snapocr.config.files import default_config_path
@@ -150,7 +149,7 @@ def test_ocr_jobs_never_log_the_ocr_text(caplog):
             done.set()
 
     with caplog.at_level(logging.DEBUG):
-        runner = JobRunner(on_event, ResultHistory())
+        runner = JobRunner(on_event)
         try:
             for d in (deps_ok, deps_fail, deps_crash):
                 runner.submit(ocr_job(b"png", d))

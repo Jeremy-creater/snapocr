@@ -18,7 +18,6 @@ import threading
 import time
 
 from snapocr.actions.flows import FlowDeps
-from snapocr.actions.history import ResultHistory
 from snapocr.actions.runner import JobCrashed, JobRunner, OcrDone, TranslateDone, TranslateStarted, ocr_job, translate_job
 from snapocr.engines.types import OcrResult
 from snapocr.postprocess import PostprocessOptions, Replacements
@@ -91,7 +90,7 @@ def done_ids(events, kind):
 
 def test_ocr_is_not_held_up_by_a_translation_waiting_for_the_model():
     log, tr = Events(), GatedTranslator()
-    runner = JobRunner(log, ResultHistory())
+    runner = JobRunner(log)
     try:
         t = runner.submit(translate_job(PNG, deps("原文"), tr))
         o = runner.submit(ocr_job(PNG, deps("另一段")))
@@ -112,7 +111,7 @@ def test_ocr_is_not_held_up_by_a_translation_waiting_for_the_model():
 
 def test_model_requests_run_one_at_a_time_in_order():
     log, tr = Events(), GatedTranslator()
-    runner = JobRunner(log, ResultHistory())
+    runner = JobRunner(log)
     try:
         first = runner.submit(translate_job(PNG, deps("一"), tr))
         second = runner.submit(translate_job(PNG, deps("二"), tr))
@@ -140,7 +139,7 @@ class CrashingTranslator:
 
 def test_a_crash_in_the_model_request_ends_that_job_and_both_queues_go_on():
     log, tr = Events(), GatedTranslator()
-    runner = JobRunner(log, ResultHistory())
+    runner = JobRunner(log)
     try:
         bad = runner.submit(translate_job(PNG, deps("坏"), CrashingTranslator()))
         log.wait_for(lambda ev: bad in done_ids(ev, JobCrashed), "the crash")
@@ -156,7 +155,7 @@ def test_a_crash_in_the_model_request_ends_that_job_and_both_queues_go_on():
 
 def test_nothing_arrives_after_shutdown_when_the_model_answers_later():
     log, tr = Events(), GatedTranslator()
-    runner = JobRunner(log, ResultHistory())
+    runner = JobRunner(log)
     runner.submit(translate_job(PNG, deps("迟"), tr))
     log.wait_for(lambda ev: len(done_ids(ev, TranslateStarted)) == 1, "the recognition")
     t0 = time.monotonic()
@@ -170,7 +169,7 @@ def test_nothing_arrives_after_shutdown_when_the_model_answers_later():
 def test_both_workers_stop_on_shutdown():
     before = set(threading.enumerate())
     log, tr = Events(), GatedTranslator()
-    runner = JobRunner(log, ResultHistory())
+    runner = JobRunner(log)
     workers = [t for t in threading.enumerate() if t not in before]
     tr.gate("你好").set()
     runner.submit(translate_job(PNG, deps(), tr))
@@ -186,7 +185,7 @@ def test_a_second_ocr_stage_on_the_translate_worker_is_reported_and_the_job_goes
     from snapocr.actions.outcomes import ClipboardText, OcrStage, Outcome
 
     log = Events()
-    runner = JobRunner(log, ResultHistory())
+    runner = JobRunner(log)
     first, second = OcrStage(PNG, "a", "a"), OcrStage(PNG, "b", "b")
     try:
         runner.submit(lambda: iter([first, second, Outcome(ClipboardText("x"), None, None)]))

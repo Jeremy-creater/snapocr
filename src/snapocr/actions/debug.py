@@ -13,7 +13,7 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
-from snapocr.actions.outcomes import HistoryRecord
+from snapocr.actions.outcomes import RunRecord
 from snapocr.app import DEFAULT_LOG_DIR
 
 DEBUG_DIR = DEFAULT_LOG_DIR / "debug"
@@ -25,7 +25,7 @@ def debug_stem(now: datetime.datetime, job_id: int) -> str:
     return f"{now:%Y%m%d-%H%M%S}-{now.microsecond // 1000:03d}-{job_id}"
 
 
-def debug_text(record: HistoryRecord) -> str:
+def debug_text(record: RunRecord) -> str:
     parts = [f"## OCR 原文\n{record.raw}\n", f"## 后处理文本\n{record.text}\n"]
     if record.translation is not None:
         parts.append(f"## 译文\n{record.translation}\n")
@@ -41,7 +41,7 @@ class DebugDump:
         self._directory = directory
         self._clock = clock
 
-    def __call__(self, job_id: int, record: HistoryRecord) -> None:
+    def __call__(self, job_id: int, record: RunRecord) -> None:
         stem = debug_stem(self._clock(), job_id)
         try:
             self._directory.mkdir(parents=True, exist_ok=True)

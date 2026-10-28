@@ -27,7 +27,6 @@ from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QGuiApplication
 
 from snapocr.actions.flows import FlowDeps
-from snapocr.actions.history import ResultHistory
 from snapocr.actions.outcomes import Done, Failed, Translating
 from snapocr.actions.runner import JobRunner, TranslateDone, TranslateStarted, translate_job
 from snapocr.engines.types import OcrResult
@@ -213,7 +212,7 @@ def test_popup_stays_responsive_while_translation_blocks(qtbot, popup):
     bridge.event.connect(on_event)
     translator = BlockingTranslator()
     deps = FlowDeps(holder_for(OcrResult((rect("你好", 0, 0, 40, 20),))), PostprocessOptions(), Replacements.from_mapping({}))
-    runner = JobRunner(bridge.post, ResultHistory())
+    runner = JobRunner(bridge.post)
     try:
         runner.submit(translate_job(b"png", deps, translator))
         qtbot.waitUntil(lambda: popup.state == Translating("你好"), timeout=5000)

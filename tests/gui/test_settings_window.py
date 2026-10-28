@@ -1,7 +1,7 @@
 """M3 WI-5: the settings window (PRD F11-1, F11-3 window side; M3 plan D4, D5). Offscreen.
 
 Pinned here (beyond the plan text):
-- Rows in this order: five hotkeys (截图, OCR, 翻译, 上次结果, 代码 OCR; M3 WI-14), start at login,
+- Rows in this order: hotkeys (截图, OCR, 截图翻译, 文字翻译, 代码 OCR, 表格 OCR; M3 WI-14, PRD v1.3), start at login,
   target language (auto / zh / en), model name, the three post-processing switches.
 - "保存" emits ``save_requested(Settings, autostart)``; the model name is
   stripped; a hotkey field left empty (the hotkey was disabled) is left out.
@@ -57,7 +57,7 @@ def window(qtbot):
 
 def test_title_rows_and_hint(window):
     assert window.windowTitle() == "snapocr 设置"
-    assert [window.hotkey_label(c) for c in HOTKEY_COMMANDS] == ["截图", "OCR", "翻译", "上次结果", "代码 OCR",
+    assert [window.hotkey_label(c) for c in HOTKEY_COMMANDS] == ["截图", "OCR", "截图翻译", "文字翻译", "代码 OCR",
                                                                   "表格 OCR"]
     assert window.autostart_box.text() == "开机时自动启动 snapocr"
     assert [window.target_lang_box.itemData(i) for i in range(window.target_lang_box.count())] == ["auto", "zh", "en"]
@@ -120,7 +120,7 @@ def test_rejected_key_shows_problem_then_new_hotkey_clears(window):
     edit = window.hotkey_edits[Command.TRANSLATE]
     key(edit, Qt.Key.Key_Q)
     assert window.problems_label.isVisible()
-    assert window.problems_label.text().startswith("翻译：")
+    assert window.problems_label.text().startswith("截图翻译：")
     assert "Ctrl" in window.problems_label.text()
     key(edit, Qt.Key.Key_Q, Qt.KeyboardModifier.ControlModifier)
     assert not window.problems_label.isVisible()

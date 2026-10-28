@@ -82,12 +82,12 @@ def test_check_defaults_is_clean():
 
 
 def test_check_duplicate_pairs_in_command_order():
-    s = with_hotkeys(DEFAULTS, capture="Ctrl+Q", translate="Ctrl+Q", last_result="Ctrl+Q", ocr="Ctrl+W")
+    s = with_hotkeys(DEFAULTS, capture="Ctrl+Q", translate="Ctrl+Q", translate_text="Ctrl+Q", ocr="Ctrl+W")
     q = parse_hotkey("Ctrl+Q")
     assert check(s) == [
         DuplicateHotkey(Command.CAPTURE, Command.TRANSLATE, q),
-        DuplicateHotkey(Command.CAPTURE, Command.LAST_RESULT, q),
-        DuplicateHotkey(Command.TRANSLATE, Command.LAST_RESULT, q),
+        DuplicateHotkey(Command.CAPTURE, Command.TRANSLATE_TEXT, q),
+        DuplicateHotkey(Command.TRANSLATE, Command.TRANSLATE_TEXT, q),
     ]
 
 

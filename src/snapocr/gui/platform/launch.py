@@ -71,7 +71,7 @@ class RunningApp:
         # and the process then crashes on exit (found in WI-22).
         self.tray.icon.setContextMenu(None)
         c = self.controller
-        for obj in (c.popup, c.history_window, c.settings_window, c.menu, c):
+        for obj in (c.popup, c.settings_window, c.menu, c):
             obj.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 

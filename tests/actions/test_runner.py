@@ -11,8 +11,8 @@ Pinned here:
   yields anything else, or raises any ``Exception`` ends with
   ``JobCrashed(job_id, <exception type name>)``: ``IncompleteJobError`` for
   the first, ``TypeError`` for the second. The worker survives.
-- A terminal result's ``record`` is pushed to the history on the worker
-  thread before its event is delivered.
+- A terminal result's ``record`` goes to ``on_record`` on the worker
+  thread before its event is delivered (M6: the history it also went to is gone).
 - Warm-up (plan D2) ends with ``WarmedUp(ok)``; an ``EngineLoadError`` is
   ``ok=False``, not a crash, and leaves no record.
 - Job ids start at 1 and increase by one per submit.
@@ -46,11 +46,10 @@ from snapocr.actions.flows import (
     translate_ocr_stage,
     translate_stage,
 )
-from snapocr.actions.history import ResultHistory
 from snapocr.actions.outcomes import (
     ClipboardText,
     Done,
-    HistoryRecord,
+    RunRecord,
     NoClipboardChange,
     Notice,
     OcrStage,
@@ -76,7 +75,7 @@ from snapocr.engines.types import OcrResult
 from snapocr.postprocess import PostprocessOptions, Replacements
 from snapocr.translators.errors import TranslationError, TranslationErrorKind
 from snapocr.translators.types import TranslationResult
-from support.fake_actions import ScriptedEngine, ScriptedTranslator, holder_for
+from support.fake_actions import RecordLog, ScriptedEngine, ScriptedTranslator, holder_for
 from support.pp_strategies import rect
 
 PNG = b"\x89PNG\r\n\x1a\nfake"
@@ -129,7 +128,7 @@ def make_runner():
 
     def make(on_event=None, history=None):
         collector = on_event if on_event is not None else Collector()
-        runner = JobRunner(collector, history if history is not None else ResultHistory())
+        runner = JobRunner(collector, history)
         runners.append(runner)
         return runner, collector
 
@@ -139,7 +138,7 @@ def make_runner():
 
 
 def outcome_job(tag: str, delay: float = 0.0):
-    record = HistoryRecord(b"", tag, tag)
+    record = RunRecord(b"", tag, tag)
 
     def job():
         if delay:
@@ -170,7 +169,7 @@ def test_three_jobs_complete_in_submission_order(make_runner):
 
 
 def test_ocr_job_delivers_ocr_flow_outcome_and_records_it(make_runner):
-    history = ResultHistory()
+    history = RecordLog()
     runner, col = make_runner(history=history)
     d = deps()
     job_id = runner.submit(ocr_job(PNG, d))
@@ -183,7 +182,7 @@ def test_ocr_job_delivers_ocr_flow_outcome_and_records_it(make_runner):
 
 def test_code_ocr_job_delivers_code_flow_outcome_and_records_it(make_runner):
     # M3 WI-14 (F13-1): same event as OCR, with the code flow's outcome.
-    history = ResultHistory()
+    history = RecordLog()
     runner, col = make_runner(history=history)
     d = deps()
     job_id = runner.submit(code_ocr_job(PNG, d))
@@ -195,7 +194,7 @@ def test_code_ocr_job_delivers_code_flow_outcome_and_records_it(make_runner):
 
 
 def test_translate_job_emits_started_with_postprocessed_text_then_done(make_runner):
-    history = ResultHistory()
+    history = RecordLog()
     runner, col = make_runner(history=history)
     d = deps()
     job_id = runner.submit(translate_job(PNG, d, ScriptedTranslator()))
@@ -244,7 +243,7 @@ def test_callbacks_run_on_the_worker_threads(make_runner):
 
 
 def test_runtime_error_crashes_one_job_and_later_jobs_complete(make_runner):
-    history = ResultHistory()
+    history = RecordLog()
     runner, col = make_runner(history=history)
 
     def bad():
@@ -306,7 +305,7 @@ def test_job_without_terminal_result_is_incomplete(make_runner):
 
 @pytest.mark.parametrize("value", ["not a result", None, WarmedUp(99, True)], ids=["str", "none", "event"])
 def test_any_other_yielded_value_is_a_type_error_crash(make_runner, value):
-    history = ResultHistory()
+    history = RecordLog()
     runner, col = make_runner(history=history)
     runner.submit(lambda: iter([value]))
     assert col.wait_terminal(1) == [JobCrashed(1, "TypeError")]
@@ -320,15 +319,15 @@ def test_job_returning_a_non_iterable_is_a_type_error_crash(make_runner):
 
 
 def test_results_after_the_terminal_one_are_not_consumed(make_runner):
-    history = ResultHistory()
+    history = RecordLog()
     runner, col = make_runner(history=history)
     consumed = []
 
     def job():
         consumed.append(1)
-        yield Outcome(ClipboardText("first"), None, HistoryRecord(b"", "1", "1"))
+        yield Outcome(ClipboardText("first"), None, RunRecord(b"", "1", "1"))
         consumed.append(2)
-        yield Outcome(ClipboardText("second"), None, HistoryRecord(b"", "2", "2"))
+        yield Outcome(ClipboardText("second"), None, RunRecord(b"", "2", "2"))
 
     runner.submit(job)
     runner.submit(outcome_job("next"))
@@ -338,16 +337,16 @@ def test_results_after_the_terminal_one_are_not_consumed(make_runner):
     assert [r.text for r in history.snapshot()] == ["next", "1"]
 
 
-def test_outcome_without_record_adds_nothing_to_history(make_runner):
-    history = ResultHistory()
+def test_outcome_without_record_hands_nothing_to_on_record(make_runner):
+    history = RecordLog()
     runner, col = make_runner(history=history)
     runner.submit(lambda: iter([Outcome(NoClipboardChange(), Notice("t", ""), None)]))
     col.wait_terminal(1)
     assert history.snapshot() == ()
 
 
-def test_record_is_in_history_when_its_event_is_delivered(make_runner):
-    history = ResultHistory()
+def test_record_is_handed_over_before_its_event_is_delivered(make_runner):
+    history = RecordLog()
     col = Collector()
     seen = []
 
@@ -370,7 +369,7 @@ def test_warmup_success(make_runner):
 
 
 def test_warmup_failure_is_not_a_crash_and_leaves_no_record(make_runner):
-    history = ResultHistory()
+    history = RecordLog()
     runner, col = make_runner(history=history)
     holder = holder_for(RESULT, load_error=LOAD_FAIL)
     runner.submit_warmup(holder)
@@ -512,7 +511,6 @@ EXIT_SCRIPT = textwrap.dedent(
     import sys, threading, time
     sys.path.insert(0, sys.argv[1])
     from snapocr.actions.flows import FlowDeps
-    from snapocr.actions.history import ResultHistory
     from snapocr.actions.runner import JobRunner, translate_job
     from snapocr.engines.types import OcrResult
     from snapocr.postprocess import PostprocessOptions, Replacements
@@ -527,7 +525,7 @@ EXIT_SCRIPT = textwrap.dedent(
             threading.Event().wait(60)
 
     deps = FlowDeps(holder_for(OcrResult((rect("x", 0, 0, 10, 10),))), PostprocessOptions(), Replacements.from_mapping({}))
-    runner = JobRunner(lambda e: None, ResultHistory())
+    runner = JobRunner(lambda e: None)
     runner.submit(translate_job(b"png", deps, Blocking()))
     assert started.wait(10)
     t0 = time.monotonic()
@@ -565,7 +563,7 @@ def test_process_exits_while_translation_blocks():
 @given(delays=st.lists(st.sampled_from([0.0, 0.0005, 0.001, 0.002]), min_size=1, max_size=20))
 def test_terminal_events_follow_submission_order(delays):
     col = Collector()
-    runner = JobRunner(col, ResultHistory())
+    runner = JobRunner(col)
     try:
         ids = [runner.submit(outcome_job(str(i), d)) for i, d in enumerate(delays)]
         done = col.wait_terminal(len(ids))
@@ -617,7 +615,7 @@ RECORDED = {"ocr_ok", "ocr_empty", "ocr_load_fail", "tr_ok", "tr_err", "tr_skip"
 @settings(max_examples=25, deadline=None)
 @given(kinds=st.lists(st.sampled_from(sorted(EXPECTED_TERMINAL)), min_size=1, max_size=12))
 def test_one_terminal_event_per_job_and_one_record_per_ocr_or_translate(kinds):
-    history = ResultHistory(capacity=50)
+    history = RecordLog()
     col = Collector()
     runner = JobRunner(col, history)
     try:
@@ -743,15 +741,14 @@ def test_handled_failures_are_not_logged_as_crashes(make_runner, caplog):
 import logging  # noqa: E402
 
 
-def test_on_record_gets_each_record_after_history_and_before_the_event():
-    history = ResultHistory()
+def test_on_record_gets_each_record_before_the_event():
     col = Collector()
     calls = []
 
     def on_record(job_id, record):
-        calls.append((job_id, record.text, tuple(r.text for r in history.snapshot()), len(col.events)))
+        calls.append((job_id, record.text, len(col.events)))
 
-    runner = JobRunner(col, history, on_record=on_record)
+    runner = JobRunner(col, on_record=on_record)
     try:
         a = runner.submit(outcome_job("a"))
         w = runner.submit(warmup_job(holder_for(RESULT)))
@@ -760,8 +757,8 @@ def test_on_record_gets_each_record_after_history_and_before_the_event():
     finally:
         runner.shutdown()
     assert w == a + 1 and t == a + 2
-    # (job id, record text, history at that moment, events delivered before it)
-    assert calls == [(a, "a", ("a",), 0), (t, "你好，世界", ("你好，世界", "a"), 3)]
+    # (job id, record text, events delivered before it)
+    assert calls == [(a, "a", 0), (t, "你好，世界", 3)]
 
 
 def test_on_record_failure_is_logged_and_the_event_still_arrives(caplog):
@@ -770,7 +767,7 @@ def test_on_record_failure_is_logged_and_the_event_still_arrives(caplog):
     def on_record(job_id, record):
         raise ValueError(f"boom {record.text}")
 
-    runner = JobRunner(col, ResultHistory(), on_record=on_record)
+    runner = JobRunner(col, on_record=on_record)
     try:
         with caplog.at_level(logging.WARNING, logger="snapocr.actions.runner"):
             runner.submit(outcome_job("secret-text"))
@@ -793,7 +790,7 @@ def test_without_on_record_nothing_changes(make_runner):
 
 def test_table_ocr_job_delivers_table_flow_outcome_and_records_it(make_runner):
     # M4 WI-15 (F16-1): same event as OCR, with the table flow's outcome.
-    history = ResultHistory()
+    history = RecordLog()
     runner, col = make_runner(history=history)
     d = deps()
     job_id = runner.submit(table_ocr_job(PNG, d))
