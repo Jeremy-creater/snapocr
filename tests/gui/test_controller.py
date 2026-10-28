@@ -13,7 +13,7 @@ Pinned here:
   has closed); the other commands at once.
 - Capture commands take one capture and open an overlay session over every
   screen (``overlays``); while a session is open, further capture commands
-  are ignored. ``CaptureError`` -> "截图失败" notice, no session.
+  start nothing new; they bring the open session back (M5 WI-2, F18-2). ``CaptureError`` -> "截图失败" notice, no session.
 - Cancelled selection: no clipboard change, no notice (F6-3).
 - CAPTURE: the PNG of the selection on the clipboard + "已复制截图" (F7-1).
 - OCR / TRANSLATE are jobs; OcrDone -> clipboard + notice (F7-2 to F7-4);
@@ -1306,3 +1306,92 @@ def test_save_goes_to_the_folder_set_in_the_settings_window(make, tmp_path):
     save_capture_to(h)
     assert len(saved_files(tmp_path / "chosen")) == 1
     assert saved_files(h.save_dir) == []
+
+
+# --- M5 WI-2: a capture command while the overlay is open brings it back (PRD F18-2) -----------
+# Pinned: no new capture, no new overlays. The overlay with a selection (else the
+# first one) becomes the active window, or its save dialog when that is open.
+# Selection, marks and tool stay; Enter still finishes the capture.
+
+import pytestqt.exceptions  # noqa: E402
+from PySide6.QtWidgets import QWidget  # noqa: E402
+
+
+def steal_focus(qtbot):
+    other = QWidget()
+    qtbot.addWidget(other)
+    other.show()
+    other.activateWindow()
+    qtbot.waitUntil(lambda: QApplication.activeWindow() is other, timeout=WAIT)
+    return other
+
+
+def became_active(qtbot, window) -> bool:
+    """Activation is asynchronous offscreen: wait a little, then report."""
+    try:
+        qtbot.waitUntil(lambda: QApplication.activeWindow() is window, timeout=2000)
+    except pytestqt.exceptions.TimeoutError:
+        pass
+    return QApplication.activeWindow() is window
+
+
+def test_a_capture_hotkey_while_open_brings_back_the_overlay_with_the_selection(make, qtbot, clipboard):
+    h = make()
+    h.controller.run(Command.CAPTURE)
+    main, side = h.controller.overlays
+    qi.drag(side, 10, 10, 110, 60)
+    steal_focus(qtbot)
+    h.controller.handle_hotkey(hotkey_id(Command.OCR))
+    assert became_active(qtbot, side)
+    assert QApplication.focusWidget() is side
+    assert h.controller.overlays == (main, side)
+    assert len(h.capture.taken) == 1
+    assert side.selection == Rect(815, 15, 150, 75)
+    qi.key(side, Qt.Key.Key_Return)
+    got = decode_png(bytes(clipboard.mimeData().data("image/png")))
+    assert pixels(got) == pixels(crop(h.capture.image, Rect(815, 15, 150, 75)))
+
+
+def test_without_a_selection_the_first_overlay_comes_back(make, qtbot):
+    h = make()
+    h.controller.run(Command.TRANSLATE)
+    steal_focus(qtbot)
+    h.controller.run(Command.CAPTURE)
+    assert became_active(qtbot, h.controller.overlays[0])
+    assert len(h.capture.taken) == 1
+
+
+def test_the_menu_brings_the_overlay_back_too(make, qtbot):
+    h = make()
+    h.controller.run(Command.CAPTURE)
+    main, side = h.controller.overlays
+    qi.drag(main, 10, 10, 110, 60)
+    steal_focus(qtbot)
+    h.menu_action(Command.TABLE_OCR).trigger()
+    assert became_active(qtbot, main)
+    assert len(h.capture.taken) == 1
+
+
+def test_marks_and_tool_stay_when_the_overlay_comes_back(make, qtbot):
+    h = make()
+    h.controller.run(Command.CAPTURE)
+    main = h.controller.overlays[0]
+    qi.drag(main, 10, 10, 210, 160)
+    annotate_tb(main, "tool-rect").click()
+    qi.drag(main, 30, 30, 90, 90)
+    marks = main.marks
+    steal_focus(qtbot)
+    h.controller.run(Command.CAPTURE)
+    assert became_active(qtbot, main)
+    assert main.marks == marks and len(marks) == 1
+    assert main.toolbar.tool is Tool.RECT
+
+
+def test_an_open_save_dialog_comes_back_on_top(make, qtbot):
+    h = make()
+    overlay, dialog = save_capture(h)
+    steal_focus(qtbot)
+    h.controller.run(Command.CAPTURE)
+    assert dialog.isVisible()
+    assert became_active(qtbot, dialog)
+    assert len(h.capture.taken) == 1

@@ -629,6 +629,20 @@ class OverlaySession(QObject):
         self._overlays[0].activateWindow()
         self._overlays[0].setFocus()
 
+    def refocus(self) -> None:
+        """F18-2: bring the overlays back to the front; the one with a selection (else the first) gets the keys.
+
+        Its save-as dialog, when open, stays on top and gets them instead.
+        """
+        target = next((o for o in self._overlays if o.selection is not None), self._overlays[0])
+        for overlay in self._overlays:
+            overlay.raise_()
+        dialog = target.save_dialog
+        window = dialog if dialog is not None and dialog.isVisible() else target
+        window.raise_()
+        window.activateWindow()
+        window.setFocus()
+
     def _on_selected(self, overlay: SelectionOverlay, rect: Rect, action: str = "copy") -> None:
         self.marks = overlay.marks
         self.action = action

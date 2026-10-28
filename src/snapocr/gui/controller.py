@@ -188,7 +188,8 @@ class AppController(QObject):
     # --- capture sessions ----------------------------------------------------------
 
     def _begin_capture(self, command: Command) -> None:
-        if self._session is not None:
+        if self._session is not None:  # F18-2: no second capture; the open one comes back
+            self._session.refocus()
             return
         try:
             cap = self._capture_provider.capture()
