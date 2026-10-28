@@ -131,6 +131,9 @@ class AppController(QObject):
         self._paused = False  # hotkeys released while the settings window is open (plan D5)
         self._glass = glass or NoGlass()
         self._glass_problem: str | None = None  # why the last look could not use acrylic (F20-4)
+        hints = QGuiApplication.styleHints()
+        self._dark = hints.colorScheme() == Qt.ColorScheme.Dark  # F20-3; Unknown (offscreen) is light
+        hints.colorSchemeChanged.connect(self._color_scheme_changed)
 
         self.bridge = EventBridge(self)
         self.bridge.event.connect(self._on_event)
@@ -352,17 +355,20 @@ class AppController(QObject):
 
     # --- window theme (F20) ---------------------------------------------------------------
 
-    def _system_dark(self) -> bool:
-        return QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
+    def _color_scheme_changed(self, scheme: Qt.ColorScheme) -> None:
+        """F20-3: Windows switched light / dark; only "system" shows it."""
+        self._dark = scheme == Qt.ColorScheme.Dark
+        if self._config.theme == "system":
+            self._apply_look()
 
     def _apply_look(self) -> None:
         """F20-3, F20-4: resolve the theme against the desktop, restyle the window, switch acrylic."""
         popup = self.popup
         problem = glass_problem(self._glass.facts())
-        look = resolve(self._config.theme, dark=self._system_dark(), problem=problem)
+        look = resolve(self._config.theme, dark=self._dark, problem=problem)
         if not self._glass.apply(popup, look.palette.acrylic if look.glass else None):
             problem = GLASS_REFUSED
-            look = resolve(self._config.theme, dark=self._system_dark(), problem=problem)
+            look = resolve(self._config.theme, dark=self._dark, problem=problem)
             self._glass.apply(popup, None)
         popup.set_look(look)
         self._glass_problem = problem
