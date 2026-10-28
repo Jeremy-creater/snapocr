@@ -194,7 +194,7 @@ class BlockingTranslator:
     def __init__(self):
         self.release = threading.Event()
 
-    def translate(self, text):
+    def translate(self, text, target=None):
         self.release.wait(30)
         return TranslationResult(f"T({text})", "en", False)
 

@@ -44,7 +44,7 @@ from snapocr.postprocess import PostprocessOptions, Replacements, postprocess
 from snapocr.postprocess.code import code_text
 from snapocr.postprocess.table import table_cells, to_html, to_markdown
 from snapocr.translators.errors import TranslationError
-from snapocr.translators.types import Translator
+from snapocr.translators.types import TargetLang, Translator
 
 _log = logging.getLogger(__name__)
 
@@ -138,25 +138,36 @@ def translate_ocr_stage(png: bytes, deps: FlowDeps) -> OcrStage | Outcome:
     return _ocr(png, deps)
 
 
-def translate_stage(stage: OcrStage, translator: Translator) -> TranslateOutcome:
-    """Second half of F7-5: translate the post-processed text (plan A2)."""
+def text_stage(text: str) -> OcrStage:
+    """F19-5: typed or edited text, translated as is; no screenshot."""
+    return OcrStage(b"", text, text)
+
+
+def translate_stage(stage: OcrStage, translator: Translator, target: TargetLang | None = None) -> TranslateOutcome:
+    """Second half of F7-5: translate the post-processed text (plan A2).
+
+    ``target`` overrides the configured direction (F19-6). A stage without a
+    screenshot (``text_stage``) keeps no record, so debug mode writes nothing
+    for it (F12-1, M6 plan D8).
+    """
+    keep = bool(stage.png)
     try:
-        result = translator.translate(stage.text)
+        result = translator.translate(stage.text, target)
     except TranslationError as err:
         message = translation_error_text(err)
         return TranslateOutcome(
             NoClipboardChange(),
             Failed(stage.text, message),
-            HistoryRecord(stage.png, stage.raw, stage.text, error=message),
+            HistoryRecord(stage.png, stage.raw, stage.text, error=message) if keep else None,
         )
     if result.skipped:  # plan A3
         return TranslateOutcome(
             NoClipboardChange(),
             Failed(stage.text, NOTHING_TO_TRANSLATE),
-            HistoryRecord(stage.png, stage.raw, stage.text, error=NOTHING_TO_TRANSLATE),
+            HistoryRecord(stage.png, stage.raw, stage.text, error=NOTHING_TO_TRANSLATE) if keep else None,
         )
     return TranslateOutcome(
         ClipboardText(result.text),
         Done(stage.text, result.text),
-        HistoryRecord(stage.png, stage.raw, stage.text, translation=result.text),
+        HistoryRecord(stage.png, stage.raw, stage.text, translation=result.text) if keep else None,
     )

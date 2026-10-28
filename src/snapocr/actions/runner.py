@@ -34,6 +34,7 @@ from snapocr.actions.flows import (
     code_ocr_flow,
     ocr_flow,
     table_ocr_flow,
+    text_stage,
     translate_ocr_stage,
     translate_stage,
 )
@@ -41,7 +42,7 @@ from snapocr.actions.history import ResultHistory
 from snapocr.actions.outcomes import HistoryRecord, OcrStage, Outcome, TranslateOutcome
 from snapocr.engines.errors import EngineLoadError
 from snapocr.engines.holder import EngineHolder
-from snapocr.translators.types import Translator
+from snapocr.translators.types import TargetLang, Translator
 
 _log = logging.getLogger(__name__)
 
@@ -116,14 +117,25 @@ def table_ocr_job(png: bytes, deps: FlowDeps) -> Job:
     return job
 
 
-def translate_job(png: bytes, deps: FlowDeps, translator: Translator) -> Job:
+def translate_job(png: bytes, deps: FlowDeps, translator: Translator, target: TargetLang | None = None) -> Job:
     def job() -> Iterable[object]:
         stage = translate_ocr_stage(png, deps)
         if isinstance(stage, OcrStage):
             yield stage
-            yield translate_stage(stage, translator)
+            yield translate_stage(stage, translator, target)
         else:  # empty or failed OCR ends like the OCR action (plan A4)
             yield stage
+
+    return job
+
+
+def text_translate_job(text: str, translator: Translator, target: TargetLang | None) -> Job:
+    """F19-5: translate typed or edited text; queued like a translate job's model request."""
+
+    def job() -> Iterable[object]:
+        stage = text_stage(text)
+        yield stage
+        yield translate_stage(stage, translator, target)
 
     return job
 

@@ -60,7 +60,7 @@ def test_result_skipped_iff_no_target(text, lang, skipped):
 
 def test_translator_protocol_runtime_checkable():
     class Echo:
-        def translate(self, text):
+        def translate(self, text, target=None):
             return TranslationResult(text, None, True)
 
     assert isinstance(Echo(), Translator)

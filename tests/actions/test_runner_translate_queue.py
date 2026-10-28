@@ -71,7 +71,7 @@ class GatedTranslator:
     def gate(self, text: str) -> threading.Event:
         return self.gates.setdefault(text, threading.Event())
 
-    def translate(self, text: str) -> TranslationResult:
+    def translate(self, text: str, target=None) -> TranslationResult:
         with self._lock:
             self.calls.append(text)
             self.running += 1
@@ -134,7 +134,7 @@ def test_model_requests_run_one_at_a_time_in_order():
 
 
 class CrashingTranslator:
-    def translate(self, text):
+    def translate(self, text, target=None):
         raise RuntimeError("boom")
 
 

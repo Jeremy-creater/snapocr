@@ -522,7 +522,7 @@ EXIT_SCRIPT = textwrap.dedent(
     started = threading.Event()
 
     class Blocking:
-        def translate(self, text):
+        def translate(self, text, target=None):
             started.set()
             threading.Event().wait(60)
 

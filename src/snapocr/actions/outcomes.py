@@ -119,4 +119,4 @@ class OcrStage:
 class TranslateOutcome:
     clipboard: ClipboardAction
     popup: Done | Failed
-    record: HistoryRecord
+    record: HistoryRecord | None  # None for typed text (F19-5)

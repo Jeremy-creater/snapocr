@@ -369,7 +369,7 @@ class GatedTranslator:
     def __init__(self):
         self.gate = threading.Event()
 
-    def translate(self, text):
+    def translate(self, text, target=None):
         self.gate.wait(30)
         return TranslationResult(f"T({text})", "en", False)
 
