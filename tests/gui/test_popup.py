@@ -10,7 +10,8 @@ Pinned here:
 - Translating: the translation area reads ``TRANSLATING_TEXT``; "copy
   translation" is disabled, "copy source" enabled. Done: both enabled.
   Failed: the translation area shows the message; only "copy source".
-- The text areas are read-only. Copy buttons write the exact text.
+- The translation area is read-only (the source is editable since PRD v1.3,
+  see test_translation_window.py). Copy buttons write the exact text.
 - Esc hides the popup. A later state for the same job updates the content
   but does not show it again; a new job does.
 - ``place(anchor, available)``: geometry == ``place_popup(anchor, size,
@@ -80,7 +81,8 @@ def test_translating(popup):
     assert popup.apply(1, Translating(SRC)) is True
     assert popup.isVisible()
     assert shown(popup) == {"source": SRC, "translation": TRANSLATING_TEXT, "copy_source": True, "copy_translation": False}
-    assert popup.source_view.isReadOnly() and popup.translation_view.isReadOnly()
+    # PRD v1.3 F19-2: the source box is editable now; the translation box stays read-only.
+    assert not popup.source_view.isReadOnly() and popup.translation_view.isReadOnly()
 
 
 def test_done_copies_both_texts(popup, clipboard, qtbot):
