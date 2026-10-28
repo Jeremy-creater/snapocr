@@ -314,6 +314,16 @@ def test_hover_cursor_follows_hit_handle(make, point, shape):
     assert overlay.cursor().shape() == shape
 
 
+def test_hover_before_any_press_changes_nothing(make):
+    """Pins the hover-while-selecting branch, which the random action test only sometimes reaches."""
+    overlay, probe = make()
+    qi.move(overlay, 60, 60, buttons=qi.NONE)
+    assert overlay.state is OverlayState.SELECTING
+    assert overlay.selection is None
+    assert overlay.cursor().shape() == Qt.CursorShape.CrossCursor
+    assert (probe.selected, probe.cancelled) == ([], 0)
+
+
 def test_cursor_is_cross_while_dragging_a_new_selection(make):
     overlay, _ = make()
     qi.press(overlay, 10, 10)
