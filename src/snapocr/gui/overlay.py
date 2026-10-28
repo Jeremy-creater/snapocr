@@ -25,7 +25,7 @@ from enum import Enum
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, Qt, Signal, SignalInstance
-from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QFileDialog, QLineEdit, QWidget
 
 from snapocr.annotate import (
@@ -53,11 +53,13 @@ from snapocr.geometry import (
     ScreenInfo,
     hit_handle,
     is_cancel_size,
+    label_place,
     local_to_physical,
     move,
     physical_to_local,
     resize,
     selection_rect,
+    size_text,
 )
 from snapocr.gui.annotate_toolbar import AnnotateToolbar
 from snapocr.gui.marks_paint import fit_text, paint_marks, text_font, text_mark
@@ -69,6 +71,10 @@ EDITOR_INSET = (3, 2)  # logical px from the editor's corner to where its text s
 EDITOR_MIN_WIDTH = 40  # logical px
 _DIM = QColor(0, 0, 0, 110)
 _BORDER = QColor(30, 144, 255)
+LABEL_GAP = 4  # logical px between the selection and its size label (F18-6)
+LABEL_PAD = (6, 2)  # logical px around the label's text
+_LABEL_BACK = QColor(0, 0, 0, 170)
+_LABEL_FONT_PX = 12
 
 _CURSORS = {
     Handle.NONE: Qt.CursorShape.CrossCursor,
@@ -188,6 +194,25 @@ class SelectionOverlay(QWidget):
     def picked(self) -> int | None:
         """Index in ``marks`` of the mark picked with no tool (F14-8), or ``None``."""
         return self._picked
+
+    @property
+    def size_label(self) -> tuple[str, QRect] | None:
+        """F18-6: the selection's physical size and where it is drawn (logical), while there is one."""
+        if self._rect is None or self._state is OverlayState.FINISHED:
+            return None
+        text = size_text(self._rect)
+        metrics = QFontMetrics(self._label_font())
+        size = (metrics.horizontalAdvance(text) + 2 * LABEL_PAD[0], metrics.height() + 2 * LABEL_PAD[1])
+        sel = self._local_rect(self._rect)
+        local = Rect(math.floor(sel.left()), math.floor(sel.top()), 0, 0)
+        x, y = label_place(local, size, Rect(0, 0, self.width(), self.height()), LABEL_GAP)
+        return text, QRect(x, y, *size)
+
+    @staticmethod
+    def _label_font() -> QFont:
+        font = QFont()
+        font.setPixelSize(_LABEL_FONT_PX)
+        return font
 
     @property
     def editor(self) -> TextEditor | None:
@@ -549,7 +574,17 @@ class SelectionOverlay(QWidget):
             painter.drawRect(sel)
             if self._state is OverlayState.ADJUSTING and not self._locked:
                 self._paint_handles(painter, sel)
+            self._paint_size_label(painter)
         painter.end()
+
+    def _paint_size_label(self, painter: QPainter) -> None:
+        text, rect = self.size_label
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(_LABEL_BACK)
+        painter.drawRoundedRect(rect, 3, 3)
+        painter.setPen(QColor(255, 255, 255))
+        painter.setFont(self._label_font())
+        painter.drawText(rect, int(Qt.AlignmentFlag.AlignCenter), text)
 
     def _paint_marks(self, painter: QPainter, sel: QRectF) -> None:
         marks = self._board.marks

@@ -257,3 +257,21 @@ def logical_rect(screen: ScreenInfo, rect: Rect) -> Rect:
     x1, y1 = physical_to_local(screen, rect.x + rect.w, rect.y + rect.h)
     left, top = math.floor(x0), math.floor(y0)
     return Rect(screen.logical.x + left, screen.logical.y + top, math.ceil(x1) - left, math.ceil(y1) - top)
+
+
+def size_text(rect: Rect) -> str:
+    """F18-6: the selection size shown next to it, e.g. "1280 × 720" (physical pixels)."""
+    return f"{rect.w} × {rect.h}"
+
+
+def label_place(sel: Rect, size: tuple[int, int], bounds: Rect, gap: int) -> tuple[int, int]:
+    """F18-6: top-left of the size label (logical px): above ``sel``, left-aligned; inside at its top if not.
+
+    ``x`` stays inside ``bounds`` left and right.
+    """
+    w, h = size
+    x = max(bounds.x, min(sel.x, bounds.x + bounds.w - w))
+    y = sel.y - gap - h
+    if y < bounds.y:
+        y = sel.y + gap
+    return x, y

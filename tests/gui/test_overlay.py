@@ -114,10 +114,14 @@ def test_selection_is_undimmed_and_the_rest_dimmed(make):
     assert overlay.state is OverlayState.ADJUSTING
     src, out = pixels(frozen_for(ONE)), pixels(overlay.grab().toImage())
     m = HANDLE_MARGIN
+    label = overlay.size_label[1]  # M5 WI-6 (F18-6): the size label sits in the dimmed part, above
+    assert label.bottom() < 30
     for y in range(150):
         for x in range(200):
             inner = 40 + m <= x < 160 - m and 30 + m <= y < 120 - m
             outer = x < 40 - m or x >= 160 + m or y < 30 - m or y >= 120 + m
+            if label.contains(x, y):
+                continue
             if inner:
                 assert out[y][x] == src[y][x], (x, y)
             elif outer:
