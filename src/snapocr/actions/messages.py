@@ -62,14 +62,9 @@ def table_ok_notice(rows: int, cols: int) -> Notice:
     return Notice("已复制表格", f"{rows} 行 × {cols} 列")
 
 
-def save_ok_notice(path: Path) -> Notice:
-    """F17-1: the full path of the saved file."""
-    return Notice("已保存截图", str(path))
-
-
-def save_failed_notice(folder: Path, reason: str) -> Notice:
-    """F17-4: why, and where it was meant to go; the image is on the clipboard anyway."""
-    return Notice("保存失败", f"{reason}\n{folder}")
+def save_failed_notice(path: Path, reason: str) -> Notice:
+    """F17-4: why, and the file it was meant to be; the image is on the clipboard anyway."""
+    return Notice("保存失败", f"{reason}\n{path}")
 
 
 def ocr_empty_notice() -> Notice:

@@ -1173,7 +1173,7 @@ def test_relative_save_dir_is_refused(make):
 # - The toolbar's save button (or Ctrl+S) writes the selection with its marks
 #   as a PNG into ``config.save_dir`` (created when missing) under
 #   ``snapocr_YYYYMMDD_HHMMSS.png``, puts the same PNG on the clipboard and
-#   shows "已保存截图" with the file's path. Nothing goes into "上次结果".
+#   shows no notice (PRD v1.1). Nothing goes into "上次结果".
 # - A failed save still puts the PNG on the clipboard and shows "保存失败".
 
 import re  # noqa: E402
@@ -1209,7 +1209,7 @@ def test_save_writes_the_marked_png_and_copies_it(make, clipboard):
     expected = render_marked(crop(h.capture.image, Rect(10, 20, 200, 150)), marks, (10, 20))
     assert pixels(decode_png(path.read_bytes())) == pixels(expected)
     assert bytes(clipboard.mimeData().data("image/png")) == path.read_bytes()
-    assert [(n.title, n.body) for n in h.notifier.notices] == [("已保存截图", str(path))]
+    assert h.notifier.notices == []  # PRD v1.1: no notice on success
     assert h.controller.overlays == ()
     assert h.controller.history.snapshot() == ()
 
@@ -1219,7 +1219,7 @@ def test_ctrl_s_saves_too(make, clipboard):
     save_capture(h, key=True)
     (path,) = saved_files(h.save_dir)
     assert pixels(decode_png(path.read_bytes())) == pixels(crop(h.capture.image, Rect(10, 20, 200, 150)))
-    assert h.titles() == ["已保存截图"]
+    assert h.titles() == []
 
 
 def test_two_saves_keep_both_files(make):
@@ -1227,7 +1227,7 @@ def test_two_saves_keep_both_files(make):
     save_capture(h)
     save_capture(h, area=(300, 300, 400, 380))
     assert len(saved_files(h.save_dir)) == 2
-    assert h.titles() == ["已保存截图", "已保存截图"]
+    assert h.titles() == []
 
 
 def test_failed_save_still_copies(make, clipboard, tmp_path):

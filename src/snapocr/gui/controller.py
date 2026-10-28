@@ -28,7 +28,7 @@ from snapocr.actions.debug import DEBUG_DIR, DebugDump
 from snapocr.actions.flows import FlowDeps, capture_flow
 from snapocr.actions.history import ResultHistory
 from snapocr.actions.outcomes import Failed, Outcome, Translating
-from snapocr.actions.saving import save_flow
+from snapocr.actions.saving import save_flow, suggest_path
 from snapocr.actions.runner import (
     JobCrashed,
     JobRunner,
@@ -232,7 +232,7 @@ class AppController(QObject):
             return
         png = encode_png(image)
         if action == "save":  # F17-1: into the save folder, and onto the clipboard
-            self._land(save_flow(png, self._config.save_dir, datetime.datetime.now()))
+            self._land(save_flow(png, suggest_path(self._config.save_dir, datetime.datetime.now())))
         elif command is Command.CAPTURE:
             self._land(capture_flow(png))
         elif command is Command.OCR:
