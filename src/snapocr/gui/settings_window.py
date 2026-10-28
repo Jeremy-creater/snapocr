@@ -34,6 +34,7 @@ from snapocr.commands import Command
 from snapocr.config.schema import HOTKEY_COMMANDS
 from snapocr.config.settings import Settings
 from snapocr.gui.hotkey_edit import HotkeyEdit
+from snapocr.theme import THEME_LABELS, glass_note
 
 _TARGET_LANGS = (
     ("自动（中文译成英文，其他译成中文）", "auto"),
@@ -90,6 +91,21 @@ class SettingsWindow(QWidget):
         general_layout.addWidget(self.autostart_box)
         general_layout.addWidget(self.show_text_box)
         general_layout.addLayout(save_dir_row)
+        # F20-2: the translation window's theme, with why glass falls back (F20-4).
+        self.theme_label = QLabel("窗口风格")
+        self.theme_box = QComboBox()
+        for value, text in THEME_LABELS.items():
+            self.theme_box.addItem(text, value)
+        self.theme_note = QLabel()
+        self.theme_note.setWordWrap(True)
+        self.theme_note.hide()
+        self._glass_problem: str | None = None
+        self.theme_box.currentIndexChanged.connect(self._update_theme_note)
+        theme_row = QHBoxLayout()
+        theme_row.addWidget(self.theme_label)
+        theme_row.addWidget(self.theme_box, 1)
+        general_layout.addLayout(theme_row)
+        general_layout.addWidget(self.theme_note)
 
         translate = QGroupBox("翻译")
         tform = QFormLayout(translate)
@@ -150,6 +166,7 @@ class SettingsWindow(QWidget):
         self.autostart_box.setChecked(autostart)
         self.show_text_box.setChecked(settings.show_text)
         self.save_dir_edit.setText(str(settings.save_dir))
+        self.theme_box.setCurrentIndex(self.theme_box.findData(settings.theme))
         self.target_lang_box.setCurrentIndex(self.target_lang_box.findData(settings.target_lang))
         self.model_edit.setText(settings.model)
         self.set_models((), None)
@@ -165,6 +182,16 @@ class SettingsWindow(QWidget):
         self.model_box.setCurrentText(current)
         self.models_hint.setText(hint or "")
         self.models_hint.setVisible(hint is not None)
+
+    def set_glass_problem(self, problem: str | None) -> None:
+        """F20-4: why acrylic cannot be used now (None: it can)."""
+        self._glass_problem = problem
+        self._update_theme_note()
+
+    def _update_theme_note(self) -> None:
+        note = glass_note(self.theme_box.currentData(), self._glass_problem)
+        self.theme_note.setText(note or "")
+        self.theme_note.setVisible(note is not None)
 
     def show_problems(self, problems: Sequence[str]) -> None:
         self.problems_label.setText("\n".join(problems))
@@ -192,6 +219,7 @@ class SettingsWindow(QWidget):
             model=self.model_box.currentText().strip(),
             show_text=self.show_text_box.isChecked(),
             save_dir=Path(self.save_dir_edit.text().strip()),
+            theme=self.theme_box.currentData(),
             **switches,
         )
         self.save_requested.emit(settings, self.autostart_box.isChecked())

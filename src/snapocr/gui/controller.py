@@ -20,7 +20,7 @@ import threading
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtGui import QCursor, QGuiApplication, QImage
 
 from snapocr.actions import messages
@@ -48,7 +48,16 @@ from snapocr.config.settings import Settings, apply, changes, check, settings_of
 from snapocr.config.writer import ConfigWriteError, write_changes
 from snapocr.geometry import Rect, center_in, crop_box, logical_rect, screen_containing
 from snapocr.gui import clipboard
-from snapocr.gui.boundaries import Autostart, Capture, CaptureError, CaptureProvider, HotkeyBackend, Notifier
+from snapocr.gui.boundaries import (
+    Autostart,
+    Capture,
+    CaptureError,
+    CaptureProvider,
+    Glass,
+    HotkeyBackend,
+    NoGlass,
+    Notifier,
+)
 from snapocr.gui.bridge import EventBridge
 from snapocr.gui.imageops import crop, encode_png
 from snapocr.gui.marks_paint import render_marked
@@ -58,6 +67,7 @@ from snapocr.gui.popup import TranslationPopup
 from snapocr.gui.settings_window import SettingsWindow
 from snapocr.gui.tray_menu import build_tray_menu, update_tray_menu
 from snapocr.hotkeys import RegistrationReport, register_all, unregister_all
+from snapocr.theme import GLASS_REFUSED, glass_problem, resolve
 from snapocr.translators.config import TranslatorConfig
 from snapocr.translators.errors import TranslationError
 from snapocr.translators.types import Translator
@@ -91,6 +101,7 @@ class AppController(QObject):
         quit_app: Callable[[], None],
         startup_issues: Sequence[ConfigIssue] = (),
         debug_dir: Path = DEBUG_DIR,
+        glass: Glass | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -118,6 +129,8 @@ class AppController(QObject):
         self._dropped_through = -1  # F19-3 (v1.5): translate jobs up to this id were cleared by Alt+4
         self._quitting = False
         self._paused = False  # hotkeys released while the settings window is open (plan D5)
+        self._glass = glass or NoGlass()
+        self._glass_problem: str | None = None  # why the last look could not use acrylic (F20-4)
 
         self.bridge = EventBridge(self)
         self.bridge.event.connect(self._on_event)
@@ -126,6 +139,7 @@ class AppController(QObject):
         self.runner = JobRunner(self.bridge.post, on_record)
         self.popup = TranslationPopup()
         self.popup.translate_requested.connect(self._translate_text)
+        self._apply_look()
         self.menu = build_tray_menu(config.hotkeys, self._on_menu)
         self.settings_window = SettingsWindow()
         self.settings_window.save_requested.connect(self._save_settings)
@@ -336,6 +350,23 @@ class AppController(QObject):
                 self.settings_window.set_models(event.models, event.hint)
         # WarmedUp: nothing to show (plan A10)
 
+    # --- window theme (F20) ---------------------------------------------------------------
+
+    def _system_dark(self) -> bool:
+        return QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
+
+    def _apply_look(self) -> None:
+        """F20-3, F20-4: resolve the theme against the desktop, restyle the window, switch acrylic."""
+        popup = self.popup
+        problem = glass_problem(self._glass.facts())
+        look = resolve(self._config.theme, dark=self._system_dark(), problem=problem)
+        if not self._glass.apply(popup, look.palette.acrylic if look.glass else None):
+            problem = GLASS_REFUSED
+            look = resolve(self._config.theme, dark=self._system_dark(), problem=problem)
+            self._glass.apply(popup, None)
+        popup.set_look(look)
+        self._glass_problem = problem
+
     # --- settings window (F11) ------------------------------------------------------------
 
     def _autostart_enabled(self) -> bool:
@@ -374,6 +405,7 @@ class AppController(QObject):
             self._report = RegistrationReport()
             self._paused = True
             window.load(settings_of(self._config), self._autostart_enabled())
+            window.set_glass_problem(self._glass_problem)
             self._request_models()
             window.show()
         window.raise_()
@@ -418,6 +450,7 @@ class AppController(QObject):
         self._report = trial
         self._paused = False
         update_tray_menu(self.menu, self._config.hotkeys)
+        self._apply_look()  # F20-2: no restart
         self._notifier.notify(messages.settings_saved_notice())
         window.finish()
 

@@ -25,6 +25,7 @@ THEME_LABELS: Mapping[str, str] = MappingProxyType(
     dict(zip(THEMES, ("跟随系统", "浅色毛玻璃", "深色毛玻璃", "浅色实底"), strict=True))
 )
 WINDOWS_11_BUILD = 22000
+GLASS_REFUSED = "系统拒绝了毛玻璃效果"  # Glass.apply returned False
 
 
 @dataclass(frozen=True)

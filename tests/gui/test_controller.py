@@ -85,7 +85,8 @@ def clipboard(qapp):
 class Harness:
     def __init__(self, qtbot, tmp_path, *, engine=RESULT, load_error=None, holder=None, translator=None,
                  capture_error=None, issues=(), preoccupy=(), config_path=None, make_translator=None,
-                 autostart=None, list_models=None, show_text=True, debug=False, save_dir=None):
+                 autostart=None, list_models=None, show_text=True, debug=False, save_dir=None, glass=None,
+                 theme="system"):
         self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error)
         self.notifier = RecordingNotifier()
         self.table = FakeHotkeyTable()
@@ -98,7 +99,7 @@ class Harness:
         self.config_path = config_path or tmp_path / "config.local.toml"
         self.autostart = autostart or FakeAutostart()
         self.save_dir = save_dir or tmp_path / "shots"  # never the real Pictures folder (F17-2)
-        config = AppConfig(replacements=TABLE, show_text=show_text, debug=debug, save_dir=self.save_dir)
+        config = AppConfig(replacements=TABLE, show_text=show_text, debug=debug, save_dir=self.save_dir, theme=theme)
         self.debug_dir = tmp_path / "debug"  # never the real D:\DevLocal\runtime\snapocr\debug
         deps = FlowDeps(holder or holder_for(engine, load_error=load_error), config.postprocess, config.replacements)
         self.controller = AppController(
@@ -115,6 +116,7 @@ class Harness:
             quit_app=lambda: self.quits.append(True),
             startup_issues=list(issues),
             debug_dir=self.debug_dir,
+            **({} if glass is None else {"glass": glass}),  # M7 WI-6
         )
         self.qtbot = qtbot
 

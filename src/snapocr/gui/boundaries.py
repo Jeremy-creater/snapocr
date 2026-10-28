@@ -10,9 +10,11 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from PySide6.QtGui import QImage
+from PySide6.QtWidgets import QWidget
 
 from snapocr.actions.outcomes import Notice
 from snapocr.geometry import Point, Rect, ScreenInfo
+from snapocr.theme import Color, GlassFacts
 
 
 class CaptureError(Exception):
@@ -43,6 +45,24 @@ class HotkeyBackend(Protocol):
     def register(self, hotkey_id: int, mods: int, vk: int) -> int: ...
 
     def unregister(self, hotkey_id: int) -> int: ...
+
+
+class Glass(Protocol):
+    """Acrylic behind a window (F20-4); ``apply`` returns whether Windows took it."""
+
+    def facts(self) -> GlassFacts: ...
+
+    def apply(self, widget: QWidget, tint: Color | None) -> bool: ...
+
+
+class NoGlass:
+    """No acrylic anywhere: reports a pre-Windows 11 build, so every look is solid."""
+
+    def facts(self) -> GlassFacts:
+        return GlassFacts(build=0, transparency=False, battery_saver=False)
+
+    def apply(self, widget: QWidget, tint: Color | None) -> bool:
+        return tint is None
 
 
 class Autostart(Protocol):

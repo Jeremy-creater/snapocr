@@ -28,6 +28,7 @@ from snapocr.gui.icons import app_icon
 from snapocr.gui.platform import native_clipboard, shell
 from snapocr.gui.platform.autostart import RegistryAutostart
 from snapocr.gui.platform.capture import DesktopCapture
+from snapocr.gui.platform.glass import NativeGlass
 from snapocr.gui.platform.hotkeys import NativeHotkeys
 from snapocr.gui.platform.single_instance import InstanceLock, acquire
 from snapocr.gui.platform.tray import Tray
@@ -113,6 +114,7 @@ def start(argv: list[str]) -> RunningApp | None:
         open_file=shell.open_file,
         quit_app=app.quit,
         startup_issues=loaded.issues,
+        glass=NativeGlass(),
     )
     tray = Tray(controller.menu, app_icon())
     notifier.tray = tray
