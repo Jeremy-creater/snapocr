@@ -196,4 +196,8 @@ QWidget#segment QPushButton:checked {{ background: {c['segment_on']}; color: {c[
 QPushButton#translate {{ border: none; border-radius: 15px; background: {c['accent']}; color: {c['on_accent']};
     font-size: 13px; font-weight: 600; padding: 0 20px; min-height: 30px; }}
 QPushButton#translate:disabled {{ background: {c['segment_track']}; }}
+QScrollBar:vertical {{ width: 8px; background: transparent; margin: 6px 2px 6px 0; }}
+QScrollBar::handle:vertical {{ background: {c['segment_track']}; border-radius: 3px; min-height: 24px; }}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
 """

@@ -2,7 +2,7 @@
 
 Pinned here:
 - The source box is editable, the translation box read-only.
-- The target box offers 自动 / 译成中文 / 译成英文 (None / "zh" / "en"),
+- The target box offers 自动 / 中文 / 英文 (None / "zh" / "en"; v1.6, was 译成中文 / 译成英文),
   starting at 自动.
 - ``Ctrl+Enter`` in the source box (main or keypad Enter) and the "翻译"
   button emit ``translate_requested(text, target)``; blank text emits
@@ -62,7 +62,7 @@ def test_source_is_editable_translation_is_not(window):
 
 def test_target_box_choices(window):
     box = window.target_box
-    assert [box.itemText(i) for i in range(box.count())] == ["自动", "译成中文", "译成英文"]
+    assert [box.itemText(i) for i in range(box.count())] == ["自动", "中文", "英文"]  # PRD v1.6 F19-2 (M7 WI-5)
     assert [box.itemData(i) for i in range(box.count())] == [None, "zh", "en"]
     assert box.currentIndex() == 0
     assert window.target is None

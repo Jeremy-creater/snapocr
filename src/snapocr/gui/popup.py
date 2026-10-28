@@ -17,18 +17,30 @@ the platform refuses (offscreen), by following the mouse itself.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QIcon,
+    QKeyEvent,
+    QMouseEvent,
+    QPainter,
+    QPainterPath,
+    QPaintEvent,
+    QPen,
+    QPixmap,
+)
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
 from snapocr.actions.outcomes import Done, Failed, PopupState, Translating
 from snapocr.geometry import Rect, place_popup, resize_edges, resized
 from snapocr.gui import clipboard
-from snapocr.theme import PALETTES, Palette
+from snapocr.gui.segmented import SegmentedControl
+from snapocr.theme import FONT_FAMILIES, PALETTES, Color, Look, stylesheet
 
 TRANSLATING_TEXT = "翻译中…"
 DEFAULT_SIZE = (420, 260)
-TARGETS = (("自动", None), ("译成中文", "zh"), ("译成英文", "en"))
+TARGETS = (("自动", None), ("中文", "zh"), ("英文", "en"))  # v1.6 (F19-2, F20-5)
 MIN_SIZE = (320, 220)  # F20-5
 TITLE_HEIGHT = 40  # the drag area at the top
 EDGE = 6  # the resize band along the border
@@ -49,6 +61,20 @@ _CURSORS = {
 _ENTER_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter)
 
 
+def _copy_icon(color: Color) -> QIcon:
+    """Two overlapping rounded squares, drawn at 3x for high-DPI screens."""
+    pixmap = QPixmap(36, 36)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pixmap)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setPen(QPen(QColor(*color), 3.2))
+    p.drawRoundedRect(QRectF(10.5, 10.5, 21, 21), 4.5, 4.5)
+    p.drawPolyline([QPoint(25, 10), QPoint(25, 6), QPoint(6, 6), QPoint(6, 25), QPoint(10, 25)])
+    p.end()
+    pixmap.setDevicePixelRatio(3)
+    return QIcon(pixmap)
+
+
 class TranslationPopup(QWidget):
     translate_requested = Signal(str, object)  # (source text, target: None | "zh" | "en")
 
@@ -57,7 +83,7 @@ class TranslationPopup(QWidget):
         self._job_id: int | None = None
         self._state: PopupState | None = None
         self._shown_source = ""  # the source box as last filled, to tell whether it was edited
-        self._palette: Palette = PALETTES["light_solid"]
+        self._look = Look(PALETTES["light_solid"], False)
         # (start global mouse position, start geometry, grabbed edges; no edges = move)
         self._grab: tuple[QPoint, QRect, frozenset[str]] | None = None
         self.setWindowTitle("snapocr 翻译")
@@ -75,12 +101,16 @@ class TranslationPopup(QWidget):
         self.close_button.clicked.connect(self.hide)
         self.source_view = QPlainTextEdit()
         self.translation_view = QPlainTextEdit(readOnly=True)
-        self.copy_source_button = QPushButton("复制原文")
-        self.copy_translation_button = QPushButton("复制译文")
-        self.target_box = QComboBox()
+        self.source_view.setObjectName("source")
+        self.translation_view.setObjectName("translation")
+        self.copy_source_button = QPushButton("复制", objectName="copy", toolTip="复制原文")
+        self.copy_translation_button = QPushButton("复制", objectName="copy", toolTip="复制译文")
+        self.target_box = SegmentedControl()
         for text, target in TARGETS:
             self.target_box.addItem(text, target)
-        self.translate_button = QPushButton("翻译")
+        self.translate_button = QPushButton("翻译", objectName="translate")
+        self.translate_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.hint_label = QLabel("Ctrl+Enter", objectName="hint")
         self.translate_button.setToolTip("翻译原文（Ctrl+Enter）")
         # Copy the translation from the state: QPlainTextEdit may normalise line breaks.
         self.copy_source_button.clicked.connect(lambda: clipboard.set_text(self.source_text()))
@@ -100,7 +130,7 @@ class TranslationPopup(QWidget):
         row.addStretch(1)
         layout.addWidget(title)
         row = QHBoxLayout()
-        row.addWidget(QLabel("原文"))
+        row.addWidget(QLabel("原文", objectName="muted"))
         row.addStretch(1)
         row.addWidget(self.copy_source_button)
         layout.addLayout(row)
@@ -108,15 +138,21 @@ class TranslationPopup(QWidget):
         row = QHBoxLayout()
         row.addWidget(self.target_box)
         row.addStretch(1)
+        row.addWidget(self.hint_label)
+        row.addSpacing(10)
         row.addWidget(self.translate_button)
         layout.addLayout(row)
         row = QHBoxLayout()
-        row.addWidget(QLabel("译文"))
+        row.addWidget(QLabel("译文", objectName="muted"))
         row.addStretch(1)
         row.addWidget(self.copy_translation_button)
         layout.addLayout(row)
         layout.addWidget(self.translation_view, 1)
+        font = QFont(self.font())
+        font.setFamilies(list(FONT_FAMILIES))
+        self.setFont(font)
         self.resize(*DEFAULT_SIZE)
+        self.set_look(self._look)
         self._render(fill_source=True)
 
     @property
@@ -126,6 +162,20 @@ class TranslationPopup(QWidget):
     @property
     def state(self) -> PopupState | None:
         return self._state
+
+    @property
+    def look(self) -> Look:
+        return self._look
+
+    def set_look(self, look: Look) -> None:
+        """F20: restyle now; turning acrylic on or off is the controller's part (``Glass``)."""
+        self._look = look
+        self.setStyleSheet(stylesheet(look.palette))
+        icon = _copy_icon(look.palette.link)
+        for button in (self.copy_source_button, self.copy_translation_button):
+            button.setIcon(icon)
+            button.setIconSize(QSize(12, 12))
+        self.update()
 
     @property
     def target(self) -> str | None:
@@ -225,9 +275,9 @@ class TranslationPopup(QWidget):
         path = QPainterPath()
         path.addRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), RADIUS, RADIUS)
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
-        p.fillPath(path, QColor(*self._palette.window))
+        p.fillPath(path, QColor(*self._look.palette.window))
         p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        p.setPen(QPen(QColor(*self._palette.border), 1))
+        p.setPen(QPen(QColor(*self._look.palette.border), 1))
         p.drawPath(path)
 
     def _edges_at(self, pos: QPoint) -> frozenset[str]:
