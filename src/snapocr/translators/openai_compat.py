@@ -1,6 +1,7 @@
 """Translator for OpenAI-compatible local services (Ollama by default), F4-1..F4-6.
 
 Order of checks per call (matrix Q14): type -> blank -> length -> direction.
+``target`` (F19-6) overrides the configured direction; ``None`` follows the config.
 Blank and letter-less input never reaches the service. The source text and the
 translation never appear in logs or exceptions; only kind, status, elapsed time
 and length are logged, at DEBUG.
@@ -16,7 +17,7 @@ from snapocr.translators.direction import resolve_target
 from snapocr.translators.errors import ErrorContext, TranslationError, TranslationErrorKind
 from snapocr.translators.http_transport import get_json, post_json
 from snapocr.translators.protocol import MODELS_PATH, build_chat_request, parse_chat_response, parse_models_response
-from snapocr.translators.types import TranslationResult
+from snapocr.translators.types import TargetLang, TranslationResult
 
 log = logging.getLogger(__name__)
 
@@ -28,9 +29,11 @@ class OpenAICompatTranslator:
         self._config = config
         self._ctx = ErrorContext(config.endpoint.url, config.model)
 
-    def translate(self, text: str) -> TranslationResult:
+    def translate(self, text: str, target: TargetLang | None = None) -> TranslationResult:
         if not isinstance(text, str):
             raise TypeError(f"text: expected str, got {type(text).__name__}")
+        if target is not None and target not in ("zh", "en"):
+            raise ValueError("target: expected 'zh', 'en' or None")
         if not text.strip():
             return TranslationResult("", None, True)
         config = self._config
@@ -42,7 +45,8 @@ class OpenAICompatTranslator:
                 model=self._ctx.model,
                 detail=f"{n} > {config.max_input_chars} code points",
             )
-        target = resolve_target(text, config)
+        if target is None:  # F19-6: an explicit target wins over the config
+            target = resolve_target(text, config)
         if target is None:  # no Han characters and no ASCII letters (D1)
             return TranslationResult(text, None, True)
 

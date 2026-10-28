@@ -33,4 +33,6 @@ class TranslationResult:
 
 @runtime_checkable
 class Translator(Protocol):
-    def translate(self, text: str) -> TranslationResult: ...
+    def translate(self, text: str, target: TargetLang | None = None) -> TranslationResult:
+        """``target`` overrides the configured direction (F19-6); ``None`` follows the config."""
+        ...
