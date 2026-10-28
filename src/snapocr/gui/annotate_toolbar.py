@@ -172,7 +172,7 @@ class AnnotateToolbar(QWidget):
         pin = self._button(layout, "pin", "贴图：钉在屏幕上", _icon(_pushpin))
         pin.setVisible(show_pin)
         pin.clicked.connect(self.pin_requested)
-        save = self._button(layout, "save", "保存到截图文件夹，同时复制（Ctrl+S）", _icon(_disk))
+        save = self._button(layout, "save", "另存为图片，同时复制（Ctrl+S）", _icon(_disk))
         save.clicked.connect(self.save_requested)
         self._button(layout, "cancel", "取消（Esc）", _icon(_glyph("✕"))).clicked.connect(self.cancel_requested)
         self._button(layout, "done", "完成：复制到剪贴板（Enter）", _icon(_glyph("✓"))).clicked.connect(

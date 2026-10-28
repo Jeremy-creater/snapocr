@@ -217,3 +217,10 @@ def test_save_click_emits_save_requested(qtbot):
     bar.save_requested.connect(lambda: seen.append("save"))
     btn(bar, "save").click()
     assert seen == ["save"]
+
+
+# --- M5 WI-5: the save tooltip says save-as (PRD F18-5) ---------------------------------
+
+
+def test_save_tooltip_says_save_as():
+    assert btn(AnnotateToolbar(), "save").toolTip() == "另存为图片，同时复制（Ctrl+S）"
