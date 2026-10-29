@@ -1,6 +1,25 @@
 """``python -m snapocr [--config PATH]``; the ``snapocr`` gui-script calls ``main`` directly."""
 
-from snapocr.gui.platform.launch import main
+from __future__ import annotations
+
+import sys
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv if argv is None else argv
+    if "--self-check" in argv[1:]:  # F22-4: no tray, no hotkeys, no config file
+        from snapocr.app import parse_args
+        from snapocr.engines.config import OcrEngineConfig
+        from snapocr.engines.rapidocr_engine import RapidOcrEngine
+        from snapocr.selfcheck import run_self_check
+
+        image, report = parse_args(argv[1:]).self_check
+        return run_self_check(image, report, lambda: RapidOcrEngine(OcrEngineConfig()).load())
+
+    from snapocr.gui.platform.launch import main as gui_main
+
+    return gui_main(argv)
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

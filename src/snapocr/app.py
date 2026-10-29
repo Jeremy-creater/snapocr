@@ -29,6 +29,13 @@ _log = logging.getLogger("snapocr")
 def parse_args(args: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="snapocr", description="Tray screenshot, OCR and translation tool.")
     parser.add_argument("--config", type=Path, default=default_config_path(), help="config file (default: %(default)s)")
+    parser.add_argument(
+        "--self-check",
+        nargs=2,
+        type=Path,
+        metavar=("IMAGE", "REPORT"),
+        help="recognize IMAGE with the bundled OCR models, write a JSON report to REPORT and exit (PRD F22-4)",
+    )
     return parser.parse_args(args)
 
 
