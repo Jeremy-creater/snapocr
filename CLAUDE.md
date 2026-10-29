@@ -13,13 +13,13 @@
 
 ## 路径
 
-| 东西 | 位置 |
-|---|---|
-| 源码 | `D:\LLM\workspace\snapocr`（用户指定，例外于全局规则的 `D:\Sync\Projects`） |
-| 虚拟环境 | `D:\DevLocal\envs\snapocr` |
-| 用户配置 | `D:\LLM\workspace\snapocr\config.local.toml`（不进 Git；不要放进 venv，重建环境会被删） |
-| 运行数据（日志、debug 截图） | `D:\DevLocal\runtime\snapocr`（只在需要写日志时创建；靠用户环境变量 `SNAPOCR_RUNTIME_DIR` 指过来，PRD F21-2） |
-| 本地模型（gguf、Ollama） | `D:\LLM`（只读使用；导入或下载模型前先问 Jeremy） |
+| 东西 | Windows | Mac（M9，2026-10-30） |
+|---|---|---|
+| 源码 | `D:\LLM\workspace\snapocr`（用户指定，例外于全局规则的 `D:\Sync\Projects`） | `~/LLM/workspace/snapocr` |
+| 虚拟环境 | `D:\DevLocal\envs\snapocr` | `~/DevLocal/envs/snapocr` |
+| 用户配置 | `D:\LLM\workspace\snapocr\config.local.toml`（不进 Git；不要放进 venv，重建环境会被删） | 源码目录下的 `config.local.toml`，同左 |
+| 运行数据（日志、debug 截图） | `D:\DevLocal\runtime\snapocr`（只在需要写日志时创建；靠用户环境变量 `SNAPOCR_RUNTIME_DIR` 指过来，PRD F21-2） | `~/DevLocal/runtime/snapocr`（同样靠 `SNAPOCR_RUNTIME_DIR`） |
+| 本地模型（gguf、Ollama） | `D:\LLM`（只读使用；导入或下载模型前先问 Jeremy） | 待定（导入或下载模型前先问 Jeremy） |
 
 上表是 Jeremy 开发机的位置，**不得写进 `src/`**（2026-10-29，PRD v1.8 F21）。程序的默认位置面向普通用户：配置文件按 F21-1 查找（最后一项是 `%APPDATA%\snapocr\config.toml`），运行数据默认 `%LOCALAPPDATA%\snapocr`（F21-2）。查找规则是纯逻辑，测试传入假的环境变量和目录，不读真实的 `%APPDATA%`。
 
@@ -28,7 +28,9 @@
 - Python 3.12 only，不用 conda。
 - 创建环境：`uv venv D:\DevLocal\envs\snapocr --python 3.12`
 - 安装：`uv pip install --python D:\DevLocal\envs\snapocr\Scripts\python.exe -e ".[dev]"`（或激活后 `python -m pip install -e ".[dev]"`）
+- Mac（M9）：`uv venv ~/DevLocal/envs/snapocr --python 3.12`，`uv pip install --python ~/DevLocal/envs/snapocr/bin/python -e ".[dev]"`，激活用 `source ~/DevLocal/envs/snapocr/bin/activate`。
 - **先激活环境，再在同一个终端里启动 `claude`**，否则 tdd-guardian 会报 `runner-missing`。
+- M9 期间每个 WI 在 Mac 上跑 unit、engine；碰到 Windows 实现的 WI，合进 `main` 前还要在 Windows 上跑一遍（PRD F23）。
 - 新增运行时依赖前，先在 PRD 或计划里写明理由。
 
 ## 架构边界
@@ -40,7 +42,8 @@
 - **只访问 `127.0.0.1`。** 任何外网请求（云端模型等）必须先改 PRD，并做成默认关闭的显式开关。
 - GUI 层（`snapocr.gui`，PySide6）只做界面和 I/O（托盘、热键、遮罩、浮窗、剪贴板），不含业务规则；流程编排放 `snapocr.actions`，可用假引擎测试。
 - 纯逻辑（后处理、翻译方向判断、热键字符串解析、坐标换算、配置解析）与 I/O（HTTP、剪贴板、截图、热键注册）分开，纯逻辑必须可在无 OCR 模型、无翻译服务、无 GUI 的环境下测试。
-- 全局热键用 Win32 `RegisterHotKey`（`ctypes`），不引入第三方热键库。
+- 全局热键用 Win32 `RegisterHotKey`（`ctypes`），不引入第三方热键库；Mac 上用 Carbon `RegisterEventHotKey`（`ctypes`，PRD F23-2）。
+- 平台差别（M9，PRD F23）：Windows、Mac 的系统调用都只放在 `snapocr.gui.platform`，按 `sys.platform` 选实现；纯逻辑里的平台差别由参数传入（keyword-only 的 `platform`，取 `"win32"` / `"darwin"`，默认 `"win32"`；测试两种平台都测），不在纯逻辑里读 `sys.platform`。可以读 `sys.platform` 的只有：`snapocr/gui/platform/**`，以及本来就读真实环境的薄函数 `config/files.default_config_path`、`app.py` 的 `DEFAULT_LOG_DIR` / `runtime_issues`；有 AST 边界测试钉住这份白名单（M9 计划 D6）。Mac 的实现放 `snapocr/gui/platform/mac/`，Windows 的文件原地不动（D11）。
 - 开机自启动用标准库 `winreg` 写当前用户的 Run 键，封装放在 `snapocr.gui.platform`；`gui` 车道测试只写单独的测试键（`HKCU\Software\snapocr-gui-test\...`），跑完删除，不碰真实的 Run 键（2026-10-26，M3 F11-6）。
 - 截图标注（M4 F14）：纯逻辑放 `snapocr.annotate`（不 import Qt）：标注数据、撤销栈、箭头和序号的几何、工具栏位置、贴图缩放；绘制放 `snapocr.gui`，遮罩里的预览和输出图片共用同一个绘制函数，unit 车道在 offscreen 下画到真实图片上检查像素。标注和贴图只在内存里，不写硬盘（2026-10-27）。唯一例外是 F17 截图保存：用户点“保存”后在“另存为”对话框里选文件，才把图片写进去（对话框起始在 `[capture] save_dir`）；写文件和起文件名放 `snapocr.actions.saving`（不 import Qt），对话框放 `snapocr.gui`，测试一律写 `tmp_path`（2026-10-27 PRD v1.0，2026-10-28 v1.1 改成另存为）。
 - 表格 OCR（M4 F16）：行列推断、Markdown / HTML 生成是纯逻辑，放 `snapocr.postprocess.table`；剪贴板同时放 HTML 和纯文本，写入在 `snapocr.gui.clipboard`。
@@ -65,6 +68,7 @@
 | `unit` | 纯逻辑 + 假实现 + offscreen Qt，不需要任何外部服务，不加载 OCR 模型 | `python -m pytest -m "not integration and not engine and not perf and not gui" --cov=snapocr --cov-branch --cov-report=json` | taskCompleted、commit |
 | `engine` | 进程内真实 RapidOCR 模型（`@pytest.mark.engine`），不需要外部服务、不联网 | `python -m pytest -m "engine and not perf and not gui" --cov=snapocr --cov-branch --cov-report=json:coverage-engine.json` | taskCompleted、commit |
 | `gui` | 真实 Windows 桌面（`@pytest.mark.gui`）：托盘、全局热键、屏幕截取、DPI | 见下 | manual |
+| `gui-mac` | 真实 Mac 桌面（同样是 `@pytest.mark.gui`）：菜单栏图标、Carbon 热键、截图、权限（M9） | 见下 | manual |
 | `integration` | 连真实运行中的本地模型服务（Ollama，`@pytest.mark.integration`） | `python -m pytest -m "integration and not perf"` | manual |
 
 - 覆盖率模式：`no-decrease`。
@@ -74,6 +78,8 @@
 - hypothesis 样例数（2026-10-26 Jeremy 定）：`tests/conftest.py` 注册两个 profile，默认加载 `unit`（`max_examples=50`，所有车道都用它），`thorough`（`max_examples=200`）只手动跑：在任一车道命令后加 `--hypothesis-profile=thorough`。测试里显式写了 `max_examples` 的不受 profile 影响。unit 车道（带 coverage）再超过 45 s 时考虑 `pytest-xdist`。
 - `perf`（`@pytest.mark.perf`，延迟实测）只能手动跑：`python -m pytest -m "perf and not gui" -s`，不参与任何 gate。同时带 `integration` 和 `perf` 的测试（翻译延迟）也只能手动跑，同样需要 Ollama。同时带 `gui` 和 `perf` 的测试（热键到遮罩、真实截图 OCR 的延迟，M2 WI-23）只能这样手动跑：`python -m pytest -m "gui and perf" --qt-desktop -s`，不进 gui 车道（2026-10-26，Skywalker 按 Jeremy"非必要按建议跑"的授权定）。
 - `gui`（`@pytest.mark.gui`，需要真实 Windows 桌面）只能手动跑：`python -m pytest -m "gui and not perf" --qt-desktop --cov=snapocr.gui.platform --cov-config=coverage-gui.toml --cov-branch --cov-report=json:coverage-gui.json`。没有 `--qt-desktop` 时 `gui` 用例必须**明确失败并提示**，不能跳过。
+- `gui-mac`（M9 计划 D11、D22）在 Mac 上手动跑：`python -m pytest -m "gui and not perf" --qt-desktop --cov=snapocr.gui.platform --cov-config=coverage-gui-mac.toml --cov-branch --cov-report=json:coverage-gui-mac.json`。只算本平台的 platform 文件（`coverage-gui-mac.toml` omit Windows 的文件，`coverage-gui.toml` omit `mac/`），共用的 `launch.py`、`tray.py` 在两个平台上都要 100%。跑之前给运行测试的终端开“屏幕录制”和“辅助功能”权限，没有时用例明确失败并说明去哪里开。会弹窗口、合成按键、读写剪贴板，跑的时候不要用电脑。Mac 测试用热键 `Ctrl+Option+Shift+F19`；开机自启动只写 `tmp_path`，不碰真实的 `~/Library/LaunchAgents`。
+- 平台标记（M9 计划 D7）：只属于一个平台的测试标 `windows` 或 `macos`，平台专属目录是 `tests/platform/windows/`、`tests/platform/macos/`（Mac 测试文件名以 `test_mac_` 开头）。在另一个平台上由 `tests/conftest.py` 不收集或取消选择，终端摘要列出平台、路径和个数；**不许**用 skip / xfail 处理平台差别。两个标记都带或平台未知时收集报错。车道命令两个平台相同。
 
 ### GUI 测试方式（2026-10-26 Jeremy 定）
 
