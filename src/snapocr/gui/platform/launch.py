@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from snapocr.actions.flows import FlowDeps
 from snapocr.actions.outcomes import Notice
-from snapocr.app import DEFAULT_LOG_DIR, install_excepthook, parse_args, setup_logging
+from snapocr.app import DEFAULT_LOG_DIR, install_excepthook, parse_args, runtime_issues, setup_logging
 from snapocr.autostart import autostart_command
 from snapocr.commands import Command
 from snapocr.config.files import instance_name, load_config_file
@@ -113,7 +113,7 @@ def start(argv: list[str]) -> RunningApp | None:
         autostart=RegistryAutostart(autostart_command(Path(sys.executable), args.config)),
         open_file=shell.open_file,
         quit_app=app.quit,
-        startup_issues=loaded.issues,
+        startup_issues=loaded.issues + runtime_issues(),  # F9-3, F21-2
         glass=NativeGlass(),
     )
     tray = Tray(controller.menu, app_icon())

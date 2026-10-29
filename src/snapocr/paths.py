@@ -47,3 +47,14 @@ def find_config(
     if source_root is not None and exists(source_root / SOURCE_CONFIG_NAME):
         return source_root / SOURCE_CONFIG_NAME
     return _env_dir(env, "APPDATA", home, "AppData", "Roaming") / APP_DIR_NAME / USER_CONFIG_NAME
+
+
+def runtime_dir(env: Mapping[str, str], *, home: Path) -> tuple[Path, str | None]:
+    """F21-2: an absolute ``SNAPOCR_RUNTIME_DIR``, else ``%LOCALAPPDATA%/snapocr``; plus why the variable was refused."""
+    default = _env_dir(env, "LOCALAPPDATA", home, "AppData", "Local") / APP_DIR_NAME
+    value = env.get(RUNTIME_ENV, "").strip()
+    if not value:
+        return default, None
+    if Path(value).is_absolute():
+        return Path(value), None
+    return default, f"不是绝对路径（{value}），日志和 debug 文件改放 {default}"

@@ -15,6 +15,7 @@ Pinned here:
 """
 
 import logging
+import os
 import runpy
 import sys
 import threading
@@ -24,10 +25,19 @@ import pytest
 
 from snapocr.actions.flows import FlowDeps
 from snapocr.actions.runner import JobRunner, ocr_job
-from snapocr.app import DEFAULT_LOG_DIR, LOG_FILE_NAME, install_excepthook, parse_args, safe_traceback, setup_logging
+from snapocr.app import (
+    DEFAULT_LOG_DIR,
+    LOG_FILE_NAME,
+    install_excepthook,
+    parse_args,
+    runtime_issues,
+    safe_traceback,
+    setup_logging,
+)
 from snapocr.config.files import default_config_path
 from snapocr.engines.errors import EngineLoadError
 from snapocr.engines.types import OcrResult
+from snapocr.paths import runtime_dir
 from snapocr.postprocess import PostprocessOptions, Replacements
 from support.fake_actions import holder_for
 from support.pp_strategies import rect
@@ -54,9 +64,26 @@ def test_bad_arguments_are_usage_errors(args, capsys):
     assert info.value.code == 2
 
 
-def test_default_log_dir_follows_the_project_rules():
-    assert DEFAULT_LOG_DIR == Path("D:/DevLocal/runtime/snapocr")
+def test_default_log_dir_is_the_runtime_dir_of_this_environment():
+    """F21-2: read once at import from the real environment (Jeremy's machine sets SNAPOCR_RUNTIME_DIR)."""
+    assert DEFAULT_LOG_DIR == runtime_dir(os.environ, home=Path.home())[0]
     assert LOG_FILE_NAME == "snapocr.log"
+
+
+def test_runtime_issues_name_a_relative_variable(monkeypatch, tmp_path):
+    monkeypatch.setenv("SNAPOCR_RUNTIME_DIR", "logs")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    default = tmp_path / "snapocr"
+    assert [str(i) for i in runtime_issues()] == [
+        f"SNAPOCR_RUNTIME_DIR: 不是绝对路径（logs），日志和 debug 文件改放 {default}"
+    ]
+
+
+def test_no_runtime_issues_for_an_absolute_variable_or_none(monkeypatch, tmp_path):
+    monkeypatch.setenv("SNAPOCR_RUNTIME_DIR", str(tmp_path))
+    assert runtime_issues() == []
+    monkeypatch.delenv("SNAPOCR_RUNTIME_DIR")
+    assert runtime_issues() == []
 
 
 # --- logging ---------------------------------------------------------------------------

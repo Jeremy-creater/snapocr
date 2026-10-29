@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from snapocr.paths import find_config, source_root
+from snapocr.paths import find_config, runtime_dir, source_root
 
 HOME = Path("C:/Users/someone")
 ROOT = Path("D:/code/snapocr")
@@ -96,3 +96,35 @@ def test_this_checkout_is_a_source_root():
     import snapocr.paths
 
     assert source_root(Path(snapocr.paths.__file__), Path.exists) == Path(__file__).resolve().parents[1]
+
+
+# --- runtime_dir (WI-2) ----------------------------------------------------------
+
+
+def local(tmp_path):
+    return {"LOCALAPPDATA": str(tmp_path / "Local")}
+
+
+def test_runtime_dir_defaults_to_localappdata(tmp_path):
+    assert runtime_dir(local(tmp_path), home=HOME) == (tmp_path / "Local" / "snapocr", None)
+
+
+def test_runtime_dir_without_localappdata(tmp_path):
+    assert runtime_dir({}, home=tmp_path) == (tmp_path / "AppData" / "Local" / "snapocr", None)
+
+
+def test_an_absolute_runtime_variable_is_used_as_is(tmp_path):
+    env = local(tmp_path) | {"SNAPOCR_RUNTIME_DIR": str(tmp_path / "runtime")}
+    assert runtime_dir(env, home=HOME) == (tmp_path / "runtime", None)
+
+
+@pytest.mark.parametrize("blank", ["", "  "])
+def test_a_blank_runtime_variable_is_ignored_quietly(tmp_path, blank):
+    env = local(tmp_path) | {"SNAPOCR_RUNTIME_DIR": blank}
+    assert runtime_dir(env, home=HOME) == (tmp_path / "Local" / "snapocr", None)
+
+
+def test_a_relative_runtime_variable_is_refused_with_a_reason(tmp_path):
+    env = local(tmp_path) | {"SNAPOCR_RUNTIME_DIR": "logs"}
+    default = tmp_path / "Local" / "snapocr"
+    assert runtime_dir(env, home=HOME) == (default, f"不是绝对路径（logs），日志和 debug 文件改放 {default}")

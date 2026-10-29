@@ -1,7 +1,7 @@
 """M3 WI-12: debug mode files (PRD F12-1, F12-3; M3 plan D16).
 
 Pinned here:
-- ``DEBUG_DIR`` is ``D:/DevLocal/runtime/snapocr/debug`` (fixed; CLAUDE.md).
+- ``DEBUG_DIR`` is ``debug`` under the runtime data directory (PRD F12-1, F21-2).
 - ``debug_stem(now, job_id)`` is ``YYYYMMDD-HHMMSS-fff-<job id>`` in local time.
 - ``debug_text(record)`` has the sections "## OCR 原文", "## 后处理文本", then
   "## 译文" and "## 错误" only when present; UTF-8, LF line ends.
@@ -29,8 +29,10 @@ def fixed(now=NOW):
     return lambda: now
 
 
-def test_debug_dir_is_fixed_under_runtime():
-    assert DEBUG_DIR == Path("D:/DevLocal/runtime/snapocr/debug")
+def test_debug_dir_is_under_the_runtime_dir():
+    from snapocr.app import DEFAULT_LOG_DIR
+
+    assert DEBUG_DIR == DEFAULT_LOG_DIR / "debug"
 
 
 def test_stem():
