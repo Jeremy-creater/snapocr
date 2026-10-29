@@ -45,6 +45,14 @@ def test_triggering_actions_reports_commands():
                     Command.TABLE_OCR, Command.SETTINGS, Command.QUIT]
 
 
+def test_a_mac_menu_shows_mac_symbols():
+    """M9 WI-7: the Mac menu turns the text after the tab into the native shortcut column."""
+    menu = build_tray_menu(DEFAULT_HOTKEYS, lambda c: None, platform="darwin")
+    assert texts(menu)[:6] == ["截图\t⌥1", "OCR\t⌥2", "截图翻译\t⌥3", "文字翻译\t⌥4", "代码 OCR\t⌥5", "表格 OCR\t⌥6"]
+    update_tray_menu(menu, {Command.CAPTURE: parse_hotkey("Ctrl+Shift+Cmd+Q", platform="darwin")}, platform="darwin")
+    assert texts(menu)[:2] == ["截图\t⌃⇧⌘Q", "OCR"]
+
+
 def test_update_rewrites_hotkey_texts_in_place():
     seen = []
     menu = build_tray_menu(DEFAULT_HOTKEYS, seen.append)

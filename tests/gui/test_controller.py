@@ -90,9 +90,9 @@ class Harness:
         self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error,
                                    denied=capture_denied)
         self.notifier = RecordingNotifier()
-        self.table = FakeHotkeyTable()
+        self.table = FakeHotkeyTable(taken_code=-9878 if platform == "darwin" else 1409)  # Carbon / Win32 (M9 WI-7)
         for text in preoccupy:
-            hk = parse_hotkey(text)
+            hk = parse_hotkey(text, platform=platform or "win32")
             self.table.preoccupy(hk.mods, hk.vk)
         self.opened: list[Path] = []
         self.open_error: OSError | None = None
@@ -1525,6 +1525,29 @@ def test_a_mac_writes_cmd_back_and_creates_the_mac_template(make):
     text = h.config_path.read_text(encoding="utf-8")
     assert 'capture = "Shift+Cmd+Q"' in text and "Win" not in text
     assert load_config_file(h.config_path, platform="darwin").config.hotkeys[Command.CAPTURE] == parse_hotkey("Shift+Win+Q")
+
+
+def test_a_mac_shows_hotkeys_with_mac_symbols(make):
+    """M9 WI-7: menu, start-up notice and the settings window write ⌥3, never Alt or Win."""
+    h = make(platform="darwin", preoccupy=["Alt+3"])
+    assert h.menu_action(Command.CAPTURE).text() == "截图\t⌥1"
+    (notice,) = h.notifier.notices
+    assert notice.body.splitlines()[0] == "⌥3（截图翻译）：已被其他软件占用"
+    window = open_settings(h)
+    window.hotkey_edits[Command.OCR].set_hotkey(parse_hotkey("Alt+1"))
+    window.save_button.click()
+    assert window.problems_label.text() == "「截图」和「OCR」用了同一个热键 ⌥1。"
+    taken = parse_hotkey("Shift+Cmd+Q", platform="darwin")
+    h.table.preoccupy(taken.mods, taken.vk)
+    window.hotkey_edits[Command.OCR].set_hotkey(taken)
+    window.save_button.click()
+    assert window.problems_label.text().splitlines() == ["⇧⌘Q（OCR）：已被其他软件占用", "⌥3（截图翻译）：已被其他软件占用"]
+    window.hotkey_edits[Command.OCR].set_hotkey(parse_hotkey("Ctrl+Alt+2"))
+    window.hotkey_edits[Command.TRANSLATE].set_hotkey(parse_hotkey("Ctrl+Alt+3"))
+    window.save_button.click()
+    assert not window.isVisible()
+    assert h.menu_action(Command.OCR).text() == "OCR\t⌃⌥2"
+    assert 'ocr = "Ctrl+Alt+2"' in h.config_path.read_text(encoding="utf-8")
 
 
 def test_translation_window_font_follows_the_platform(make):

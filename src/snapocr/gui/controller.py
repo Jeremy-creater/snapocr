@@ -149,7 +149,7 @@ class AppController(QObject):
         self.popup = TranslationPopup(platform=platform)
         self.popup.translate_requested.connect(self._translate_text)
         self._apply_look()
-        self.menu = build_tray_menu(config.hotkeys, self._on_menu)
+        self.menu = build_tray_menu(config.hotkeys, self._on_menu, platform=platform)
         self.settings_window = SettingsWindow()
         self.settings_window.save_requested.connect(self._save_settings)
         self.settings_window.advanced_requested.connect(lambda: self.run(Command.OPEN_CONFIG))
@@ -173,11 +173,11 @@ class AppController(QObject):
 
     def start(self) -> None:
         """Register hotkeys, report start-up problems (F9-3, F5-3) and debug mode (F12-2), warm up (D2)."""
-        self._report = register_all(self._config.hotkeys, self._hotkeys.register)
+        self._report = register_all(self._config.hotkeys, self._hotkeys.register, platform=self._platform)
         if self._startup_issues:
             self._notifier.notify(messages.config_issues_notice(self._startup_issues))
         if self._report.failed:
-            self._notifier.notify(messages.hotkey_failed_notice(self._report.failed))
+            self._notifier.notify(messages.hotkey_failed_notice(self._report.failed, platform=self._platform))
         if self._config.debug:
             self._notifier.notify(messages.debug_on_notice(self._debug_dir))
         self.runner.submit_warmup(self._deps.engine)
@@ -431,12 +431,12 @@ class AppController(QObject):
         window = self.settings_window
         problems = check(new)
         if problems:
-            window.show_problems([messages.settings_problem_text(p) for p in problems])
+            window.show_problems([messages.settings_problem_text(p, platform=self._platform) for p in problems])
             return
-        trial = register_all(new.hotkeys, self._hotkeys.register)
+        trial = register_all(new.hotkeys, self._hotkeys.register, platform=self._platform)
         if trial.failed:
             unregister_all(trial, self._hotkeys.unregister)
-            window.show_problems([messages.hotkey_failure_line(f) for f in trial.failed])
+            window.show_problems([messages.hotkey_failure_line(f, platform=self._platform) for f in trial.failed])
             return
         was_on = self._autostart_enabled()
         try:
@@ -464,7 +464,7 @@ class AppController(QObject):
         self._translator = self._make_translator(self._config.translator)
         self._report = trial
         self._paused = False
-        update_tray_menu(self.menu, self._config.hotkeys)
+        update_tray_menu(self.menu, self._config.hotkeys, platform=self._platform)
         self._apply_look()  # F20-2: no restart
         self._notifier.notify(messages.settings_saved_notice())
         window.finish()
@@ -474,9 +474,9 @@ class AppController(QObject):
         if not self._paused or self._quitting:
             return
         self._paused = False
-        self._report = register_all(self._config.hotkeys, self._hotkeys.register)
+        self._report = register_all(self._config.hotkeys, self._hotkeys.register, platform=self._platform)
         if self._report.failed:
-            self._notifier.notify(messages.hotkey_failed_notice(self._report.failed))
+            self._notifier.notify(messages.hotkey_failed_notice(self._report.failed, platform=self._platform))
 
     # --- config and quit ----------------------------------------------------------------
 

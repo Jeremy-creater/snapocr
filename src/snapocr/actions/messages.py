@@ -17,7 +17,7 @@ from snapocr.commands import Command
 from snapocr.config.schema import ConfigIssue
 from snapocr.config.settings import BadModel, BadSaveDir, BadTheme, DuplicateHotkey, Problem
 from snapocr.engines.errors import EngineLoadError, OcrError
-from snapocr.hotkeys import HotkeyFailure, format_hotkey, hotkey_taken
+from snapocr.hotkeys import HotkeyFailure, display_hotkey, hotkey_taken
 from snapocr.translators.errors import TranslationError, TranslationErrorKind
 
 COMMAND_LABELS: Mapping[Command, str] = MappingProxyType(
@@ -159,10 +159,10 @@ def open_config_failed_notice(path: os.PathLike[str] | str, detail: str) -> Noti
     return Notice("无法打开配置文件", f"{os.fspath(path)}\n{detail}", warning=True)
 
 
-def settings_problem_text(p: Problem) -> str:
+def settings_problem_text(p: Problem, *, platform: str = "win32") -> str:
     if isinstance(p, DuplicateHotkey):
         first, second = COMMAND_LABELS[p.first], COMMAND_LABELS[p.second]
-        return f"「{first}」和「{second}」用了同一个热键 {format_hotkey(p.hotkey)}。"
+        return f"「{first}」和「{second}」用了同一个热键 {display_hotkey(p.hotkey, platform=platform)}。"
     if isinstance(p, BadModel):
         return f"模型名不能用：{p.reason}"
     if isinstance(p, BadSaveDir):

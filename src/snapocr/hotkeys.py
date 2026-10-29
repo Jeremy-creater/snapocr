@@ -132,6 +132,22 @@ def format_hotkey(hotkey: Hotkey, *, platform: str = "win32") -> str:
     return "+".join([*names, _KEY_NAMES[hotkey.vk]])
 
 
+# Interface text on a Mac (M9 plan D9): ⌃⌥⇧⌘ in the system's order, then the key.
+_MAC_SYMBOLS = ((MOD_CONTROL, "⌃"), (MOD_ALT, "⌥"), (MOD_SHIFT, "⇧"), (MOD_CMD, "⌘"))
+_MAC_KEY_SYMBOLS = {
+    0x25: "←", 0x26: "↑", 0x27: "→", 0x28: "↓", 0x09: "⇥", 0x2E: "⌦",
+    0x24: "↖", 0x23: "↘", 0x21: "⇞", 0x22: "⇟",
+}
+
+
+def display_hotkey(hotkey: Hotkey, *, platform: str = "win32") -> str:
+    """Interface text: the config text on Windows, ⌃⌥⇧⌘ and the key on a Mac (Qt menus read it back)."""
+    if check_platform(platform) == "win32":
+        return format_hotkey(hotkey, platform=platform)
+    symbols = "".join(symbol for bit, symbol in _MAC_SYMBOLS if hotkey.mods & bit)
+    return symbols + _MAC_KEY_SYMBOLS.get(hotkey.vk, _KEY_NAMES[hotkey.vk])
+
+
 # --- macOS (M9 plan D10) ---------------------------------------------------------------------
 
 # Win32 VK -> Carbon kVK (Events.h): physical key positions on an ANSI keyboard.
@@ -196,9 +212,12 @@ class RegistrationReport:
 
 
 def register_all(
-    bindings: Mapping[Command, Hotkey], register: Callable[[int, int, int], int]
+    bindings: Mapping[Command, Hotkey], register: Callable[[int, int, int], int], *, platform: str = "win32"
 ) -> RegistrationReport:
-    """Register every binding in ``Command`` order; a failure does not stop the rest (F5-3)."""
+    """Register every binding in ``Command`` order; a failure does not stop the rest (F5-3).
+
+    A failure carries the hotkey as the interface shows it on ``platform``.
+    """
     report = RegistrationReport()
     for command in Command:
         if command not in bindings:
@@ -207,7 +226,7 @@ def register_all(
         hid = hotkey_id(command)
         error = register(hid, hotkey.mods | MOD_NOREPEAT, hotkey.vk)
         if error:
-            report.failed.append(HotkeyFailure(command, format_hotkey(hotkey), error))
+            report.failed.append(HotkeyFailure(command, display_hotkey(hotkey, platform=platform), error))
         else:
             report.registered[hid] = command
     return report
