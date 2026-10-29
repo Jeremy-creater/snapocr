@@ -1511,6 +1511,22 @@ def test_a_request_after_quit_does_nothing(make, clipboard):
 # --- M9 WI-4: the translation window's font follows the platform (plan D21) -------------------
 
 
+def test_a_mac_writes_cmd_back_and_creates_the_mac_template(make):
+    """M9 WI-5: the controller passes its platform to the config file code."""
+    from snapocr.config.template import template
+
+    h = make(platform="darwin")
+    h.controller.run(Command.OPEN_CONFIG)
+    assert h.config_path.read_text(encoding="utf-8") == template("darwin")
+    window = open_settings(h)
+    record(window.hotkey_edits[Command.CAPTURE], Qt.Key.Key_Q, M.MetaModifier | M.ShiftModifier)  # the Win / Cmd bit
+    window.save_button.click()
+    assert not window.isVisible()
+    text = h.config_path.read_text(encoding="utf-8")
+    assert 'capture = "Shift+Cmd+Q"' in text and "Win" not in text
+    assert load_config_file(h.config_path, platform="darwin").config.hotkeys[Command.CAPTURE] == parse_hotkey("Shift+Win+Q")
+
+
 def test_translation_window_font_follows_the_platform(make):
     assert make().controller.popup.font().families()[:3] == ["Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI"]
     assert make(platform="darwin").controller.popup.font().families()[0] == "PingFang SC"

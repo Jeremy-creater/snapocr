@@ -135,6 +135,7 @@ class AppController(QObject):
         self._paused = False  # hotkeys released while the settings window is open (plan D5)
         self._glass = glass or NoGlass()
         self._prepare_overlay = prepare_overlay  # F23-4: on a Mac, above the menu bar and Dock
+        self._platform = platform  # config text and template (M9 WI-5)
         self._glass_problem: str | None = None  # why the last look could not use acrylic (F20-4)
         hints = QGuiApplication.styleHints()
         self._dark = hints.colorScheme() == Qt.ColorScheme.Dark  # F20-3; Unknown (offscreen) is light
@@ -445,10 +446,10 @@ class AppController(QObject):
             unregister_all(trial, self._hotkeys.unregister)
             window.show_problems([messages.autostart_failed_text(err)])
             return
-        delta = changes(settings_of(self._config), new)
+        delta = changes(settings_of(self._config), new, platform=self._platform)
         try:
             if delta:
-                write_changes(self._config_path, delta)
+                write_changes(self._config_path, delta, platform=self._platform)
         except ConfigWriteError as err:
             unregister_all(trial, self._hotkeys.unregister)
             if autostart != was_on:
@@ -482,7 +483,7 @@ class AppController(QObject):
     def _open_config(self) -> None:
         path = self._config_path
         if not path.exists():
-            result = load_config_file(path)  # creates the template, never overwrites
+            result = load_config_file(path, platform=self._platform)  # creates the template, never overwrites
             if not result.created:
                 self._notifier.notify(messages.config_issues_notice(result.issues))
                 return

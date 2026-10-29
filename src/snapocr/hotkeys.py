@@ -42,9 +42,22 @@ class HotkeyError(ValueError):
         self.reason = reason
 
 
-# Canonical names in format order; "Control" is an accepted alias of "Ctrl".
-_MODIFIERS = (("Ctrl", MOD_CONTROL), ("Alt", MOD_ALT), ("Shift", MOD_SHIFT), ("Win", MOD_WIN))
-_MOD_BY_NAME = {name.lower(): bit for name, bit in _MODIFIERS} | {"control": MOD_CONTROL}
+# Canonical names in format order, per platform (M9 plan D9): the Win bit is Cmd on a Mac.
+# "Control" is an alias of "Ctrl" and "Option" of "Alt" on both; "Command" of "Cmd".
+_MODIFIERS = {
+    "win32": (("Ctrl", MOD_CONTROL), ("Alt", MOD_ALT), ("Shift", MOD_SHIFT), ("Win", MOD_WIN)),
+    "darwin": (("Ctrl", MOD_CONTROL), ("Alt", MOD_ALT), ("Shift", MOD_SHIFT), ("Cmd", MOD_CMD)),
+}
+_COMMON_MODS = {"ctrl": MOD_CONTROL, "control": MOD_CONTROL, "alt": MOD_ALT, "option": MOD_ALT, "shift": MOD_SHIFT}
+_MOD_BY_NAME = {
+    "win32": _COMMON_MODS | {"win": MOD_WIN},
+    "darwin": _COMMON_MODS | {"cmd": MOD_CMD, "command": MOD_CMD},
+}
+_WRONG_PLATFORM = {  # names that belong to the other system
+    "win32": dict.fromkeys(("cmd", "command"), "a macOS key; on Windows use Win"),
+    "darwin": {"win": "a Windows key; on macOS use Cmd"},
+}
+_REQUIRED = {"win32": "Ctrl, Alt, Shift, Win", "darwin": "Ctrl, Option, Shift, Cmd"}
 _ALL_MODS = MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_WIN
 
 # Win32 virtual-key codes.
@@ -76,7 +89,9 @@ class Hotkey:
             raise ValueError(f"unsupported virtual-key code {self.vk!r}")
 
 
-def parse_hotkey(text: object) -> Hotkey:
+def parse_hotkey(text: object, *, platform: str = "win32") -> Hotkey:
+    """``HotkeyError`` names the offending token; ``ValueError`` for an unknown platform."""
+    mod_by_name = _MOD_BY_NAME[check_platform(platform)]
     if not isinstance(text, str):
         raise HotkeyError("", f"expected a str like 'Alt+1', got {type(text).__name__}")
     whole = text.strip()
@@ -89,27 +104,31 @@ def parse_hotkey(text: object) -> Hotkey:
         if not token:
             raise HotkeyError("", f"empty key name in {whole!r} (stray '+')")
         name = token.lower() if token.isascii() else None
-        if name in _MOD_BY_NAME:
-            bit = _MOD_BY_NAME[name]
+        if name in mod_by_name:
+            bit = mod_by_name[name]
             if mods & bit:
                 raise HotkeyError(token, "modifier given twice")
             mods |= bit
+        elif name in _WRONG_PLATFORM[platform]:
+            raise HotkeyError(token, _WRONG_PLATFORM[platform][name])
         elif name in _VK_BY_NAME:
             if vk is not None:
                 raise HotkeyError(token, "only one non-modifier key is allowed")
             vk = _VK_BY_NAME[name]
+            if platform == "darwin" and vk not in _MAC_KEYCODES:
+                raise HotkeyError(token, "a Mac keyboard has no such key")
         else:
             raise HotkeyError(token, "unknown key name")
     if vk is None:
         raise HotkeyError(whole, "no main key (e.g. 'Alt+1')")
     if not mods:
-        raise HotkeyError(whole, "at least one modifier (Ctrl, Alt, Shift, Win) is required")
+        raise HotkeyError(whole, f"at least one modifier ({_REQUIRED[platform]}) is required")
     return Hotkey(mods, vk)
 
 
-def format_hotkey(hotkey: Hotkey) -> str:
-    """Canonical form: Ctrl+Alt+Shift+Win+Key."""
-    names = [name for name, bit in _MODIFIERS if hotkey.mods & bit]
+def format_hotkey(hotkey: Hotkey, *, platform: str = "win32") -> str:
+    """Config text: Ctrl+Alt+Shift+Win+Key, with Cmd for the Win bit on a Mac; Option is written Alt."""
+    names = [name for name, bit in _MODIFIERS[check_platform(platform)] if hotkey.mods & bit]
     return "+".join([*names, _KEY_NAMES[hotkey.vk]])
 
 

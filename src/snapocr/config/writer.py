@@ -26,7 +26,7 @@ from pathlib import Path
 
 import tomlkit
 
-from snapocr.config.template import DEFAULT_TEMPLATE
+from snapocr.config.template import template
 
 _HEADER = r"\s*\[\s*{name}\s*\]\s*(#.*)?"
 _ANY_HEADER = re.compile(r"\s*#?\s*\[")  # a table header, real or commented out
@@ -37,9 +37,9 @@ class ConfigWriteError(Exception):
     """The file was left unchanged; the message is shown in the settings window."""
 
 
-def _read(path: Path) -> str:
+def _read(path: Path, platform: str) -> str:
     if not path.exists():
-        return DEFAULT_TEMPLATE
+        return template(platform)
     try:
         raw = path.read_bytes()
     except OSError as e:
@@ -120,9 +120,11 @@ def _replace_file(path: Path, text: str) -> None:
         raise ConfigWriteError(f"无法写入配置文件：{e.strerror or e}") from None
 
 
-def write_changes(path: Path, changes: Mapping[str, bool | str]) -> None:
-    """Write "section.key" -> value into ``path``; ``ConfigWriteError`` leaves the file unchanged."""
-    text = _read(path)
+def write_changes(path: Path, changes: Mapping[str, bool | str], *, platform: str = "win32") -> None:
+    """Write "section.key" -> value into ``path``; ``ConfigWriteError`` leaves the file unchanged.
+
+    A missing file starts from ``platform``'s template (M9 WI-5)."""
+    text = _read(path, platform)
     expected = copy.deepcopy(_parse(text))
     text, missing = _set_active(text, changes)
     for dotted, value in missing.items():

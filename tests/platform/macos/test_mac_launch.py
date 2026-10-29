@@ -34,7 +34,7 @@ from support.mac_input import press_combo
 pytestmark = pytest.mark.gui
 
 KEYS = {"capture": "Ctrl+Alt+Shift+F19", "ocr": "Ctrl+Alt+F19", "translate": "Ctrl+Shift+F19",
-        "translate_text": "Alt+Shift+F19", "code_ocr": "Ctrl+F19", "table_ocr": "Alt+F19"}
+        "translate_text": "Alt+Shift+F19", "code_ocr": "Ctrl+F19", "table_ocr": "Cmd+Option+F19"}
 
 
 def write_config(path: Path) -> Path:
@@ -67,7 +67,7 @@ def test_start_is_a_menu_bar_app_with_live_hotkeys(qtbot, running, tmp_path):
     assert app is not None
     assert c.send(c.ns_app(), "activationPolicy", restype=ctypes.c_long) == c.NSApplicationActivationPolicyAccessory
     assert app.tray.icon.isVisible()
-    assert sorted(cmd.value for cmd in app.controller.registered_commands()) == sorted(KEYS)
+    assert sorted(cmd.value for cmd in app.controller.registered_commands()) == sorted(KEYS)  # Cmd+… read (WI-5)
     assert app.controller.popup.font().families()[0] == "PingFang SC"  # the kit's platform (M9 WI-4)
     hk = parse_hotkey(KEYS["translate_text"])
     press_combo(hk.mods, hk.vk)
@@ -112,7 +112,7 @@ def test_shutdown_frees_hotkeys_and_lock(running, tmp_path):
     other = CarbonHotkeys()
     try:
         for i, text in enumerate(KEYS.values()):
-            hk = parse_hotkey(text)
+            hk = parse_hotkey(text, platform="darwin")
             assert other.register(100 + i, hk.mods, hk.vk) == 0, text
     finally:
         other.close()

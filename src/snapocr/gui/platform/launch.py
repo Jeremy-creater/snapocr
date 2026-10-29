@@ -99,7 +99,7 @@ def start(argv: list[str]) -> RunningApp | None:
         _show_already_running()
         return None
 
-    loaded = load_config_file(args.config)  # creates the template when missing (F9-1, F9-2)
+    loaded = load_config_file(args.config, platform=kit.PLATFORM)  # creates the template when missing (F9-1, F9-2)
     config = loaded.config
     engine = EngineHolder(lambda: RapidOcrEngine(config.ocr).load())
     deps = FlowDeps(engine, config.postprocess, config.replacements)

@@ -15,7 +15,7 @@ from pathlib import Path
 
 from snapocr.config.load import build_config
 from snapocr.config.schema import AppConfig, ConfigIssue
-from snapocr.config.template import DEFAULT_TEMPLATE
+from snapocr.config.template import template
 from snapocr.paths import find_config, source_root
 
 
@@ -59,7 +59,8 @@ def _defaults(path: Path, reason: str) -> LoadResult:
     return LoadResult(AppConfig(), [ConfigIssue(path, "", f"{reason}; using defaults")], created=False)
 
 
-def load_config_file(path: Path) -> LoadResult:
+def load_config_file(path: Path, *, platform: str = "win32") -> LoadResult:
+    """Read ``path`` for ``platform`` (M9 WI-5); a missing file gets that platform's template."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)  # first run: %APPDATA%/snapocr (F21-3)
     except OSError as e:
@@ -67,7 +68,7 @@ def load_config_file(path: Path) -> LoadResult:
     try:
         # "x": fails if the file appeared in the meantime, so nothing is overwritten.
         with open(path, "x", encoding="utf-8", newline="\n") as f:
-            f.write(DEFAULT_TEMPLATE)
+            f.write(template(platform))
     except FileExistsError:
         pass
     except OSError as e:
@@ -89,5 +90,5 @@ def load_config_file(path: Path) -> LoadResult:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
         return _defaults(path, f"TOML syntax error: {e}; the file was not changed")
-    config, issues = build_config(data, source=path)
+    config, issues = build_config(data, source=path, platform=platform)
     return LoadResult(config, issues, created=False)
