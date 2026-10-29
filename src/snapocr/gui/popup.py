@@ -103,6 +103,10 @@ class TranslationPopup(QWidget):
         self.translation_view = QPlainTextEdit(readOnly=True)
         self.source_view.setObjectName("source")
         self.translation_view.setObjectName("translation")
+        for view in (self.source_view, self.translation_view):
+            # The stylesheet padding is the inset; the default 4 px document margin on top of it
+            # made two lines overflow the box and show a scrollbar.
+            view.document().setDocumentMargin(0)
         self.copy_source_button = QPushButton("复制", objectName="copy", toolTip="复制原文")
         self.copy_translation_button = QPushButton("复制", objectName="copy", toolTip="复制译文")
         self.target_box = SegmentedControl()

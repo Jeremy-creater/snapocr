@@ -125,3 +125,31 @@ def test_switching_looks_changes_the_open_window(qtbot, window):
     qtbot.wait(10)
     assert pixel(window, 9, 130) != dark
     assert window.isVisible()
+
+
+def _fit_viewport(qtbot, window, view, height):
+    """Resize the window until ``view``'s viewport is exactly ``height`` px tall."""
+    for _ in range(20):
+        delta = height - view.viewport().height()
+        if delta == 0:
+            return
+        window.resize(window.width(), window.height() + delta)
+        qtbot.wait(10)
+    pytest.fail(f"viewport stuck at {view.viewport().height()} px, wanted {height}")
+
+
+@pytest.mark.parametrize("theme", ["light_solid", "dark_glass"])
+@pytest.mark.parametrize("box", ["source_view", "translation_view"])
+def test_no_scrollbar_while_the_lines_fit(qtbot, window, theme, box):
+    """M7 WI-10: the stylesheet padding is the only inset, so lines that fit the viewport do not scroll."""
+    window.set_look(Look(PALETTES[theme], theme.endswith("glass")))
+    view = getattr(window, box)
+    lines = 2
+    _fit_viewport(qtbot, window, view, lines * view.fontMetrics().lineSpacing() + 1)
+    view.setPlainText("\n".join(["Hello 你好"] * lines))
+    qtbot.wait(10)
+    bar = view.verticalScrollBar()
+    assert (bar.maximum(), bar.isVisible()) == (0, False)
+    view.setPlainText("\n".join(["Hello 你好"] * (lines + 1)))  # one line too many still scrolls
+    qtbot.wait(10)
+    assert (bar.maximum(), bar.isVisible()) == (1, True)
