@@ -94,6 +94,7 @@ class TranslationPopup(QWidget):
             Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)  # stays while another app is active (M9)
         self.setMouseTracking(True)
         self.setMinimumSize(*MIN_SIZE)
 
