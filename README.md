@@ -27,16 +27,28 @@ This is the first piece of software I (Jeremy) built by working with an AI codin
 
 All hotkeys can be changed in **Settings** (tray menu → 设置…), together with start-with-Windows, the translation model, the save folder and the window style (light / dark glass, light solid, or follow Windows). Multiple monitors with different scaling are supported.
 
+## Download and run (no Python needed)
+
+1. On the [Releases page](https://github.com/Jeremy-creater/snapocr/releases/latest), download `snapocr-<version>-windows-x64.zip` (about 120 MB).
+2. Unzip it anywhere, for example to `D:\Apps`. You get a `snapocr` folder.
+3. Double-click `snapocr.exe` in that folder. No window opens; the icon appears in the tray (maybe hidden under `^`).
+
+The first time, Windows may show **"Windows protected your PC"**. snapocr has no paid code-signing certificate, so Windows does not know it yet. Click **More info**, then **Run anyway**.
+
+Screenshots and OCR work right away. Translation needs Ollama and a model; see [Set up translation](#set-up-translation-optional).
+
+To update, quit snapocr and unzip the new version over the old folder; your settings are kept. To uninstall, turn off 开机自启动 (start with Windows) in Settings, quit snapocr, then delete the `snapocr` folder, `%APPDATA%\snapocr` and `%LOCALAPPDATA%\snapocr`.
+
 ## Requirements
 
 - Windows 11 (64-bit). Windows 10 should work but is untested; the glass window style needs Windows 11 and falls back to a solid style elsewhere.
-- Python **3.12** (exactly; 3.13 is not supported yet).
+- About 300 MB of disk space. The OCR models are included — nothing is downloaded at run time.
 - For translation only: [Ollama](https://ollama.com/) (or any OpenAI-compatible server on `127.0.0.1`, such as LM Studio or llama.cpp server). Screenshot and OCR work without it.
-- About 500 MB of disk space for the Python packages (Qt, OpenCV, ONNX Runtime). The OCR models come with the `rapidocr` package — nothing is downloaded at run time.
+- Installing from source (below) also needs Python **3.12** (exactly; 3.13 is not supported yet) and about 500 MB for the Python packages.
 
-## Install
+## Install from source (Python 3.12)
 
-With [uv](https://docs.astral.sh/uv/) (recommended):
+For developers, or if you prefer Python packages over the zip. With [uv](https://docs.astral.sh/uv/):
 
 ```powershell
 uv tool install --python 3.12 git+https://github.com/Jeremy-creater/snapocr

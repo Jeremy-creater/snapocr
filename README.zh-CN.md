@@ -27,16 +27,28 @@ Windows 托盘常驻的截图工具：**一个热键做一件事，结果直接�
 
 所有热键都能在**设置**（托盘菜单 → 设置…）里改；设置里还有开机自启动、翻译模型、截图保存目录、窗口风格（浅色 / 深色毛玻璃、浅色实底、跟随系统）。支持缩放比例不同的多显示器。
 
+## 下载就能用（不用装 Python）
+
+1. 打开 [Releases 页面](https://github.com/Jeremy-creater/snapocr/releases/latest)，下载 `snapocr-<版本>-windows-x64.zip`（约 120 MB）。
+2. 解压到任意位置，比如 `D:\Apps`，会得到一个 `snapocr` 文件夹。
+3. 双击文件夹里的 `snapocr.exe`。不会弹出窗口，图标在右下角托盘里（可能藏在 `^` 里）。
+
+第一次运行时，Windows 可能提示 **“Windows 已保护你的电脑”**。这是因为 snapocr 没有付费的代码签名，Windows 还不认识它。点 **“更多信息”**，再点 **“仍要运行”**。
+
+截图和识别文字马上就能用。翻译要另装 Ollama 和模型，见 [准备翻译](#准备翻译可选)。
+
+升级：退出 snapocr，把新版本解压覆盖旧文件夹，设置会保留。卸载：先在设置里关掉“开机自启动”，退出 snapocr，再删除 `snapocr` 文件夹、`%APPDATA%\snapocr` 和 `%LOCALAPPDATA%\snapocr`。
+
 ## 系统要求
 
 - Windows 11（64 位）。Windows 10 应该能用，但没测过；毛玻璃风格需要 Windows 11，其他系统自动改用实底。
-- Python **3.12**（只能是 3.12，暂不支持 3.13）。
+- 约 300 MB 硬盘。OCR 模型已包含在内，运行时不下载任何东西。
 - 只有翻译需要：[Ollama](https://ollama.com/)（或其他在 `127.0.0.1` 上提供 OpenAI 兼容接口的服务，如 LM Studio、llama.cpp server）。截图和 OCR 不需要。
-- Python 依赖约占 500 MB 硬盘（Qt、OpenCV、ONNX Runtime）。OCR 模型随 `rapidocr` 包一起安装，运行时不下载任何东西。
+- 从源码安装（见下）还需要 Python **3.12**（只能是 3.12，暂不支持 3.13），Python 依赖约占 500 MB。
 
-## 安装
+## 从源码安装（Python 3.12）
 
-用 [uv](https://docs.astral.sh/uv/)（推荐）：
+给开发者，或者更想用 Python 包而不是 zip 的人。用 [uv](https://docs.astral.sh/uv/)：
 
 ```powershell
 uv tool install --python 3.12 git+https://github.com/Jeremy-creater/snapocr

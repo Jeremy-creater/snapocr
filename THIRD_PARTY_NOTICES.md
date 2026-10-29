@@ -1,6 +1,6 @@
 # Third-party notices
 
-snapocr itself is MIT-licensed (see `LICENSE`). It does not bundle any third-party code or model files in this repository; the packages below are installed by pip / uv from PyPI as dependencies, each under its own license.
+snapocr itself is MIT-licensed (see `LICENSE`). The source repository contains no third-party code or model files (only the LGPL-3.0 and GPL-3.0 license texts in `packaging/licenses`); the packages below are installed by pip / uv from PyPI as dependencies, each under its own license. The Windows portable build bundles them; see the section below.
 
 | Component | Used for | License |
 |---|---|---|
@@ -14,9 +14,23 @@ snapocr itself is MIT-licensed (see `LICENSE`). It does not bundle any third-par
 
 Development-only dependencies (pytest, pytest-cov, pytest-qt, hypothesis) are not needed to run snapocr.
 
+## Windows portable build (zip on the Releases page)
+
+The zip (PRD F22) bundles the packages above, unmodified, together with what they need at run time. The license files of every bundled package are in the `licenses` folder of the zip, one subfolder per package.
+
+| Component | License |
+|---|---|
+| Python 3.12 runtime | PSF-2.0 (`licenses/python/LICENSE.txt`) |
+| PyInstaller bootloader (starts `snapocr.exe`) | GPL-2.0-or-later with the bootloader exception, which allows distributing it with programs under any license |
+| Microsoft Visual C++ runtime (`VCRUNTIME140*.dll`), Universal C runtime (`api-ms-win-*.dll`) | Redistributable under Microsoft's terms |
+| OpenSSL (Python's `ssl` module) | Apache-2.0 |
+| Dependencies of RapidOCR: Pillow, Shapely (with GEOS), pyclipper, PyYAML, omegaconf, tqdm, colorlog, requests, urllib3, idna, charset-normalizer, certifi, protobuf, flatbuffers, six, packaging, colorama | MIT-CMU, BSD-3-Clause (GEOS: LGPL-2.1), MIT (Clipper: BSL-1.0), MIT, BSD-3-Clause, MPL-2.0 AND MIT, MIT, Apache-2.0, MIT, BSD-3-Clause, MIT, MPL-2.0, BSD-3-Clause, Apache-2.0, MIT, Apache-2.0 OR BSD-2-Clause, BSD-3-Clause |
+
+certifi and tqdm (MPL-2.0) are included unmodified; their source is on PyPI. flatbuffers ships no license file; it is under the Apache License 2.0, the same text as in `licenses/rapidocr/licenses/LICENSE`.
+
 ## Qt / LGPL
 
-snapocr uses PySide6 as an ordinary pip dependency and does not modify or redistribute Qt. If you build a stand-alone package (for example with PyInstaller), keep the Qt libraries as separate, replaceable files (a "one-folder" build) to stay within the LGPL.
+From pip or uv, snapocr uses PySide6 as an ordinary dependency and does not modify or redistribute Qt. The portable build does redistribute PySide6 and Qt, unmodified, under the LGPL-3.0: it is a one-folder build, so the Qt and PySide6 libraries are separate files in `_internal\PySide6` that you can replace with your own build of the same version. The LGPL-3.0 and GPL-3.0 texts are in `licenses/pyside6`. Qt's source code is available from https://download.qt.io/ and PySide6's from https://code.qt.io/cgit/pyside/pyside-setup.git/. The same applies to GEOS (LGPL-2.1), a separate DLL in `_internal\Shapely.libs`.
 
 ## Translation model
 

@@ -6,6 +6,8 @@
 
 First public release. Windows 11 only; the user interface is in Chinese.
 
+Download `snapocr-0.1.0-windows-x64.zip` from the Release, unzip it and run `snapocr.exe`: no Python needed. Or install from source with Python 3.12 (see the README).
+
 ### Added
 
 - Tray app with global hotkeys, one job per hotkey, result on the clipboard:
@@ -26,6 +28,8 @@ First public release. Windows 11 only; the user interface is in Chinese.
 ## [0.1.0] - 2026-10-29
 
 第一个公开版本。只支持 Windows 11，界面只有中文。
+
+从 Release 下载 `snapocr-0.1.0-windows-x64.zip`，解压后运行 `snapocr.exe`，不用装 Python。也可以用 Python 3.12 从源码安装（见 README）。
 
 - 托盘常驻，全局热键，一个热键做一件事，结果进剪贴板：
   - `Alt+1` 截图，可以标注（矩形、椭圆、箭头、文字、序号、画笔、马赛克、选中移动删除、撤销）、贴图、另存为文件。
