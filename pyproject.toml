@@ -7,6 +7,8 @@ name = "snapocr"
 version = "0.0.1"
 description = "Personal tray screenshot tool: capture, OCR and local-LLM translation to clipboard"
 requires-python = ">=3.12,<3.13"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 dependencies = [
     # Built-in OCR engine (PRD §5): in-process PP-OCR models via ONNX Runtime.
     # Pinned to 3.10.x because the bundled model file names change between versions.
