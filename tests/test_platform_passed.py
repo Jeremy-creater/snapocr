@@ -18,6 +18,7 @@ NEEDS_PLATFORM = {
     "build_tray_menu", "update_tray_menu", "template", "load_config_file", "build_config",
     "changes", "write_changes", "font_families", "TranslationPopup", "AppController",
     "HotkeyEdit", "SettingsWindow", "find_config", "runtime_dir",
+    "shortcut_text", "AnnotateToolbar", "SelectionOverlay",
 }
 
 # (file relative to src/snapocr, function) -> why the default is right there.

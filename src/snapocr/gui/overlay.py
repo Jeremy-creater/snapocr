@@ -131,6 +131,7 @@ class SelectionOverlay(QWidget):
         annotate: bool = False,
         style: Style = DEFAULT_STYLE,
         save_target: Callable[[], Path] | None = None,
+        platform: str = "win32",
     ) -> None:
         super().__init__(parent)
         self._save_target = save_target
@@ -158,7 +159,7 @@ class SelectionOverlay(QWidget):
         self._editor_at: Point = (0, 0)  # physical top-left of the text being typed
         self.toolbar: AnnotateToolbar | None = None
         if annotate:
-            self.toolbar = AnnotateToolbar(style, self, show_pin=True)
+            self.toolbar = AnnotateToolbar(style, self, show_pin=True, platform=platform)
             self.toolbar.hide()
             self.toolbar.tool_changed.connect(self._tool_changed)
             self.toolbar.style_changed.connect(self.style_changed)

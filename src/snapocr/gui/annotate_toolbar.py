@@ -17,6 +17,7 @@ from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap, QPolygo
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QToolButton, QWidget
 
 from snapocr.annotate import COLOR_NAMES, DEFAULT_STYLE, LEVEL_NAMES, PALETTE, Style, Tool, arrow_shape
+from snapocr.hotkeys import shortcut_text
 from snapocr.theme import PALETTES, Color, over
 
 ICON = 20
@@ -148,7 +149,10 @@ class AnnotateToolbar(QWidget):
     cancel_requested = Signal()
     done_requested = Signal()
 
-    def __init__(self, style: Style = DEFAULT_STYLE, parent: QWidget | None = None, *, show_pin: bool = False) -> None:
+    def __init__(
+        self, style: Style = DEFAULT_STYLE, parent: QWidget | None = None, *, show_pin: bool = False,
+        platform: str = "win32",
+    ) -> None:
         super().__init__(parent)
         self._style = style
         self._tool: Tool | None = None
@@ -184,13 +188,15 @@ class AnnotateToolbar(QWidget):
             b.clicked.connect(lambda _=False, lv=level: self.level_clicked.emit(lv))
             self._levels.append(b)
         self._separator(layout)
-        self._undo = self._button(layout, "undo", "撤销（Ctrl+Z）", _icon(_glyph("↶")))
+        self._undo = self._button(layout, "undo", f"撤销（{shortcut_text('undo', platform=platform)}）",
+                                  _icon(_glyph("↶")))
         self._undo.setEnabled(False)
         self._undo.clicked.connect(self.undo_requested)
         pin = self._button(layout, "pin", "贴图：钉在屏幕上", _icon(_pushpin))
         pin.setVisible(show_pin)
         pin.clicked.connect(self.pin_requested)
-        save = self._button(layout, "save", "另存为图片，同时复制（Ctrl+S）", _icon(_disk))
+        save = self._button(layout, "save", f"另存为图片，同时复制（{shortcut_text('save', platform=platform)}）",
+                            _icon(_disk))
         save.clicked.connect(self.save_requested)
         self._button(layout, "cancel", "取消（Esc）", _icon(_glyph("✕"))).clicked.connect(self.cancel_requested)
         self._button(layout, "done", "完成：复制到剪贴板（Enter）", _icon(_glyph("✓"))).clicked.connect(

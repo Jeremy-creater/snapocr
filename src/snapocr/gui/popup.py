@@ -37,6 +37,7 @@ from snapocr.actions.outcomes import Done, Failed, PopupState, Translating
 from snapocr.geometry import Rect, place_popup, resize_edges, resized
 from snapocr.gui import clipboard
 from snapocr.gui.segmented import SegmentedControl
+from snapocr.hotkeys import shortcut_text
 from snapocr.theme import PALETTES, Color, Look, font_families, stylesheet
 
 TRANSLATING_TEXT = "翻译中…"
@@ -118,8 +119,9 @@ class TranslationPopup(QWidget):
             self.target_box.addItem(text, target)
         self.translate_button = QPushButton("翻译", objectName="translate")
         self.translate_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.hint_label = QLabel("Ctrl+Enter", objectName="hint")
-        self.translate_button.setToolTip("翻译原文（Ctrl+Enter）")
+        enter = shortcut_text("translate", platform=platform)  # ⌘Enter on a Mac (F23-5)
+        self.hint_label = QLabel(enter, objectName="hint")
+        self.translate_button.setToolTip(f"翻译原文（{enter}）")
         # Copy the translation from the state: QPlainTextEdit may normalise line breaks.
         self.copy_source_button.clicked.connect(lambda: clipboard.set_text(self.source_text()))
         self.copy_translation_button.clicked.connect(lambda: clipboard.set_text(self._state.translation))

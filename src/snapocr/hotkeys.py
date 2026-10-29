@@ -140,6 +140,17 @@ _MAC_KEY_SYMBOLS = {
 }
 
 
+_SHORTCUT_KEYS = {"translate": "Enter", "undo": "Z", "save": "S"}
+_SHORTCUT_MODIFIER = {"win32": "Ctrl+", "darwin": "⌘"}  # Qt's Ctrl is ⌘ on a Mac
+
+
+def shortcut_text(name: str, *, platform: str = "win32") -> str:
+    """The in-window shortcut for translate / undo / save as hints write it (F23-5)."""
+    if name not in _SHORTCUT_KEYS:
+        raise ValueError(f"unknown shortcut {name!r}; expected one of {sorted(_SHORTCUT_KEYS)}")
+    return _SHORTCUT_MODIFIER[check_platform(platform)] + _SHORTCUT_KEYS[name]
+
+
 def display_hotkey(hotkey: Hotkey, *, platform: str = "win32") -> str:
     """Interface text: the config text on Windows, ⌃⌥⇧⌘ and the key on a Mac (Qt menus read it back)."""
     if check_platform(platform) == "win32":

@@ -230,6 +230,7 @@ class AppController(QObject):
                 annotate=annotate,
                 style=self._style,
                 save_target=self._save_target,
+                platform=self._platform,
             )
             for s in cap.screens
         )

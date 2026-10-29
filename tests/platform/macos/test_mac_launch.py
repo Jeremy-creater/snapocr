@@ -69,6 +69,11 @@ def test_start_is_a_menu_bar_app_with_live_hotkeys(qtbot, running, tmp_path):
     assert app.tray.icon.isVisible()
     assert sorted(cmd.value for cmd in app.controller.registered_commands()) == sorted(KEYS)  # Cmd+… read (WI-5)
     assert app.controller.popup.font().families()[0] == "PingFang SC"  # the kit's platform (M9 WI-4)
+    # ⌘ shortcuts and the recorder rely on Qt swapping Control and Command (M9 WI-8, WI-19)
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    assert not QApplication.testAttribute(Qt.ApplicationAttribute.AA_MacDontSwapCtrlAndMeta)
     hk = parse_hotkey(KEYS["translate_text"])
     press_combo(hk.mods, hk.vk)
     qtbot.waitUntil(lambda: app.controller.popup.isVisible(), timeout=2000)

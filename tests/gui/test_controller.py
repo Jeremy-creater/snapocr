@@ -1551,6 +1551,17 @@ def test_a_mac_shows_hotkeys_with_mac_symbols(make):
     assert 'ocr = "Ctrl+Alt+2"' in h.config_path.read_text(encoding="utf-8")
 
 
+def test_a_mac_capture_toolbar_says_command(make):
+    """M9 WI-19: the controller passes its platform to the overlays and their toolbars."""
+    from PySide6.QtWidgets import QToolButton
+
+    h = make(platform="darwin")
+    h.controller.run(Command.CAPTURE)
+    tips = {o.toolbar.findChild(QToolButton, "undo").toolTip() for o in h.controller.overlays}
+    assert tips == {"撤销（⌘Z）"}
+    assert h.controller.popup.hint_label.text() == "⌘Enter"
+
+
 def test_translation_window_font_follows_the_platform(make):
     assert make().controller.popup.font().families()[:3] == ["Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI"]
     assert make(platform="darwin").controller.popup.font().families()[0] == "PingFang SC"
