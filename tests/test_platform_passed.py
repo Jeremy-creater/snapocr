@@ -17,12 +17,12 @@ NEEDS_PLATFORM = {
     "hotkey_failure_line", "hotkey_failed_notice", "settings_problem_text",
     "build_tray_menu", "update_tray_menu", "template", "load_config_file", "build_config",
     "changes", "write_changes", "font_families", "TranslationPopup", "AppController",
+    "HotkeyEdit", "SettingsWindow",
 }
 
 # (file relative to src/snapocr, function) -> why the default is right there.
 NO_PLATFORM_NEEDED = {
     ("config/schema.py", "parse_hotkey"): "the defaults Alt+1..6 parse the same on both systems",
-    ("gui/hotkey_edit.py", "format_hotkey"): "the recorder gets its platform in M9 WI-8",
 }
 
 

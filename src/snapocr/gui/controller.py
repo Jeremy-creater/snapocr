@@ -150,7 +150,7 @@ class AppController(QObject):
         self.popup.translate_requested.connect(self._translate_text)
         self._apply_look()
         self.menu = build_tray_menu(config.hotkeys, self._on_menu, platform=platform)
-        self.settings_window = SettingsWindow()
+        self.settings_window = SettingsWindow(platform=platform)
         self.settings_window.save_requested.connect(self._save_settings)
         self.settings_window.advanced_requested.connect(lambda: self.run(Command.OPEN_CONFIG))
         self.settings_window.closed.connect(self._settings_closed)

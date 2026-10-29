@@ -53,7 +53,7 @@ class SettingsWindow(QWidget):
     advanced_requested = Signal()
     closed = Signal()
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *, platform: str = "win32") -> None:
         super().__init__(parent, Qt.WindowType.Window)
         self.setWindowTitle("snapocr 设置")
         self.setMinimumWidth(440)
@@ -63,7 +63,7 @@ class SettingsWindow(QWidget):
         self.hotkey_edits: dict[Command, HotkeyEdit] = {}
         self._labels: dict[Command, QLabel] = {}
         for command in HOTKEY_COMMANDS:
-            edit = HotkeyEdit()
+            edit = HotkeyEdit(platform=platform)
             edit.rejected.connect(lambda reason, c=command: self.show_problems([f"{COMMAND_LABELS[c]}：{reason}"]))
             edit.hotkey_changed.connect(lambda _: self.show_problems([]))
             label = QLabel(COMMAND_LABELS[command])

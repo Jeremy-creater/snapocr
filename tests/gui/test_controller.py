@@ -1519,7 +1519,8 @@ def test_a_mac_writes_cmd_back_and_creates_the_mac_template(make):
     h.controller.run(Command.OPEN_CONFIG)
     assert h.config_path.read_text(encoding="utf-8") == template("darwin")
     window = open_settings(h)
-    record(window.hotkey_edits[Command.CAPTURE], Qt.Key.Key_Q, M.MetaModifier | M.ShiftModifier)  # the Win / Cmd bit
+    # ⌘ arrives as Qt's ControlModifier on a Mac (measured in M9 WI-8; WI-5 sent Meta, which is ⌃)
+    record(window.hotkey_edits[Command.CAPTURE], Qt.Key.Key_Q, M.ControlModifier | M.ShiftModifier)
     window.save_button.click()
     assert not window.isVisible()
     text = h.config_path.read_text(encoding="utf-8")
