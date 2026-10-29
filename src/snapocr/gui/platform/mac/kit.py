@@ -9,10 +9,12 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
+from snapocr.autostart import launch_agent_args
 from snapocr.config.files import lock_path
 from snapocr.gui.boundaries import NoGlass
 from snapocr.gui.platform.mac import _cocoa as c
 from snapocr.gui.platform.mac import single_instance
+from snapocr.gui.platform.mac.autostart import LaunchAgentAutostart
 from snapocr.gui.platform.mac.capture import MacCapture as Capture
 from snapocr.gui.platform.mac.hotkeys import CarbonHotkeys as Hotkeys
 from snapocr.gui.platform.mac.overlay import prepare_overlay
@@ -28,19 +30,10 @@ def acquire(config: Path, lock_dir: Path | None = None) -> single_instance.Insta
     return single_instance.acquire(lock_path(config, Path(lock_dir or tempfile.gettempdir())))
 
 
-class NoAutostart:
-    """Start at login is not there yet on the Mac (LaunchAgent: M9 WI-12, WI-13)."""
-
-    def is_enabled(self) -> bool:
-        return False
-
-    def set_enabled(self, enabled: bool) -> None:
-        if enabled:
-            raise OSError("macOS 版还不支持开机自启动")
-
-
-def make_autostart(executable: Path, config: Path, frozen: bool) -> NoAutostart:
-    return NoAutostart()
+def make_autostart(executable: Path, config: Path, frozen: bool,
+                   directory: Path | None = None) -> LaunchAgentAutostart:
+    """F23-7: a LaunchAgent running this Python on ``config``. A packaged Mac build (``frozen``) is F24."""
+    return LaunchAgentAutostart(launch_agent_args(executable, config), directory=directory)
 
 
 def glass() -> NoGlass:

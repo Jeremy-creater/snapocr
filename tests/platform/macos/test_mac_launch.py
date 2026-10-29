@@ -11,8 +11,8 @@ Pinned here:
 - A second ``start`` on the same config is None, its box closes itself.
 - ``shutdown()`` frees the hotkeys and the lock; twice is harmless.
 - ``main()`` runs the event loop and shuts down; 0 when already running.
-- The kit's ``open_file`` opens the default text editor or raises ``OSError``;
-  start at login is not there yet and says so.
+- The kit's ``open_file`` opens the default text editor or raises ``OSError``.
+  Start at login (the kit's LaunchAgent) is in test_mac_autostart.py (WI-13).
 """
 
 import ctypes
@@ -173,14 +173,6 @@ def test_open_file_opens_the_default_text_editor(tmp_path):
         time.sleep(0.1)
     subprocess.run(["osascript", "-e", script], check=False)
     assert path.name in names
-
-
-def test_start_at_login_is_not_there_yet():
-    autostart = kit.make_autostart(Path(sys.executable), Path("config.toml"), False)
-    assert autostart.is_enabled() is False
-    autostart.set_enabled(False)
-    with pytest.raises(OSError, match="还不支持开机自启动"):
-        autostart.set_enabled(True)
 
 
 def test_glass_is_solid():
