@@ -9,9 +9,15 @@ Pinned here:
 - A registered combination pressed anywhere emits ``activated(id)`` on the
   GUI thread; after ``unregister`` it emits nothing.
 - ``close()`` twice is fine, and afterwards the combinations are free again.
+- A combination another process holds still registers (0), and one press
+  reaches both processes (measured 2026-10-30). So on a Mac a clash with
+  another app gives no "taken" notice; Carbon offers no way to see it.
 """
 
+import subprocess
+import sys
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -107,3 +113,19 @@ def test_another_backends_hotkey_is_not_ours(qtbot, carbon):
         assert (mine, theirs) == ([47], [])
     finally:
         other.close()
+
+
+def test_a_combination_another_process_holds_still_registers_and_both_fire(qtbot, carbon):
+    holder_script = Path(__file__).resolve().parents[2] / "support" / "mac_hotkey_holder.py"
+    holder = subprocess.Popen([sys.executable, str(holder_script), "Ctrl+Option+Shift+F19", "5"],
+                              stdout=subprocess.PIPE, text=True)
+    try:
+        assert holder.stdout.readline().split() == ["REGISTERED", "0"]
+        assert carbon.register(48, F19.mods, F19.vk) == 0  # no -9878 across processes
+        with qtbot.waitSignal(carbon.activated, timeout=2000) as got:
+            press_combo(F19.mods, F19.vk)
+        assert got.args == [48]
+        assert holder.stdout.readline().strip() == "FIRED"  # the other process got the same press
+    finally:
+        holder.kill()
+        holder.wait()
