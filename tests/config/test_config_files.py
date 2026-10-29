@@ -80,8 +80,18 @@ def test_template_ends_with_newline_and_no_crlf():
 # --- files -----------------------------------------------------------------------
 
 
-def test_default_config_path():
-    assert default_config_path() == REPO / "config.local.toml"
+def test_default_config_path_follows_snapocr_config(monkeypatch, tmp_path):
+    monkeypatch.setenv("SNAPOCR_CONFIG", str(tmp_path / "env.toml"))
+    assert default_config_path() == tmp_path / "env.toml"
+
+
+def test_default_config_path_without_the_variable(monkeypatch, tmp_path):
+    """F21-1: this checkout is a source root, so its config.local.toml is used only when present."""
+    monkeypatch.delenv("SNAPOCR_CONFIG", raising=False)
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    source_file = REPO / "config.local.toml"
+    expected = source_file if source_file.exists() else tmp_path / "snapocr" / "config.toml"
+    assert default_config_path() == expected
 
 
 def test_missing_file_is_created_and_never_overwritten(tmp_path):

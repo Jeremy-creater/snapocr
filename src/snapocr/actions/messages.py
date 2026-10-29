@@ -118,7 +118,7 @@ def hotkey_failed_notice(failures: Sequence[HotkeyFailure]) -> Notice:
     if not failures:
         raise ValueError("no hotkey failures to report")
     lines = [hotkey_failure_line(f) for f in failures]
-    lines.append("其余热键照常工作。可以在托盘菜单的“设置…”里换一个组合（或改 config.local.toml 的 [hotkeys]）。")
+    lines.append("其余热键照常工作。可以在托盘菜单的“设置…”里换一个组合（或改配置文件的 [hotkeys]）。")
     return Notice(f"有 {len(failures)} 个热键注册失败", "\n".join(lines), warning=True)
 
 

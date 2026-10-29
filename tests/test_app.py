@@ -1,7 +1,7 @@
 """M2 WI-22: start-up arguments, logging and the uncaught-exception hook (plan D12; CLAUDE.md privacy).
 
 Pinned here:
-- ``parse_args(args)``: ``--config PATH`` (default: ``default_config_path()``);
+- ``parse_args(args)``: ``--config PATH`` (default: ``default_config_path()``, PRD F21-1);
   anything else is a usage error (``SystemExit(2)``).
 - ``setup_logging(log_dir)`` adds one WARNING-level file handler to the root
   logger writing ``log_dir/snapocr.log``; the directory is created on the

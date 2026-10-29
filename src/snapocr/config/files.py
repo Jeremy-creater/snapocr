@@ -1,4 +1,4 @@
-"""Reading ``config.local.toml`` and creating it from the template (PRD F9-1 to F9-3).
+"""Reading the config file and creating it from the template (PRD F9-1 to F9-3).
 
 Never raises for file problems: each becomes one ``ConfigIssue`` and the
 defaults are used. A missing file is created with exclusive creation, so an
@@ -16,8 +16,7 @@ from pathlib import Path
 from snapocr.config.load import build_config
 from snapocr.config.schema import AppConfig, ConfigIssue
 from snapocr.config.template import DEFAULT_TEMPLATE
-
-CONFIG_FILE_NAME = "config.local.toml"
+from snapocr.paths import find_config, source_root
 
 
 @dataclass(frozen=True)
@@ -39,8 +38,11 @@ def instance_name(path: Path) -> str:
 
 
 def default_config_path() -> Path:
-    """``config.local.toml`` in the repository root (src/snapocr/config/files.py -> root)."""
-    return Path(__file__).resolve().parents[3] / CONFIG_FILE_NAME
+    """The config file when no ``--config`` is given (F21-1), from the real environment."""
+    import snapocr.paths
+
+    root = source_root(Path(snapocr.paths.__file__).resolve(), Path.exists)
+    return find_config(None, os.environ, source_root=root, exists=Path.exists, home=Path.home())
 
 
 def _defaults(path: Path, reason: str) -> LoadResult:

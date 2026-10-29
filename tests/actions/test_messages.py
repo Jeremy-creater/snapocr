@@ -182,7 +182,7 @@ def test_hotkey_failed_notice_names_hotkey_and_action():
     assert lines[0] == "Alt+2（OCR）：已被其他软件占用"
     assert lines[1] == "Alt+3（截图翻译）：注册失败，错误码 5"
     assert "其余热键照常工作" in n.body
-    assert "config.local.toml" in n.body
+    assert "配置文件的 [hotkeys]" in n.body and "config.local.toml" not in n.body
 
 
 def test_hotkey_failed_notice_one():
@@ -287,7 +287,7 @@ from snapocr.hotkeys import parse_hotkey  # noqa: E402
 
 def test_hotkey_failed_notice_points_to_settings():
     n = hotkey_failed_notice([HotkeyFailure(Command.OCR, "Alt+2", 1409)])
-    assert n.body.split("\n")[-1] == "其余热键照常工作。可以在托盘菜单的“设置…”里换一个组合（或改 config.local.toml 的 [hotkeys]）。"
+    assert n.body.split("\n")[-1] == "其余热键照常工作。可以在托盘菜单的“设置…”里换一个组合（或改配置文件的 [hotkeys]）。"
 
 
 def test_hotkey_failure_line():
