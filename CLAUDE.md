@@ -8,7 +8,7 @@
 
 - `docs/PRD.md`：范围、需求、验收标准。需求变化先改 PRD。
 - `CLAUDE.md`：工作规则。规则变化先改本文件，再改代码。
-- `.claude/tdd-guardian/`：TDD 计划、测试矩阵、审计结果（由 tdd-guardian 生成）。整个 `.claude/` 只留在本地，不进 Git（2026-10-29，PRD v1.9 F21-9）；代码和公开文档里不引用其中的文件。
+- `.claude/tdd-guardian/`：TDD 计划、测试矩阵、审计结果（由 tdd-guardian 生成）。整个 `.claude/` 不进本仓库（2026-10-29，PRD v1.9 F21-9）；代码和公开文档里不引用其中的文件。它自己是一个 Git 仓库，推到**私有**仓库 `Jeremy-creater/snapocr-notes`，用来在 Windows 和 Mac 之间同步（2026-10-29 Jeremy 定）：开工前 `git -C .claude pull`，收工时提交并推送。新电脑上在仓库根目录 `git clone https://github.com/Jeremy-creater/snapocr-notes .claude`。
 - 文档用中文；代码、注释、命令、路径、配置键用英文。
 
 ## 路径
