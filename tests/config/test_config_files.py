@@ -7,6 +7,7 @@ settings whose default is "not set": ``ocr.model_dir`` and one replacement.
 """
 
 import dataclasses
+import os
 import tomllib
 from pathlib import Path
 
@@ -236,6 +237,48 @@ def test_instance_name_differs_per_file(tmp_path):
 
 def test_default_config_gets_a_stable_name():
     assert instance_name(default_config_path()) == instance_name(default_config_path())
+
+
+# --- M9 WI-11: the Mac lock file uses the same key (F23-8, plan D18) ---------------------
+
+from hypothesis import given  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+from snapocr.config.files import instance_key, lock_path  # noqa: E402
+
+
+def test_instance_name_is_unchanged_by_the_key_refactor(tmp_path):
+    """The Windows mutex name stays exactly what M2 produced (hash of the case-folded resolved path)."""
+    import hashlib
+
+    path = tmp_path / "config.local.toml"
+    key = os.path.normcase(str(path.resolve()))
+    assert instance_name(path) == "Local\\snapocr-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+
+
+def test_lock_path_is_in_the_given_dir(tmp_path):
+    path = tmp_path / "config.local.toml"
+    lock = lock_path(path, tmp_path / "locks")
+    assert lock == tmp_path / "locks" / f"snapocr-{instance_key(path)}.lock"
+    assert re.fullmatch(r"snapocr-[0-9a-f]{12}\.lock", lock.name)
+
+
+def test_lock_path_differs_per_file(tmp_path):
+    assert lock_path(tmp_path / "a.toml", tmp_path) != lock_path(tmp_path / "b.toml", tmp_path)
+
+
+def test_lock_path_ignores_relative_spelling(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert lock_path(tmp_path / "c.toml", tmp_path) == lock_path(Path("./x/../c.toml"), tmp_path)
+
+
+@given(st.text(alphabet=st.characters(categories=["L", "N"]), min_size=1, max_size=20))
+def test_mutex_name_and_lock_file_share_one_key(name):
+    path = Path("/cfg") / f"{name}.toml"
+    key = instance_key(path)
+    assert re.fullmatch(r"[0-9a-f]{12}", key)
+    assert instance_name(path) == f"Local\\snapocr-{key}"
+    assert lock_path(path, Path("/locks")).name == f"snapocr-{key}.lock"
 
 
 # --- M4 WI-22: [capture] save_dir (F17-2) ------------------------------------------------

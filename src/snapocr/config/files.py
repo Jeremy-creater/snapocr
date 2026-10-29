@@ -26,15 +26,25 @@ class LoadResult:
     created: bool
 
 
-def instance_name(path: Path) -> str:
-    """The single-instance mutex name for a config file (plan D5).
+def instance_key(path: Path) -> str:
+    """12 hex digits naming the single instance of a config file (plan D5, M9 D18).
 
     One instance per config file: the default file behaves as a global single
     instance, while gui-lane runs on a temporary config never clash with it.
     Windows paths ignore case, so the resolved path is case-folded first.
     """
     key = os.path.normcase(str(Path(path).resolve()))
-    return "Local\\snapocr-" +hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+
+
+def instance_name(path: Path) -> str:
+    """The Windows single-instance mutex name for a config file."""
+    return "Local\\snapocr-" + instance_key(path)
+
+
+def lock_path(path: Path, lock_dir: Path) -> Path:
+    """The Mac single-instance lock file for a config file, inside ``lock_dir`` (F23-8)."""
+    return Path(lock_dir) / f"snapocr-{instance_key(path)}.lock"
 
 
 def default_config_path() -> Path:
