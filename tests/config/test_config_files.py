@@ -163,14 +163,23 @@ def test_directory_in_place_of_file(tmp_path):
     assert path.is_dir()
 
 
+def test_missing_directories_are_created_first(tmp_path):
+    """F21-3 (v1.8): first run with %APPDATA%/snapocr not there yet."""
+    path = tmp_path / "AppData" / "Roaming" / "snapocr" / "config.toml"
+    assert load_config_file(path) == LoadResult(AppConfig(), [], created=True)
+    assert path.read_bytes() == DEFAULT_TEMPLATE.encode("utf-8")
+
+
 def test_cannot_create_reports_and_uses_defaults(tmp_path):
-    path = tmp_path / "no-such-dir" / "config.local.toml"
+    """A file where a directory should be: the directory cannot be made (F21-3, F9-2)."""
+    (tmp_path / "blocker").write_text("x", encoding="utf-8")
+    path = tmp_path / "blocker" / "snapocr" / "config.toml"
     result = load_config_file(path)
     assert result.config == AppConfig()
     assert result.created is False
     (issue,) = result.issues
     assert issue.file == path and issue.reason
-    assert not path.parent.exists()
+    assert (tmp_path / "blocker").read_text(encoding="utf-8") == "x"
 
 
 @pytest.mark.parametrize("content", [b"", b"\xef\xbb\xbf", b"# only a comment\n"])
@@ -215,3 +224,13 @@ def test_template_capture_section_after_hotkeys_with_its_help():
     section = DEFAULT_TEMPLATE.split("[capture]\n")[1].split("\n[ocr]")[0]
     assert "绝对路径" in section and "/" in section
     assert tomllib.loads(uncomment(section)) == {"save_dir": str(AppConfig().save_dir)}
+
+
+def test_cannot_create_the_file_in_an_existing_directory(tmp_path):
+    """The directory is fine but the file cannot be made ("?" is not allowed in Windows names)."""
+    path = tmp_path / "bad?name.toml"
+    result = load_config_file(path)
+    assert result.config == AppConfig() and result.created is False
+    (issue,) = result.issues
+    assert issue.file == path and issue.reason.startswith("could not create the default config file")
+    assert list(tmp_path.iterdir()) == []

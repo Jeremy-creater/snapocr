@@ -447,7 +447,8 @@ def test_open_config_never_overwrites(make, tmp_path):
 
 
 def test_open_config_creation_failure_is_reported(make, tmp_path):
-    h = make(config_path=tmp_path / "no-such-dir" / "config.local.toml")
+    (tmp_path / "blocker").write_text("x", encoding="utf-8")  # a file where the directory should be
+    h = make(config_path=tmp_path / "blocker" / "config.local.toml")
     h.controller.run(Command.OPEN_CONFIG)
     assert h.opened == []
     assert h.titles() == ["配置文件有 1 个问题"]

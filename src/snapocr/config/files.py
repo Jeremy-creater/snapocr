@@ -1,4 +1,4 @@
-"""Reading the config file and creating it from the template (PRD F9-1 to F9-3).
+"""Reading the config file and creating it (and its directory) from the template (PRD F9-1 to F9-3, F21-3).
 
 Never raises for file problems: each becomes one ``ConfigIssue`` and the
 defaults are used. A missing file is created with exclusive creation, so an
@@ -50,6 +50,10 @@ def _defaults(path: Path, reason: str) -> LoadResult:
 
 
 def load_config_file(path: Path) -> LoadResult:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)  # first run: %APPDATA%/snapocr (F21-3)
+    except OSError as e:
+        return _defaults(path, f"could not create the config directory ({e.strerror or e})")
     try:
         # "x": fails if the file appeared in the meantime, so nothing is overwritten.
         with open(path, "x", encoding="utf-8", newline="\n") as f:
