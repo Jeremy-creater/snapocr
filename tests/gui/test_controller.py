@@ -41,7 +41,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QToolButton
 
 from snapocr.actions.flows import FlowDeps
-from snapocr.actions.messages import preview
+from snapocr.actions.messages import preview, screen_permission_notice
 from snapocr.actions.outcomes import Done, Failed, Translating
 from snapocr.annotate import DEFAULT_STYLE, PALETTE, Mark, Style, Tool
 from snapocr.commands import Command
@@ -84,10 +84,11 @@ def clipboard(qapp):
 
 class Harness:
     def __init__(self, qtbot, tmp_path, *, engine=RESULT, load_error=None, holder=None, translator=None,
-                 capture_error=None, issues=(), preoccupy=(), config_path=None, make_translator=None,
+                 capture_error=None, capture_denied=False, issues=(), preoccupy=(), config_path=None, make_translator=None,
                  autostart=None, list_models=None, show_text=True, debug=False, save_dir=None, glass=None,
                  theme="system"):
-        self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error)
+        self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error,
+                                   denied=capture_denied)
         self.notifier = RecordingNotifier()
         self.table = FakeHotkeyTable()
         for text in preoccupy:
@@ -257,6 +258,19 @@ def test_capture_error_is_reported(make, clipboard):
     assert h.titles() == ["截图失败"]
     assert "BitBlt failed" in h.notifier.notices[0].body
     assert clipboard.text() == SENTINEL
+
+
+@pytest.mark.parametrize(
+    "command", [Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.CODE_OCR, Command.TABLE_OCR]
+)
+def test_no_screen_recording_permission_is_its_own_notice(make, clipboard, command):
+    """M9 WI-15 (F23-3): no overlay, clipboard kept, only the permission notice."""
+    h = make(capture_error="no permission", capture_denied=True)
+    h.controller.run(command)
+    assert h.controller.overlays == ()
+    assert h.notifier.notices == [screen_permission_notice()]
+    assert clipboard.text() == SENTINEL
+    assert h.capture.taken == []
 
 
 # --- OCR (F7-2 to F7-4) --------------------------------------------------------------------

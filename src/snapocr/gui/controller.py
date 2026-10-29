@@ -52,6 +52,7 @@ from snapocr.gui.boundaries import (
     Autostart,
     Capture,
     CaptureError,
+    CapturePermissionError,
     CaptureProvider,
     Glass,
     HotkeyBackend,
@@ -210,6 +211,9 @@ class AppController(QObject):
             return
         try:
             cap = self._capture_provider.capture()
+        except CapturePermissionError:  # F23-3
+            self._notifier.notify(messages.screen_permission_notice())
+            return
         except CaptureError as err:
             self._notifier.notify(messages.capture_failed_notice(str(err)))
             return

@@ -14,7 +14,7 @@ from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter
 
 from snapocr.actions.outcomes import Notice
 from snapocr.geometry import Point, Rect, ScreenInfo
-from snapocr.gui.boundaries import Capture, CaptureError
+from snapocr.gui.boundaries import Capture, CaptureError, CapturePermissionError
 
 
 def desktop_image(w: int, h: int) -> QImage:
@@ -42,10 +42,11 @@ class FakeCapture:
     work_areas: dict[str, Rect] = field(default_factory=dict)
     error: str | None = None
     taken: list[Capture] = field(default_factory=list)
+    denied: bool = False  # the error is a missing screen-recording permission (M9 WI-15)
 
     def capture(self) -> Capture:
         if self.error is not None:
-            raise CaptureError(self.error)
+            raise (CapturePermissionError if self.denied else CaptureError)(self.error)
         cap = Capture(self.image, self.origin, self.screens, dict(self.work_areas))
         self.taken.append(cap)
         return cap

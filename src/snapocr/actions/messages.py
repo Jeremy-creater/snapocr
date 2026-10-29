@@ -133,6 +133,16 @@ def capture_failed_notice(detail: str) -> Notice:
     return Notice("截图失败", f"{detail}\n{_UNCHANGED}", warning=True)
 
 
+def screen_permission_notice() -> Notice:
+    """F23-3: where macOS keeps the screen-recording switch, and that a restart is needed."""
+    return Notice(
+        "没有屏幕录制权限",
+        "到“系统设置 → 隐私与安全性 → 屏幕与系统录音”打开 snapocr"
+        f"（从终端运行时，打开的是那个终端），然后重启 snapocr。\n{_UNCHANGED}",
+        warning=True,
+    )
+
+
 def job_crashed_text(exc_type_name: str) -> str:
     return f"内部错误（{exc_type_name}），详情见日志"
 

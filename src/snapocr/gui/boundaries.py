@@ -21,6 +21,10 @@ class CaptureError(Exception):
     """The screen could not be captured; the message is shown to the user."""
 
 
+class CapturePermissionError(CaptureError):
+    """macOS has not given the screen-recording permission (F23-3); nothing was captured."""
+
+
 @dataclass(frozen=True)
 class Capture:
     """The whole virtual desktop in physical pixels, taken when a capture command fires."""
