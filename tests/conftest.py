@@ -21,7 +21,7 @@ from support.fake_openai_server import FakeOpenAIServer
 from support.netguard import LoopbackGuard, NetGuard
 from support.ollama_require import require_ollama as _require_ollama
 
-pytest_plugins = ["pytester", "support.qt_lane"]
+pytest_plugins = ["pytester", "support.qt_lane", "support.platform_lanes"]
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

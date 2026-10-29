@@ -5,6 +5,9 @@ expression later deselects. So a module-level ``import rapidocr`` in an
 engine-lane file would load rapidocr / onnxruntime into every unit run, and
 break the unit lane where rapidocr is not installed. The collection runs in an
 isolated (``-I``) subprocess so ``sys.modules`` reflects only what it imported.
+
+M9 WI-1 (plan D7): the same collection works on Windows and on a Mac, and
+collects nothing that belongs to the other system only.
 """
 
 import json
@@ -12,9 +15,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from support.platform_lanes import platform_exclusion
+
 ROOT = Path(__file__).resolve().parents[1]
 UNIT_MARKERS = "not integration and not engine and not perf and not gui"
 RUNTIME = ["rapidocr", "onnxruntime"]
+OTHER_MARKER = {"win32": "macos", "darwin": "windows"}
 
 
 def test_unit_lane_collection_does_not_import_ocr_runtime():
@@ -23,14 +29,16 @@ def test_unit_lane_collection_does_not_import_ocr_runtime():
         "import pytest\n"
         "class Counter:\n"
         "    collected = None\n"
+        "    nodes = []\n"
         "    def pytest_collection_finish(self, session):\n"
         "        Counter.collected = len(session.items)\n"
+        "        Counter.nodes = [[i.nodeid, sorted({m.name for m in i.iter_markers()})] for i in session.items]\n"
         "counter = Counter()\n"
         "rc = pytest.main(['--collect-only', '-q', '-p', 'no:cacheprovider',\n"
         f"                 '-m', {UNIT_MARKERS!r}, 'tests'], plugins=[counter])\n"
         f"runtime = {RUNTIME!r}\n"
         "loaded = sorted({m.split('.')[0] for m in sys.modules} & set(runtime))\n"
-        "print(json.dumps({'rc': int(rc), 'collected': Counter.collected, 'loaded': loaded}))\n"
+        "print(json.dumps({'rc': int(rc), 'collected': Counter.collected, 'loaded': loaded, 'nodes': Counter.nodes}))\n"
     )
     proc = subprocess.run(
         [sys.executable, "-I", "-c", code],
@@ -46,3 +54,10 @@ def test_unit_lane_collection_does_not_import_ocr_runtime():
     assert out["rc"] == 0
     assert out["collected"] > 0
     assert out["loaded"] == []
+
+    other = OTHER_MARKER[sys.platform]
+    foreign = [
+        nodeid for nodeid, markers in out["nodes"]
+        if other in markers or platform_exclusion(nodeid.split("::")[0], sys.platform) is not None
+    ]
+    assert foreign == []

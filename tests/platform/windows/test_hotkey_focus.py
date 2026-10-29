@@ -23,7 +23,7 @@ from support.win_input import press_combo
 
 pytestmark = pytest.mark.gui
 
-TESTS = Path(__file__).resolve().parents[1]
+TESTS = Path(__file__).resolve().parents[2]
 VK_ESCAPE = 0x1B
 _user32 = ctypes.WinDLL("user32")
 _user32.GetForegroundWindow.restype = wintypes.HWND

@@ -190,6 +190,7 @@ def test_ocr_jobs_never_log_the_ocr_text(caplog):
 # --- python -m snapocr -------------------------------------------------------------------
 
 
+@pytest.mark.windows(reason="temporary: launch imports the Win32-only platform modules; M9 WI-22 removes this mark")
 def test_python_m_snapocr_runs_launch_main(monkeypatch):
     import snapocr.gui.platform.launch as launch
 

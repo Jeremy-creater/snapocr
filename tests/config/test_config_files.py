@@ -54,6 +54,7 @@ def test_template_as_written_is_defaults():
     assert cfg == AppConfig()
 
 
+@pytest.mark.windows
 def test_template_uncommented_is_defaults_plus_examples():
     data = tomllib.loads(uncomment(DEFAULT_TEMPLATE))
     cfg, issues = build_config(data, source=REPO / "config.local.toml")
@@ -61,6 +62,20 @@ def test_template_uncommented_is_defaults_plus_examples():
     assert cfg == dataclasses.replace(
         AppConfig(),
         ocr=OcrEngineConfig(model_dir=EXAMPLE_MODEL_DIR),
+        replacements=Replacements.from_mapping({"0CR": "OCR"}),
+    )
+
+
+@pytest.mark.macos
+def test_template_uncommented_is_defaults_plus_examples_mac():
+    """M9 WI-1 (plan D8): the example folder is a Windows spelling, so on a Mac it is
+    relative and, like any relative ``model_dir``, read next to the config file."""
+    data = tomllib.loads(uncomment(DEFAULT_TEMPLATE))
+    cfg, issues = build_config(data, source=REPO / "config.local.toml")
+    assert issues == []
+    assert cfg == dataclasses.replace(
+        AppConfig(),
+        ocr=OcrEngineConfig(model_dir=REPO / EXAMPLE_MODEL_DIR),
         replacements=Replacements.from_mapping({"0CR": "OCR"}),
     )
 
@@ -201,10 +216,18 @@ def test_instance_name_format(tmp_path):
     assert re.fullmatch(r"Local\\snapocr-[0-9a-f]{12}", name)
 
 
+@pytest.mark.windows
 def test_instance_name_ignores_case_and_relative_spelling(tmp_path, monkeypatch):
     path = tmp_path / "Config.Local.TOML"
     monkeypatch.chdir(tmp_path)
     assert instance_name(path) == instance_name(Path(str(path).upper())) == instance_name(Path("Config.Local.TOML"))
+
+
+def test_instance_name_ignores_relative_spelling(tmp_path, monkeypatch):
+    """M9 WI-1: the half of the rule above that holds on every system."""
+    path = tmp_path / "config.local.toml"
+    monkeypatch.chdir(tmp_path)
+    assert instance_name(path) == instance_name(Path("config.local.toml")) == instance_name(Path("./x/../config.local.toml"))
 
 
 def test_instance_name_differs_per_file(tmp_path):
@@ -226,6 +249,7 @@ def test_template_capture_section_after_hotkeys_with_its_help():
     assert tomllib.loads(uncomment(section)) == {"save_dir": str(AppConfig().save_dir)}
 
 
+@pytest.mark.windows
 def test_cannot_create_the_file_in_an_existing_directory(tmp_path):
     """The directory is fine but the file cannot be made ("?" is not allowed in Windows names)."""
     path = tmp_path / "bad?name.toml"
@@ -234,3 +258,21 @@ def test_cannot_create_the_file_in_an_existing_directory(tmp_path):
     (issue,) = result.issues
     assert issue.file == path and issue.reason.startswith("could not create the default config file")
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.macos
+def test_cannot_create_the_file_in_an_existing_directory_mac(tmp_path):
+    """M9 WI-1: "?" is a fine Mac file name, so here the folder itself refuses new files."""
+    folder = tmp_path / "read-only"
+    folder.mkdir()
+    folder.chmod(0o555)
+    try:
+        path = folder / "config.local.toml"
+        result = load_config_file(path)
+        listing = list(folder.iterdir())
+    finally:
+        folder.chmod(0o755)
+    assert result.config == AppConfig() and result.created is False
+    (issue,) = result.issues
+    assert issue.file == path and issue.reason.startswith("could not create the default config file")
+    assert listing == []

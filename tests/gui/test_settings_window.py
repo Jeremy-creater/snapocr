@@ -273,10 +273,19 @@ def test_save_dir_row_is_in_general(window):
     assert general.isAncestorOf(window.browse_button)
 
 
+@pytest.mark.windows
 def test_load_shows_the_save_dir(window):
     assert window.save_dir_edit.text() == str(DEFAULTS.save_dir)
     window.load(dataclasses.replace(CUSTOM, save_dir=Path("E:/shots/snap")), False)
     assert window.save_dir_edit.text() == "E:\\shots\\snap"
+
+
+@pytest.mark.macos
+def test_load_shows_the_save_dir_mac(window):
+    """M9 WI-1 (plan D8): a Mac folder is shown as written."""
+    assert window.save_dir_edit.text() == str(DEFAULTS.save_dir)
+    window.load(dataclasses.replace(CUSTOM, save_dir=Path("/Users/x/shots")), False)
+    assert window.save_dir_edit.text() == "/Users/x/shots"
 
 
 def test_save_dir_is_saved_stripped(window):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from hypothesis import strategies as st
@@ -12,10 +13,14 @@ from snapocr.hotkeys import Hotkey
 
 _KEYS = [0x41 + n for n in range(26)] + [0x30 + n for n in range(10)] + [0x70 + n for n in range(24)]
 hotkeys = st.builds(Hotkey, st.integers(1, 0xF), st.sampled_from(_KEYS))
-# Absolute folders, with spaces, CJK and a UNC share; the default among them.
-save_dirs = st.sampled_from([
-    Path("E:/shots"), Path("D:/a b/截图"), Path("//nas/share/snap"), Path.home() / "Pictures" / "snapocr",
-])
+# Absolute folders, with spaces, CJK and a network share; the default among them.
+# Absolute means absolute on this host (M9 plan D8): a drive letter is a relative
+# path on a Mac, so the Mac samples are its own spellings of the same cases.
+_SAVE_DIRS = {
+    "win32": [Path("E:/shots"), Path("D:/a b/截图"), Path("//nas/share/snap")],
+    "darwin": [Path("/Users/x/shots"), Path("/Users/x/a b/截图"), Path("/Volumes/nas/snap")],
+}
+save_dirs = st.sampled_from([*_SAVE_DIRS[sys.platform], Path.home() / "Pictures" / "snapocr"])
 
 
 @st.composite

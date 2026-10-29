@@ -274,12 +274,22 @@ def test_save_dir_is_a_window_setting():
     assert settings_of(dataclasses.replace(AppConfig(), save_dir=SHOTS)).save_dir == SHOTS
 
 
-@pytest.mark.parametrize("folder", [Path(""), Path("shots"), Path("/shots"), Path("C:shots")])
+@pytest.mark.parametrize("folder", [
+    Path(""), Path("shots"), pytest.param(Path("/shots"), marks=pytest.mark.windows), Path("C:shots"),
+    Path("~/shots"),  # M9 WI-1: "~" is not expanded, on either system
+])
 def test_check_save_dir_not_absolute(folder):
     assert check(dataclasses.replace(DEFAULTS, save_dir=folder)) == [BadSaveDir(folder)]
 
 
-@pytest.mark.parametrize("folder", [SHOTS, Path("//nas/share/snap"), Path("D:/a b/截图")])
+@pytest.mark.parametrize("folder", [
+    pytest.param(SHOTS, marks=pytest.mark.windows),
+    pytest.param(Path("//nas/share/snap"), marks=pytest.mark.windows),
+    pytest.param(Path("D:/a b/截图"), marks=pytest.mark.windows),
+    pytest.param(Path("/Users/x/Pictures/snap"), marks=pytest.mark.macos),
+    pytest.param(Path("/Volumes/nas/shots"), marks=pytest.mark.macos),
+    pytest.param(Path("/Users/x/a b/截图"), marks=pytest.mark.macos),
+])
 def test_check_save_dir_absolute_is_clean(folder):
     assert check(dataclasses.replace(DEFAULTS, save_dir=folder)) == []
 
@@ -289,6 +299,7 @@ def test_check_save_dir_reported_last():
     assert [type(p) for p in check(s)] == [DuplicateHotkey, BadModel, BadTargetLang, BadSaveDir]
 
 
+@pytest.mark.windows
 def test_changes_save_dir_is_the_windows_path_after_hotkeys():
     new = dataclasses.replace(with_hotkeys(DEFAULTS, ocr="Ctrl+Q"), save_dir=SHOTS, spacing=False)
     assert list(changes(DEFAULTS, new).items()) == [
@@ -298,12 +309,14 @@ def test_changes_save_dir_is_the_windows_path_after_hotkeys():
     ]
 
 
+@pytest.mark.windows
 def test_changes_same_folder_spelled_differently_is_no_change():
     old = dataclasses.replace(DEFAULTS, save_dir=Path("E:/shots/snap"))
     new = dataclasses.replace(DEFAULTS, save_dir=Path("E:\\shots\\snap"))
     assert changes(old, new) == {}
 
 
+@pytest.mark.windows
 def test_apply_save_dir():
     out = apply(AppConfig(), dataclasses.replace(DEFAULTS, save_dir=SHOTS))
     assert out == dataclasses.replace(AppConfig(), save_dir=SHOTS)
@@ -314,6 +327,7 @@ def test_apply_rejects_relative_save_dir():
         apply(AppConfig(), dataclasses.replace(DEFAULTS, save_dir=Path("shots")))
 
 
+@pytest.mark.windows
 def test_save_dir_written_into_the_template_and_read_back(tmp_path):
     from snapocr.config.files import load_config_file
     from snapocr.config.writer import write_changes
@@ -327,3 +341,47 @@ def test_save_dir_written_into_the_template_and_read_back(tmp_path):
     assert loaded.config.save_dir == folder
     section = path.read_text(encoding="utf-8").split("[capture]")[1].split("[ocr]")[0]
     assert [ln for ln in section.splitlines() if ln.startswith("save_dir")] == [r'save_dir = "D:\\a b\\截图"']
+
+
+# --- M9 WI-1: the Mac spellings of the save_dir cases above (plan D8) ---------------------
+
+MAC_SHOTS = Path("/Users/x/shots")
+
+
+@pytest.mark.macos
+def test_changes_save_dir_is_the_mac_path_after_hotkeys():
+    new = dataclasses.replace(with_hotkeys(DEFAULTS, ocr="Ctrl+Q"), save_dir=MAC_SHOTS, spacing=False)
+    assert list(changes(DEFAULTS, new).items()) == [
+        ("hotkeys.ocr", "Ctrl+Q"),
+        ("capture.save_dir", "/Users/x/shots"),
+        ("postprocess.spacing", False),
+    ]
+
+
+@pytest.mark.macos
+def test_changes_same_folder_spelled_differently_is_no_change_mac():
+    old = dataclasses.replace(DEFAULTS, save_dir=Path("/Users/x/shots"))
+    new = dataclasses.replace(DEFAULTS, save_dir=Path("/Users//x/./shots/"))
+    assert changes(old, new) == {}
+
+
+@pytest.mark.macos
+def test_apply_save_dir_mac():
+    out = apply(AppConfig(), dataclasses.replace(DEFAULTS, save_dir=MAC_SHOTS))
+    assert out == dataclasses.replace(AppConfig(), save_dir=MAC_SHOTS)
+
+
+@pytest.mark.macos
+def test_save_dir_written_into_the_template_and_read_back_mac(tmp_path):
+    from snapocr.config.files import load_config_file
+    from snapocr.config.writer import write_changes
+
+    path = tmp_path / "config.local.toml"
+    folder = Path("/Users/x/a b/截图")
+    assert load_config_file(path).created
+    write_changes(path, changes(DEFAULTS, dataclasses.replace(DEFAULTS, save_dir=folder)))
+    loaded = load_config_file(path)
+    assert loaded.issues == []
+    assert loaded.config.save_dir == folder
+    section = path.read_text(encoding="utf-8").split("[capture]")[1].split("[ocr]")[0]
+    assert [ln for ln in section.splitlines() if ln.startswith("save_dir")] == ['save_dir = "/Users/x/a b/截图"']

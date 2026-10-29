@@ -1257,6 +1257,7 @@ def test_two_saves_keep_both_files(make):
     assert h.titles() == []
 
 
+@pytest.mark.windows  # takes the dialog's preset; Qt's non-native dialog on a Mac mangles it when the folder is missing
 def test_failed_save_still_copies(make, clipboard, tmp_path):
     blocker = tmp_path / "taken"
     blocker.write_bytes(b"a file, not a folder")
@@ -1267,6 +1268,21 @@ def test_failed_save_still_copies(make, clipboard, tmp_path):
     assert notice.title == "保存失败"
     assert str(blocker / "shots") in notice.body
     assert blocker.read_bytes() == b"a file, not a folder"
+
+
+def test_failed_save_to_a_picked_file_still_copies(make, clipboard, tmp_path):
+    """M9 WI-1: the same failure on any system, with the file picked in the dialog."""
+    blocker = tmp_path / "taken"
+    blocker.write_bytes(b"a file, not a folder")
+    target = blocker / "shots" / "snap.png"
+    h = make(save_dir=tmp_path / "shots")
+    save_capture_to(h, target)
+    assert decode_png(bytes(clipboard.mimeData().data("image/png"))).size().toTuple() == (200, 150)
+    (notice,) = h.notifier.notices
+    assert notice.title == "保存失败" and notice.warning
+    assert notice.body.endswith(f"\n{target}")
+    assert blocker.read_bytes() == b"a file, not a folder"
+    assert h.controller.overlays == ()
 
 
 def test_ocr_overlay_has_no_save(make):
