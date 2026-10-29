@@ -56,7 +56,7 @@ def open_file(path: Path) -> None:
 
 
 def flush_clipboard() -> None:
-    """The Mac pasteboard keeps what snapocr put there after it exits (checked by WI-21)."""
+    """Nothing to do: the Mac pasteboard keeps the image after snapocr exits (WI-21: five exits of five)."""
 
 
 def prepare_app(app: QApplication) -> None:
