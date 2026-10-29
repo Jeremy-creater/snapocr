@@ -44,6 +44,8 @@ uv tool update-shell   # 只需一次，让 snapocr 进 PATH（之后开一个�
 snapocr
 ```
 
+上面装的是 `main` 上的最新代码。要装固定版本，在地址后面加标签：`git+https://github.com/Jeremy-creater/snapocr@v0.1.0`（见 [CHANGELOG.md](CHANGELOG.md) 和 Releases 页面）。
+
 或者用 pip 装进一个虚拟环境：
 
 ```powershell
