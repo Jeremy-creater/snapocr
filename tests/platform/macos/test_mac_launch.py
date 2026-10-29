@@ -184,4 +184,5 @@ def test_start_at_login_is_not_there_yet():
 
 
 def test_glass_is_solid():
-    assert kit.glass().facts().build == 0
+    facts = kit.glass().facts()
+    assert (facts.build, facts.platform) == (0, "darwin")

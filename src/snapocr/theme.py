@@ -28,6 +28,7 @@ THEME_LABELS: Mapping[str, str] = MappingProxyType(
 )
 WINDOWS_11_BUILD = 22000
 GLASS_REFUSED = "系统拒绝了毛玻璃效果"  # Glass.apply returned False
+MAC_NO_GLASS = "macOS 版暂不支持"  # F23-9; the note adds "，毛玻璃改用实底显示。"
 
 
 def font_families(system_family: str, *, platform: str = "win32") -> tuple[str, ...]:
@@ -115,6 +116,7 @@ class GlassFacts:
     build: int  # Windows build number
     transparency: bool  # Settings > Personalisation > Colours > Transparency effects
     battery_saver: bool
+    platform: str = "win32"  # M9: no glass on a Mac yet (F23-9)
 
 
 @dataclass(frozen=True)
@@ -125,6 +127,8 @@ class Look:
 
 def glass_problem(facts: GlassFacts) -> str | None:
     """F20-4: why acrylic cannot be used, or None."""
+    if check_platform(facts.platform) == "darwin":
+        return MAC_NO_GLASS
     if facts.build < WINDOWS_11_BUILD:
         return "需要 Windows 11"
     if not facts.transparency:

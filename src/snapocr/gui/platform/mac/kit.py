@@ -44,8 +44,8 @@ def make_autostart(executable: Path, config: Path, frozen: bool) -> NoAutostart:
 
 
 def glass() -> NoGlass:
-    """F23-9: solid windows on the Mac for now (the reason text is WI-20)."""
-    return NoGlass()
+    """F23-9: solid windows on the Mac for now; the settings window says so (F20-4)."""
+    return NoGlass(PLATFORM)
 
 
 def open_file(path: Path) -> None:

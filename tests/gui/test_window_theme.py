@@ -176,6 +176,25 @@ def test_refused_acrylic_falls_back_to_solid(make):
     assert window.theme_note.text() == f"{GLASS_REFUSED}，毛玻璃改用实底显示。"
 
 
+def test_no_glass_on_a_mac(make):
+    """M9 WI-20 (PRD F23-9): dark glass saved on a Mac is the opaque dark solid look."""
+    assert NoGlass("darwin").facts().platform == "darwin"
+    h = make(glass=NoGlass("darwin"), platform="darwin")
+    popup = h.controller.popup
+    window = open_settings(h)
+    assert window.theme_note.text() == "macOS 版暂不支持，毛玻璃改用实底显示。"
+    choose(window, "dark_glass")
+    assert window.theme_note.isVisible()
+    choose(window, "light_solid")
+    assert not window.theme_note.isVisible()
+    choose(window, "dark_glass")
+    window.save_button.click()
+    assert popup.look == Look(PALETTES["dark_solid"], False)
+    rgb, alpha = fill_alpha_and_rgb(popup)
+    assert alpha == 255
+    assert all(abs(a - b) <= 3 for a, b in zip(rgb, PALETTES["dark_solid"].window[:3], strict=True))
+
+
 def test_theme_from_the_config_at_start(make):
     h = make(glass=FakeGlass(), theme="dark_glass")
     assert h.controller.popup.look == Look(PALETTES["dark_glass"], True)
