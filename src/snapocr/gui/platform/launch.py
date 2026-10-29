@@ -110,7 +110,7 @@ def start(argv: list[str]) -> RunningApp | None:
         capture_provider=DesktopCapture(),
         notifier=notifier,
         hotkey_backend=hotkeys,
-        autostart=RegistryAutostart(autostart_command(Path(sys.executable), args.config)),
+        autostart=RegistryAutostart(autostart_command(Path(sys.executable), args.config, getattr(sys, "frozen", False))),  # F22-2
         open_file=shell.open_file,
         quit_app=app.quit,
         startup_issues=loaded.issues + runtime_issues(),  # F9-3, F21-2

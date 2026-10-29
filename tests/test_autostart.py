@@ -31,3 +31,22 @@ def test_relative_config_becomes_absolute(tmp_path, monkeypatch):
     cmd = autostart_command(Path(r"D:\py\python.exe"), Path("c.toml"))
     assert cmd.endswith(f" --config {tmp_path / 'c.toml'}") or cmd.endswith(f' --config "{tmp_path / "c.toml"}"')
     assert str(tmp_path / "c.toml") in cmd
+
+
+# M8 WI-13 (PRD F22-2): the packaged build (sys.frozen) starts itself, not pythonw -m snapocr.
+
+
+def test_frozen_build_runs_its_own_exe():
+    cmd = autostart_command(Path(r"D:\Apps\snapocr\snapocr.exe"), Path(r"C:\cfg\config.toml"), frozen=True)
+    assert cmd == r"D:\Apps\snapocr\snapocr.exe --config C:\cfg\config.toml"
+
+
+def test_frozen_build_quotes_spaces():
+    cmd = autostart_command(Path(r"C:\My Apps\snapocr\snapocr.exe"), Path(r"C:\my cfg\config.toml"), frozen=True)
+    assert cmd == r'"C:\My Apps\snapocr\snapocr.exe" --config "C:\my cfg\config.toml"'
+
+
+def test_not_frozen_is_the_default():
+    exe, cfg = Path(r"D:\py\python.exe"), Path(r"D:\c.toml")
+    assert autostart_command(exe, cfg, frozen=False) == autostart_command(exe, cfg)
+    assert autostart_command(exe, cfg) == r"D:\py\pythonw.exe -m snapocr --config D:\c.toml"
