@@ -84,7 +84,7 @@ Overrides: `snapocr --config PATH`, or the environment variables `SNAPOCR_CONFIG
 
 ## Development
 
-The requirements live in [`docs/PRD.md`](docs/PRD.md) and the working rules in [`CLAUDE.md`](CLAUDE.md) (both in Chinese). The project was developed test-first with Claude Code and the tdd-guardian plugin; plans and recaps for each milestone are in `.claude/tdd-guardian/`.
+The requirements live in [`docs/PRD.md`](docs/PRD.md) and the working rules in [`CLAUDE.md`](CLAUDE.md) (both in Chinese). The project was developed test-first with Claude Code and the tdd-guardian plugin.
 
 ```powershell
 git clone https://github.com/Jeremy-creater/snapocr

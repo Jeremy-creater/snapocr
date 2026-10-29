@@ -1,8 +1,9 @@
 # snapocr PRD
 
-> 状态：**草稿 v1.8**（2026-10-29）。标 `【待确认】` 的条目需要 Jeremy 决定后才能进入 TDD 计划。
+> 状态：**草稿 v1.9**（2026-10-29）。标 `【待确认】` 的条目需要 Jeremy 决定后才能进入 TDD 计划。
 >
 > 变更记录
+> - v1.9：私有仓库推送后（2026-10-29）Jeremy 定：`.claude/`（tdd-guardian 的计划、总结、测试矩阵）不公开，只留在本地，并从提交历史里去掉；GitHub 仓库删掉重建（F21-9）。发第一个版本 v0.1.0（F21-10）。
 > - v1.8：M7 验收后（2026-10-29）Jeremy 定：snapocr 作为自己用 AI 定制的第一款软件公开发布（GitHub，MIT 许可证，README 英文加中文版）。新增 M8 可发布化（F21）：配置文件和运行数据改到用户目录、去掉写死的开发机路径、首次运行自建目录、许可证、README、CI、提交邮箱。F9-1、F12-1、§8 隐私的路径随之改。非目标里“不做跨平台”改为 M9 再做 macOS（Jeremy 有 M1 Pro MacBook，细节另定）。界面仍只有中文。
 > - v1.7：M7 验收时（2026-10-28）Jeremy 提出：截图标注工具栏也换成“浅色实底”的样子（F20-7）。固定用浅色实底，不跟“窗口风格”设置和系统深浅色变。设置窗口、托盘菜单仍不变。
 > - v1.6：M6 验收后（2026-10-28），Jeremy 看了效果图，按推荐定：新增 F20（M7）窗口风格：翻译窗口换成无边框、圆角的样式，三种风格（浅色毛玻璃、深色毛玻璃、浅色实底）加“跟随系统”（默认），在设置窗口里选，保存后立即生效；毛玻璃用不了时改用实底。目标语言下拉框换成三段切换“自动 / 中文 / 英文”（F19-2、F19-6）。只改翻译窗口，截图工具栏、设置窗口、托盘菜单不变。
@@ -136,7 +137,7 @@ GUI 外壳 (snapocr.gui, PySide6) ── 托盘 / 热键 / 框选遮罩 / 翻译
 - F20 翻译窗口的无边框圆角样式，三种风格加“跟随系统”，设置里选
 
 ### M8：可发布化（2026-10-29 Jeremy 定）
-- F21 用户目录、去掉开发机路径、首次运行、许可证、README、CI、提交邮箱，先推私有仓库再公开
+- F21 用户目录、去掉开发机路径、首次运行、许可证、README、CI、提交邮箱，先推私有仓库再公开；`.claude/` 不公开；发 v0.1.0
 
 ### M9：macOS（2026-10-29 记下，细节另定）
 - 在 Jeremy 的 M1 Pro MacBook 上运行；`snapocr.gui.platform` 的 Mac 实现、权限、热键默认值、打包
@@ -383,6 +384,8 @@ GUI 外壳 (snapocr.gui, PySide6) ── 托盘 / 热键 / 框选遮罩 / 翻译
 | F21-6 | `README.md`（英文）和 `README.zh-CN.md`（中文），内容相同：功能和截图、系统要求（Windows 10 / 11、Python 3.12、界面只有中文）、安装（`uv tool install git+https://github.com/Jeremy-creater/snapocr`，也写 pip 的方式）、准备 Ollama 和翻译模型（`docs/hy-mt2-7b.Modelfile`）、默认热键、配置文件和运行数据目录在哪、隐私（全程本地，只访问 127.0.0.1）、开发和测试方法（车道，用 Claude Code 按 TDD 开发）。两份互相链接。 |
 | F21-7 | GitHub Actions：推送到 `main` 和 PR 时，在 `windows-latest` 上用 Python 3.12 跑 unit 和 engine 两条车道；integration（要 Ollama）和 gui（要真实桌面）不在 CI 跑。 |
 | F21-8 | 公开前，提交历史里的作者邮箱换成 GitHub 的 noreply 地址 `348469911+Jeremy-creater@users.noreply.github.com`（以后的提交也用它）；提交号因此改变，当前版本文档里引用的旧提交号换成新号。先推到私有仓库，Jeremy 检查后再改成公开。改历史和推送前各问 Jeremy 一次。 |
+| F21-9 | `.claude/` 不进 Git（`.gitignore`），只留在 Jeremy 本地；提交历史里也去掉它，只剩它的提交一并去掉。README 不再提它。旧提交号在 GitHub 上还能直接打开（包括 CI 记录里的），所以 GitHub 仓库删掉重建，再推送。v1.9 |
+| F21-10 | 第一个版本 `v0.1.0`：`pyproject.toml` 的版本号改成 `0.1.0`，`CHANGELOG.md` 写明这一版有什么，打标签 `v0.1.0`，在 GitHub 上建 Release（只有源码，不打包 exe）。README 的安装命令另写一条装固定版本的：`uv tool install git+https://github.com/Jeremy-creater/snapocr@v0.1.0`。v1.9 |
 
 ## 8. 非功能需求
 

@@ -17,15 +17,13 @@ coverage-gui.json
 coverage.xml
 htmlcov/
 
-# Local config & runtime data (keep .claude/tdd-guardian/config.json tracked)
+# Local config & runtime data
 /config.local.toml
 /runtime/
 /tempsnap/
 
-# tdd-guardian local state
-.claude/tdd-guardian/state.json
-.claude/tdd-guardian/receipts.json
-.claude/settings.local.json
+# Claude Code and tdd-guardian files stay local (PRD F21-9)
+/.claude/
 
 # IDE / OS
 .idea/

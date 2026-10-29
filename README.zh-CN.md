@@ -84,7 +84,7 @@ Ollama 没启动时，翻译窗口会提示；OCR 和截图照常工作。
 
 ## 开发
 
-需求在 [`docs/PRD.md`](docs/PRD.md)，工作规则在 [`CLAUDE.md`](CLAUDE.md)。项目用 Claude Code 和 tdd-guardian 插件按 TDD 开发，每个里程碑的计划和总结在 `.claude/tdd-guardian/`。
+需求在 [`docs/PRD.md`](docs/PRD.md)，工作规则在 [`CLAUDE.md`](CLAUDE.md)。项目用 Claude Code 和 tdd-guardian 插件按 TDD 开发。
 
 ```powershell
 git clone https://github.com/Jeremy-creater/snapocr

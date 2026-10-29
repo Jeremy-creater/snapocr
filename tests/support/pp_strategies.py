@@ -1,7 +1,7 @@
 """Shared Hypothesis strategies for the F2 post-processing tests.
 
-Matrix: .claude/tdd-guardian/tests-20261025-183000.md, section "共享生成器"
-(``cjk`` uses the revision-1 L10 widened version). Paragraph generators are
+Built from the F2 test matrix's shared generators (``cjk`` uses the widened
+version from its first revision). Paragraph generators are
 added by the work item that needs them.
 """
 
