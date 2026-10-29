@@ -3,3 +3,5 @@
 [tool.coverage.run]
 source = ["snapocr"]
 branch = true
+# The Mac files are covered by the gui-mac lane (coverage-gui-mac.toml; M9 plan D11).
+omit = ["*/snapocr/gui/platform/mac/*"]

@@ -1,0 +1,18 @@
+# Coverage settings for the manual gui-mac lane only (CLAUDE.md, M9 plan D11).
+# Counts this platform's files: the Windows-only ones are left out, and the
+# shared launch.py, tray.py and __init__.py must reach 100% here too.
+[tool.coverage.run]
+source = ["snapocr"]
+branch = true
+omit = [
+    "*/snapocr/gui/platform/_win32.py",
+    "*/snapocr/gui/platform/autostart.py",
+    "*/snapocr/gui/platform/capture.py",
+    "*/snapocr/gui/platform/glass.py",
+    "*/snapocr/gui/platform/hotkeys.py",
+    "*/snapocr/gui/platform/native_clipboard.py",
+    "*/snapocr/gui/platform/screens.py",
+    "*/snapocr/gui/platform/shell.py",
+    "*/snapocr/gui/platform/single_instance.py",
+    "*/snapocr/gui/platform/win.py",
+]
