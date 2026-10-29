@@ -1,0 +1,80 @@
+# PRD F22-5: build the Windows portable zip. On a v* tag: lanes, build, self-check the
+# unzipped exe, then attach the zip to a draft Release that Jeremy publishes by hand.
+# Run by hand (workflow_dispatch): the same, but the zip only becomes a build artifact.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-zip:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[dev,build]"
+
+      - name: Tag matches the version
+        if: github.ref_type == 'tag'
+        run: |
+          $version = python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
+          if ("v$version" -ne "${{ github.ref_name }}") { throw "tag ${{ github.ref_name }} but pyproject.toml says $version" }
+
+      - name: unit lane
+        run: python -m pytest -m "not integration and not engine and not perf and not gui" -q
+      - name: engine lane
+        run: python -m pytest -m "engine and not perf and not gui" -q
+
+      - name: Build
+        id: build
+        run: |
+          python packaging/build.py --out "$env:RUNNER_TEMP\build"
+          $zip = Get-ChildItem "$env:RUNNER_TEMP\build\*.zip" | Select-Object -First 1
+          "zip=$($zip.FullName)" >> $env:GITHUB_OUTPUT
+          "name=$($zip.Name)" >> $env:GITHUB_OUTPUT
+
+      - name: Self-check the unzipped exe (F22-4)
+        run: |
+          $dir = "$env:RUNNER_TEMP\unzipped"
+          Expand-Archive "${{ steps.build.outputs.zip }}" $dir
+          foreach ($name in "snapocr.exe", "LICENSE", "THIRD_PARTY_NOTICES.md", "README.txt") {
+            if (-not (Test-Path "$dir\snapocr\$name")) { throw "missing snapocr\$name in the zip" }
+          }
+          $report = "$env:RUNNER_TEMP\selfcheck.json"
+          $p = Start-Process "$dir\snapocr\snapocr.exe" -ArgumentList "--self-check", "$env:GITHUB_WORKSPACE\tests\fixtures\en.png", $report -Wait -PassThru
+          Get-Content $report -Encoding utf8
+          $r = Get-Content $report -Raw -Encoding utf8 | ConvertFrom-Json
+          if ($p.ExitCode -ne 0 -or -not $r.ok -or -not $r.frozen -or $r.text -notmatch "quick brown fox") { throw "self-check failed" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.name }}
+          path: ${{ steps.build.outputs.zip }}
+          compression-level: 0
+          retention-days: 14
+
+      - name: Draft release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag "${{ steps.build.outputs.zip }}" --clobber
+          } else {
+            gh release create $tag "${{ steps.build.outputs.zip }}" --draft --verify-tag --title "snapocr $($tag.TrimStart('v'))" --notes "See CHANGELOG.md."
+          }
