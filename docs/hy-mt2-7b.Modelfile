@@ -4,7 +4,8 @@
 #   [system]  <|startoftext|>{system}<|extra_4|>
 #   user      <|startoftext|>{user}<|extra_0|>   (no leading token right after a system turn)
 #   assistant {assistant}<|eos|>
-FROM D:/LLM/gguf/tencent/Hy-MT2-7B/HY-MT2-7B-Q6_K.gguf
+# Change this to the absolute path of your HY-MT2-7B GGUF file (any quantization).
+FROM C:/path/to/HY-MT2-7B-Q6_K.gguf
 
 TEMPLATE """{{- if .System }}<|startoftext|>{{ .System }}<|extra_4|>{{ .Prompt }}<|extra_0|>{{- else }}<|startoftext|>{{ .Prompt }}<|extra_0|>{{- end }}{{ .Response }}"""
 
