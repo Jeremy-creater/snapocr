@@ -212,3 +212,26 @@ def test_config_module_imports_no_heavy_deps():
 def test_config_rejects_huge_int_min_score(value):
     with pytest.raises(ValueError, match="min_score"):
         OcrEngineConfig(min_score=value)
+
+
+# --- M8 WI-14 (PRD F22-3): the hint fits how snapocr was installed ----------
+
+
+def test_fix_hint_from_python_reinstalls_rapidocr_with_that_python():
+    from snapocr.engines.config import fix_hint
+
+    hint = fix_hint(r"C:\venv\Scripts\python.exe", frozen=False)
+    assert hint == (
+        r'run `"C:\venv\Scripts\python.exe" -m pip install --force-reinstall rapidocr==3.10.0`, '
+        "or set `model_dir` in the config to a directory holding the models"
+    )
+
+
+def test_fix_hint_for_the_packaged_build_says_download_again():
+    from snapocr.engines.config import fix_hint
+
+    hint = fix_hint(r"D:\Apps\snapocr\snapocr.exe", frozen=True)
+    assert "pip" not in hint and "snapocr.exe" not in hint
+    assert "download snapocr again" in hint
+    assert "https://github.com/Jeremy-creater/snapocr/releases" in hint
+    assert "model_dir" in hint

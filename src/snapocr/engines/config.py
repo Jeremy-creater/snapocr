@@ -18,9 +18,19 @@ DET_MODEL = "PP-OCRv6_det_small.onnx"
 CLS_MODEL = "ch_ppocr_mobile_v2.0_cls_mobile.onnx"
 REC_MODEL = "PP-OCRv6_rec_small.onnx"
 
-# This interpreter, whoever installed it and wherever (PRD F21-4).
-_INSTALL_CMD = f'"{sys.executable}" -m pip install --force-reinstall rapidocr==3.10.0'
-_FIX_HINT = f"run `{_INSTALL_CMD}`, or set `model_dir` in the config to a directory holding the models"
+RELEASES_URL = "https://github.com/Jeremy-creater/snapocr/releases"
+_MODEL_DIR_HINT = "or set `model_dir` in the config to a directory holding the models"
+
+
+def fix_hint(executable: str, frozen: bool) -> str:
+    """How to get the models back: reinstall rapidocr with this Python (PRD F21-4), or, in the
+    packaged build that has no pip, download and unzip snapocr again (F22-3)."""
+    if frozen:
+        return f"download snapocr again from {RELEASES_URL} and unzip it, {_MODEL_DIR_HINT}"
+    return f'run `"{executable}" -m pip install --force-reinstall rapidocr==3.10.0`, {_MODEL_DIR_HINT}'
+
+
+_FIX_HINT = fix_hint(sys.executable, getattr(sys, "frozen", False))
 
 
 @dataclass(frozen=True)
