@@ -17,7 +17,7 @@ from snapocr.commands import Command
 from snapocr.config.schema import ConfigIssue
 from snapocr.config.settings import BadModel, BadSaveDir, BadTheme, DuplicateHotkey, Problem
 from snapocr.engines.errors import EngineLoadError, OcrError
-from snapocr.hotkeys import ERROR_HOTKEY_ALREADY_REGISTERED, HotkeyFailure, format_hotkey
+from snapocr.hotkeys import HotkeyFailure, format_hotkey, hotkey_taken
 from snapocr.translators.errors import TranslationError, TranslationErrorKind
 
 COMMAND_LABELS: Mapping[Command, str] = MappingProxyType(
@@ -106,18 +106,18 @@ def translation_error_text(err: TranslationError) -> str:
     return f"翻译失败：{err}"
 
 
-def hotkey_failure_line(f: HotkeyFailure) -> str:
-    if f.error_code == ERROR_HOTKEY_ALREADY_REGISTERED:
+def hotkey_failure_line(f: HotkeyFailure, *, platform: str = "win32") -> str:
+    if hotkey_taken(f.error_code, platform=platform):
         why = "已被其他软件占用"
     else:
         why = f"注册失败，错误码 {f.error_code}"
     return f"{f.hotkey_text}（{COMMAND_LABELS[f.command]}）：{why}"
 
 
-def hotkey_failed_notice(failures: Sequence[HotkeyFailure]) -> Notice:
+def hotkey_failed_notice(failures: Sequence[HotkeyFailure], *, platform: str = "win32") -> Notice:
     if not failures:
         raise ValueError("no hotkey failures to report")
-    lines = [hotkey_failure_line(f) for f in failures]
+    lines = [hotkey_failure_line(f, platform=platform) for f in failures]
     lines.append("其余热键照常工作。可以在托盘菜单的“设置…”里换一个组合（或改配置文件的 [hotkeys]）。")
     return Notice(f"有 {len(failures)} 个热键注册失败", "\n".join(lines), warning=True)
 
