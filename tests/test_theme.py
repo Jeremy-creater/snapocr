@@ -27,6 +27,7 @@ from snapocr.theme import (
     Look,
     abgr,
     contrast,
+    font_families,
     glass_note,
     glass_problem,
     over,
@@ -216,3 +217,23 @@ def test_stylesheets_differ_between_palettes():
 
 def test_font_families():
     assert FONT_FAMILIES == ("Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI")
+
+
+def test_font_families_by_platform():
+    """M9 WI-4 (plan D21): PingFang first on a Mac, so the main font's line height is the CJK one."""
+    assert font_families(".AppleSystemUIFont") == FONT_FAMILIES
+    assert font_families(".AppleSystemUIFont", platform="win32") == FONT_FAMILIES
+    mac = font_families(".AppleSystemUIFont", platform="darwin")
+    assert mac == ("PingFang SC", ".AppleSystemUIFont")
+    assert not any("Segoe" in f or "YaHei" in f for f in mac)
+    with pytest.raises(ValueError, match="linux"):
+        font_families("x", platform="linux")
+
+
+def test_stylesheet_names_the_font_families():
+    """M9 WI-4: a restyle must not put the app's default families back on the text boxes."""
+    p = PALETTES["light_solid"]
+    assert 'font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI";' in stylesheet(p)
+    mac = stylesheet(p, ("PingFang SC", ".AppleSystemUIFont"))
+    assert 'font-family: "PingFang SC", ".AppleSystemUIFont";' in mac
+    assert "Segoe" not in mac

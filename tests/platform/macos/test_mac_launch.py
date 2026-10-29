@@ -68,6 +68,7 @@ def test_start_is_a_menu_bar_app_with_live_hotkeys(qtbot, running, tmp_path):
     assert c.send(c.ns_app(), "activationPolicy", restype=ctypes.c_long) == c.NSApplicationActivationPolicyAccessory
     assert app.tray.icon.isVisible()
     assert sorted(cmd.value for cmd in app.controller.registered_commands()) == sorted(KEYS)
+    assert app.controller.popup.font().families()[0] == "PingFang SC"  # the kit's platform (M9 WI-4)
     hk = parse_hotkey(KEYS["translate_text"])
     press_combo(hk.mods, hk.vk)
     qtbot.waitUntil(lambda: app.controller.popup.isVisible(), timeout=2000)

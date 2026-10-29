@@ -105,6 +105,7 @@ class AppController(QObject):
         debug_dir: Path = DEBUG_DIR,
         glass: Glass | None = None,
         prepare_overlay: Callable[[QWidget], None] = lambda overlay: None,
+        platform: str = "win32",  # the kit's PLATFORM (M9)
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -144,7 +145,7 @@ class AppController(QObject):
         self._debug_dir = debug_dir
         on_record = DebugDump(debug_dir) if config.debug else None  # F12: read once at start
         self.runner = JobRunner(self.bridge.post, on_record)
-        self.popup = TranslationPopup()
+        self.popup = TranslationPopup(platform=platform)
         self.popup.translate_requested.connect(self._translate_text)
         self._apply_look()
         self.menu = build_tray_menu(config.hotkeys, self._on_menu)

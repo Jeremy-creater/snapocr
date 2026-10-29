@@ -120,6 +120,7 @@ def start(argv: list[str]) -> RunningApp | None:
         startup_issues=loaded.issues + runtime_issues(),  # F9-3, F21-2
         glass=kit.glass(),
         prepare_overlay=kit.prepare_overlay,  # Mac: above the menu bar and Dock (F23-4)
+        platform=kit.PLATFORM,
     )
     tray = Tray(controller.menu, app_icon())
     notifier.tray = tray

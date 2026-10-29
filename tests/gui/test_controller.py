@@ -86,7 +86,7 @@ class Harness:
     def __init__(self, qtbot, tmp_path, *, engine=RESULT, load_error=None, holder=None, translator=None,
                  capture_error=None, capture_denied=False, issues=(), preoccupy=(), config_path=None, make_translator=None,
                  autostart=None, list_models=None, show_text=True, debug=False, save_dir=None, glass=None,
-                 theme="system", prepare_overlay=None):
+                 theme="system", prepare_overlay=None, platform=None):
         self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error,
                                    denied=capture_denied)
         self.notifier = RecordingNotifier()
@@ -119,6 +119,7 @@ class Harness:
             debug_dir=self.debug_dir,
             **({} if glass is None else {"glass": glass}),  # M7 WI-6
             **({} if prepare_overlay is None else {"prepare_overlay": prepare_overlay}),  # M9 WI-18
+            **({} if platform is None else {"platform": platform}),  # M9 WI-4
         )
         self.qtbot = qtbot
 
@@ -1505,4 +1506,12 @@ def test_a_request_after_quit_does_nothing(make, clipboard):
     h.qtbot.wait(50)
     assert h.controller.popup.state is None
     assert clipboard.text() == SENTINEL
+
+
+# --- M9 WI-4: the translation window's font follows the platform (plan D21) -------------------
+
+
+def test_translation_window_font_follows_the_platform(make):
+    assert make().controller.popup.font().families()[:3] == ["Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI"]
+    assert make(platform="darwin").controller.popup.font().families()[0] == "PingFang SC"
 
