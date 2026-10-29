@@ -89,3 +89,14 @@ def runtime_issues() -> list[ConfigIssue]:
     """F21-2: a refused ``SNAPOCR_RUNTIME_DIR``, for the start-up notice (F9-3)."""
     problem = runtime_dir(os.environ, home=Path.home())[1]
     return [ConfigIssue(Path(RUNTIME_ENV), "", problem)] if problem else []
+
+
+_KITS = {"win32": "snapocr.gui.platform.win", "darwin": "snapocr.gui.platform.mac.kit"}
+
+
+def kit_module(platform: str) -> str:
+    """The module with the platform's desktop pieces (F23-1, M9 plan D12); exits on any other system."""
+    try:
+        return _KITS[platform]
+    except KeyError:
+        raise SystemExit(f"snapocr 只支持 Windows 和 macOS（当前系统：{platform!r}）") from None

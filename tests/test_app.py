@@ -190,7 +190,6 @@ def test_ocr_jobs_never_log_the_ocr_text(caplog):
 # --- python -m snapocr -------------------------------------------------------------------
 
 
-@pytest.mark.windows(reason="temporary: launch imports the Win32-only platform modules; M9 WI-22 removes this mark")
 def test_python_m_snapocr_runs_launch_main(monkeypatch):
     import snapocr.gui.platform.launch as launch
 
@@ -205,3 +204,23 @@ def test_importing_snapocr_main_does_not_run_it():
 
     module = importlib.import_module("snapocr.__main__")
     assert callable(module.main)
+
+
+# --- M9 WI-22: the platform kit (PRD F23-1, plan D12) -----------------------------------
+
+from snapocr.app import kit_module  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("platform", "module"),
+    [("win32", "snapocr.gui.platform.win"), ("darwin", "snapocr.gui.platform.mac.kit")],
+)
+def test_kit_module_per_platform(platform, module):
+    assert kit_module(platform) == module
+
+
+@pytest.mark.parametrize("platform", ["linux", "cygwin", "", "Darwin"])
+def test_other_platforms_exit_with_a_reason(platform):
+    with pytest.raises(SystemExit) as info:
+        kit_module(platform)
+    assert str(info.value) == f"snapocr 只支持 Windows 和 macOS（当前系统：{platform!r}）"

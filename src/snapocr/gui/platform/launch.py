@@ -8,33 +8,34 @@ reverse and renders the clipboard so a screenshot survives the exit (R7).
 
 from __future__ import annotations
 
+import importlib
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
+from typing import Any
 
 from PySide6.QtCore import QCoreApplication, QEvent, QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from snapocr.actions.flows import FlowDeps
 from snapocr.actions.outcomes import Notice
-from snapocr.app import DEFAULT_LOG_DIR, install_excepthook, parse_args, runtime_issues, setup_logging
-from snapocr.autostart import autostart_command
+from snapocr.app import DEFAULT_LOG_DIR, install_excepthook, kit_module, parse_args, runtime_issues, setup_logging
 from snapocr.commands import Command
-from snapocr.config.files import instance_name, load_config_file
+from snapocr.config.files import load_config_file
 from snapocr.engines.holder import EngineHolder
 from snapocr.engines.rapidocr_engine import RapidOcrEngine
 from snapocr.gui.controller import AppController
 from snapocr.gui.icons import app_icon
-from snapocr.gui.platform import native_clipboard, shell
-from snapocr.gui.platform.autostart import RegistryAutostart
-from snapocr.gui.platform.capture import DesktopCapture
-from snapocr.gui.platform.glass import NativeGlass
-from snapocr.gui.platform.hotkeys import NativeHotkeys
-from snapocr.gui.platform.single_instance import InstanceLock, acquire
 from snapocr.gui.platform.tray import Tray
 from snapocr.translators.openai_compat import OpenAICompatTranslator, list_models
 
 ALREADY_RUNNING_MS = 3000
+
+
+def platform_kit() -> ModuleType:
+    """``snapocr.gui.platform.win`` or ``.mac.kit``: the same names on both (M9 plan D12)."""
+    return importlib.import_module(kit_module(sys.platform))
 
 
 class _TrayNotifier:
@@ -50,10 +51,11 @@ class _TrayNotifier:
 @dataclass
 class RunningApp:
     app: QApplication
-    lock: InstanceLock
+    lock: Any  # the kit's InstanceLock
     controller: AppController
     tray: Tray
-    hotkeys: NativeHotkeys
+    hotkeys: Any  # the kit's Hotkeys
+    kit: ModuleType
 
     closed: bool = False
 
@@ -65,7 +67,7 @@ class RunningApp:
         self.controller.run(Command.QUIT)
         self.hotkeys.close()
         self.tray.hide()
-        native_clipboard.flush()
+        self.kit.flush_clipboard()
         self.lock.release()
         # Free the Qt objects now, while the QApplication exists. Left to Python's
         # garbage collector they may die after it, or the tray after its menu,
@@ -89,8 +91,10 @@ def start(argv: list[str]) -> RunningApp | None:
     app = QApplication.instance() or QApplication(argv[:1])
     app.setQuitOnLastWindowClosed(False)
     app.setWindowIcon(app_icon())
+    kit = platform_kit()
+    kit.prepare_app(app)  # Mac: no Dock icon (D17), before anything is shown
 
-    lock = acquire(instance_name(args.config))
+    lock = kit.acquire(args.config)
     if lock is None:
         _show_already_running()
         return None
@@ -99,7 +103,7 @@ def start(argv: list[str]) -> RunningApp | None:
     config = loaded.config
     engine = EngineHolder(lambda: RapidOcrEngine(config.ocr).load())
     deps = FlowDeps(engine, config.postprocess, config.replacements)
-    hotkeys = NativeHotkeys()
+    hotkeys = kit.Hotkeys()
     notifier = _TrayNotifier()
     controller = AppController(
         config,
@@ -107,21 +111,22 @@ def start(argv: list[str]) -> RunningApp | None:
         deps,
         make_translator=OpenAICompatTranslator,
         list_models=list_models,
-        capture_provider=DesktopCapture(),
+        capture_provider=kit.Capture(),
         notifier=notifier,
         hotkey_backend=hotkeys,
-        autostart=RegistryAutostart(autostart_command(Path(sys.executable), args.config, getattr(sys, "frozen", False))),  # F22-2
-        open_file=shell.open_file,
+        autostart=kit.make_autostart(Path(sys.executable), args.config, getattr(sys, "frozen", False)),  # F22-2
+        open_file=kit.open_file,
         quit_app=app.quit,
         startup_issues=loaded.issues + runtime_issues(),  # F9-3, F21-2
-        glass=NativeGlass(),
+        glass=kit.glass(),
+        prepare_overlay=kit.prepare_overlay,  # Mac: above the menu bar and Dock (F23-4)
     )
     tray = Tray(controller.menu, app_icon())
     notifier.tray = tray
     tray.show()
     hotkeys.activated.connect(controller.handle_hotkey)
     controller.start()
-    return RunningApp(app, lock, controller, tray, hotkeys)
+    return RunningApp(app, lock, controller, tray, hotkeys, kit)
 
 
 def main(argv: list[str] | None = None, *, log_dir: Path = DEFAULT_LOG_DIR) -> int:
