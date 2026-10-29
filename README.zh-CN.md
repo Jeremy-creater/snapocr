@@ -8,6 +8,12 @@ Windows 托盘常驻的截图工具：**一个热键做一件事，结果直接�
 
 > 目前界面**只有中文**。
 
+## 截图
+
+| 截图标注（`Alt+1`） | 翻译窗口（`Alt+3` / `Alt+4`） | 托盘菜单 |
+|---|---|---|
+| ![截图标注工具栏](docs/images/annotate.png) | ![翻译窗口](docs/images/translate.png) | ![托盘菜单](docs/images/tray-menu.png) |
+
 ## 功能
 
 | 热键 | 作用 |

@@ -8,6 +8,12 @@ This is the first piece of software I (Jeremy) built by working with an AI codin
 
 > The user interface is in **Chinese only** for now.
 
+## Screenshots
+
+| Annotate a screenshot (`Alt+1`) | Translation window (`Alt+3` / `Alt+4`) | Tray menu |
+|---|---|---|
+| ![Annotation toolbar](docs/images/annotate.png) | ![Translation window](docs/images/translate.png) | ![Tray menu](docs/images/tray-menu.png) |
+
 ## Features
 
 | Hotkey | What it does |
