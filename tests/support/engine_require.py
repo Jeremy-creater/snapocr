@@ -5,6 +5,8 @@ Never skip: a skipped engine lane would report green with nothing verified.
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from snapocr.engines.config import ModelPaths
@@ -21,8 +23,7 @@ def require_model_files(paths: ModelPaths) -> ModelPaths:
         pytest.fail(
             "engine lane needs the real RapidOCR model files; problems: "
             + "; ".join(bad)
-            + r". Fix: uv pip install --python D:\DevLocal\envs\snapocr\Scripts\python.exe"
-            " --reinstall rapidocr==3.10.0",
+            + f'. Fix: "{sys.executable}" -m pip install --force-reinstall rapidocr==3.10.0',
             pytrace=False,
         )
     return paths

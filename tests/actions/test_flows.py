@@ -176,9 +176,9 @@ def test_ocr_real_engine_missing_models():
     assert out.notice.title == "OCR 引擎加载失败"
     # M3 WI-9: the notice names the file; the paths and the fix command are in the record (and the log).
     assert out.notice.body.startswith("模型文件缺失或损坏：PP-OCRv6_det_small.onnx 等 3 个\n")
-    assert "uv pip install" not in out.notice.body
+    assert "pip install" not in out.notice.body
     assert str(missing / "PP-OCRv6_det_small.onnx") in out.record.error
-    assert "uv pip install" in out.record.error
+    assert "pip install" in out.record.error
 
 
 # --- translate -------------------------------------------------------------------

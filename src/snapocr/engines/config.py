@@ -8,6 +8,7 @@ executing ``import rapidocr``. Must stay free of heavy runtime deps
 from __future__ import annotations
 
 import importlib.util
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,10 +18,8 @@ DET_MODEL = "PP-OCRv6_det_small.onnx"
 CLS_MODEL = "ch_ppocr_mobile_v2.0_cls_mobile.onnx"
 REC_MODEL = "PP-OCRv6_rec_small.onnx"
 
-_INSTALL_CMD = (
-    r"uv pip install --python D:\DevLocal\envs\snapocr\Scripts\python.exe"
-    " --reinstall rapidocr==3.10.0"
-)
+# This interpreter, whoever installed it and wherever (PRD F21-4).
+_INSTALL_CMD = f'"{sys.executable}" -m pip install --force-reinstall rapidocr==3.10.0'
 _FIX_HINT = f"run `{_INSTALL_CMD}`, or set `model_dir` in the config to a directory holding the models"
 
 

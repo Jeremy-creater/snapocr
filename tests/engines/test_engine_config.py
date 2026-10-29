@@ -101,7 +101,7 @@ def test_check_reports_exactly_the_bad_set(tmp_path, states):
     err = excinfo.value
     assert err.model_paths == expected_bad
     msg = str(err)
-    assert "--reinstall rapidocr==3.10.0" in msg
+    assert f'"{sys.executable}" -m pip install --force-reinstall rapidocr==3.10.0' in msg
     assert "model_dir" in msg
     for p in expected_bad:
         assert str(p) in msg
@@ -169,7 +169,7 @@ def test_rapidocr_not_installed_gives_install_hint():
     out = json.loads(proc.stdout.strip())
 
     assert out["raised"] is True
-    assert "uv pip install" in out["msg"]
+    assert f'"{sys.executable}" -m pip install --force-reinstall' in out["msg"]
     assert "rapidocr==3.10.0" in out["msg"]
 
 
@@ -187,7 +187,7 @@ def test_find_spec_none_in_process_gives_install_hint(monkeypatch):
     with pytest.raises(EngineLoadError) as excinfo:
         resolve_model_paths(OcrEngineConfig())
     msg = str(excinfo.value)
-    assert "uv pip install" in msg
+    assert f'"{sys.executable}" -m pip install --force-reinstall' in msg
     assert "rapidocr==3.10.0" in msg
     assert "model_dir" in msg
 

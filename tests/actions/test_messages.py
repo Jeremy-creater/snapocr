@@ -106,7 +106,7 @@ def test_ocr_empty_notice():
 
 
 LOG_FILE = Path("D:/DevLocal/runtime/snapocr/snapocr.log")
-REAL_HINT = r"missing, empty or not a file; run `uv pip install --python D:\DevLocal\envs\snapocr\Scripts\python.exe --reinstall rapidocr==3.10.0`, or set `model_dir` in the config to a directory holding the models"
+REAL_HINT = r"missing, empty or not a file; run `\"C:\venv\Scripts\python.exe\" -m pip install --force-reinstall rapidocr==3.10.0`, or set `model_dir` in the config to a directory holding the models"
 
 
 def test_engine_failed_notice_names_the_missing_file_and_the_log():
@@ -146,7 +146,7 @@ def test_engine_failed_notice_shortens_the_reason_for_a_long_log_path():
 def test_engine_failed_notice_leaves_out_the_fix_and_the_cause():
     # The fix command (~200 chars) was cut at 240 before; now it lives in the log only.
     n = engine_failed_notice(EngineLoadError(["D:/m/det.onnx"], REAL_HINT, detail="onnx says no"), LOG_FILE)
-    assert "uv pip install" not in n.body and "onnx says no" not in n.body and "D:/m/" not in n.body
+    assert "pip install" not in n.body and "onnx says no" not in n.body and "D:/m/" not in n.body
 
 
 def test_ocr_failed_notice():

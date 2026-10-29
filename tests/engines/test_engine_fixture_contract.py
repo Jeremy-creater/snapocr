@@ -8,7 +8,7 @@ from snapocr.engines.config import ModelPaths
 from support.engine_require import require_model_files
 
 TESTS_DIR = Path(__file__).resolve().parent.parent
-FIX_CMD = "--reinstall rapidocr==3.10.0"
+FIX_CMD = "-m pip install --force-reinstall rapidocr==3.10.0"  # PRD F21-4
 
 
 def _empty_paths(root: Path) -> ModelPaths:

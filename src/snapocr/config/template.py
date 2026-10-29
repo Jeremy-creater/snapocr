@@ -89,7 +89,7 @@ def _build() -> str:
         f"# theme = {_toml(AppConfig.theme)}",
         "",
         "[debug]",
-        "## 排查问题用：每次 OCR / 翻译的截图和全文存到 D:/DevLocal/runtime/snapocr/debug，不会自动删除。",
+        "## 排查问题用：每次 OCR / 翻译的截图和全文存到运行数据目录下的 debug 文件夹（开启后启动通知里有完整路径），不会自动删除。",
         f"# enabled = {_toml(AppConfig.debug)}",
         "",
         "[translator]",

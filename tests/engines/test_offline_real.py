@@ -20,7 +20,7 @@ from snapocr.engines.types import OcrResult
 pytestmark = pytest.mark.engine
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
-FIX_CMD = "--reinstall rapidocr==3.10.0"
+FIX_CMD = "-m pip install --force-reinstall rapidocr==3.10.0"  # PRD F21-4
 
 
 def _fixture(name: str) -> bytes:
