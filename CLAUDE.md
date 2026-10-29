@@ -18,8 +18,10 @@
 | 源码 | `D:\LLM\workspace\snapocr`（用户指定，例外于全局规则的 `D:\Sync\Projects`） |
 | 虚拟环境 | `D:\DevLocal\envs\snapocr` |
 | 用户配置 | `D:\LLM\workspace\snapocr\config.local.toml`（不进 Git；不要放进 venv，重建环境会被删） |
-| 运行数据（日志、debug 截图） | `D:\DevLocal\runtime\snapocr`（只在需要写日志时创建） |
+| 运行数据（日志、debug 截图） | `D:\DevLocal\runtime\snapocr`（只在需要写日志时创建；靠用户环境变量 `SNAPOCR_RUNTIME_DIR` 指过来，PRD F21-2） |
 | 本地模型（gguf、Ollama） | `D:\LLM`（只读使用；导入或下载模型前先问 Jeremy） |
+
+上表是 Jeremy 开发机的位置，**不得写进 `src/`**（2026-10-29，PRD v1.8 F21）。程序的默认位置面向普通用户：配置文件按 F21-1 查找（最后一项是 `%APPDATA%\snapocr\config.toml`），运行数据默认 `%LOCALAPPDATA%\snapocr`（F21-2）。查找规则是纯逻辑，测试传入假的环境变量和目录，不读真实的 `%APPDATA%`。
 
 ## 环境
 
@@ -86,10 +88,12 @@
 
 - 测试截图放 `tests/fixtures/`，只放无隐私内容的样例；真实使用中的截图不进 Git。
 - 不在日志里写 OCR 出来的全文，除非开了 debug 开关，且日志只写到 `D:\DevLocal\runtime\snapocr`。
-- debug 模式（PRD F12）把截图和全文写到固定目录 `D:\DevLocal\runtime\snapocr\debug`；测试一律用 `tmp_path`，不写真实目录。
+- debug 模式（PRD F12）把截图和全文写到运行数据目录下的 `debug`（Jeremy 的机器上是 `D:\DevLocal\runtime\snapocr\debug`）；测试一律用 `tmp_path`，不写真实目录。
 - `tempsnap/`：Jeremy 给 S4 代码模式提供的原始截图，不进 Git（`.gitignore`）；挑出无隐私的样例后再复制进 `tests/fixtures/`。
 
 ## Git
 
 - 每个 WI 提交一次；提交前跑 `unit` + `engine` 车道。
-- `git push`、rebase、reset --hard 前先问 Jeremy。
+- `git push`、rebase、reset --hard、改写历史前先问 Jeremy。
+- 仓库要公开（2026-10-29，PRD v1.8）：提交作者邮箱用 GitHub noreply 地址（本仓库的 `git config user.email` 已设好），不用个人邮箱。提交里不放个人截图、密钥、本机配置文件。
+- CI（GitHub Actions，F21-7）只跑 `unit` + `engine`；`integration`、`gui`、`perf` 仍只在 Jeremy 的机器上手动跑。改 CI 配置前先问 Jeremy。
