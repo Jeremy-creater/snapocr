@@ -101,12 +101,24 @@ def test_default_config_path_follows_snapocr_config(monkeypatch, tmp_path):
     assert default_config_path() == tmp_path / "env.toml"
 
 
+@pytest.mark.windows
 def test_default_config_path_without_the_variable(monkeypatch, tmp_path):
     """F21-1: this checkout is a source root, so its config.local.toml is used only when present."""
     monkeypatch.delenv("SNAPOCR_CONFIG", raising=False)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     source_file = REPO / "config.local.toml"
     expected = source_file if source_file.exists() else tmp_path / "snapocr" / "config.toml"
+    assert default_config_path() == expected
+
+
+@pytest.mark.macos
+def test_default_config_path_without_the_variable_on_a_mac(monkeypatch, tmp_path):
+    """M9 WI-9 (F23-6): Application Support, even with APPDATA set."""
+    monkeypatch.delenv("SNAPOCR_CONFIG", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
+    source_file = REPO / "config.local.toml"
+    expected = source_file if source_file.exists() else tmp_path / "Library" / "Application Support" / "snapocr" / "config.toml"
     assert default_config_path() == expected
 
 

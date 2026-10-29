@@ -17,7 +17,7 @@ NEEDS_PLATFORM = {
     "hotkey_failure_line", "hotkey_failed_notice", "settings_problem_text",
     "build_tray_menu", "update_tray_menu", "template", "load_config_file", "build_config",
     "changes", "write_changes", "font_families", "TranslationPopup", "AppController",
-    "HotkeyEdit", "SettingsWindow",
+    "HotkeyEdit", "SettingsWindow", "find_config", "runtime_dir",
 }
 
 # (file relative to src/snapocr, function) -> why the default is right there.

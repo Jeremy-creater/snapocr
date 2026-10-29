@@ -49,10 +49,12 @@ def lock_path(path: Path, lock_dir: Path) -> Path:
 
 def default_config_path() -> Path:
     """The config file when no ``--config`` is given (F21-1), from the real environment."""
+    import sys
+
     import snapocr.paths
 
     root = source_root(Path(snapocr.paths.__file__).resolve(), Path.exists)
-    return find_config(None, os.environ, source_root=root, exists=Path.exists, home=Path.home())
+    return find_config(None, os.environ, source_root=root, exists=Path.exists, home=Path.home(), platform=sys.platform)
 
 
 def _defaults(path: Path, reason: str) -> LoadResult:
