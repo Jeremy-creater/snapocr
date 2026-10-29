@@ -97,3 +97,10 @@
 - `git push`、rebase、reset --hard、改写历史前先问 Jeremy。
 - 仓库要公开（2026-10-29，PRD v1.8）：提交作者邮箱用 GitHub noreply 地址（本仓库的 `git config user.email` 已设好），不用个人邮箱。提交里不放个人截图、密钥、本机配置文件。
 - CI（GitHub Actions，F21-7）只跑 `unit` + `engine`；`integration`、`gui`、`perf` 仍只在 Jeremy 的机器上手动跑。改 CI 配置前先问 Jeremy。
+- 发版（F22-5，2026-10-29）：打 `v*` 标签并推送前先问 Jeremy；发版 workflow 只建草稿 Release，Jeremy 看过后再发布。
+
+## 打包（F22，2026-10-29）
+
+- PyInstaller onedir，配置在 `packaging/`（`snapocr.spec`、入口脚本、zip 里的 `README.txt`）。PyInstaller 装在 `build` 额外依赖里：`uv pip install --python D:\DevLocal\envs\snapocr\Scripts\python.exe -e ".[dev,build]"`。
+- 本地打包的输出放 `D:\DevLocal\build\snapocr`（`--distpath`、`--workpath`），不放仓库里；仓库里的 `build/`、`dist/` 已在 `.gitignore`。
+- 打包后的差别（`sys.frozen`）只在纯函数里按参数判断（开机自启动命令、模型修复提示），测试传入参数，不需要真的打包；打包本身由 CI 的自检（F22-4）验收。

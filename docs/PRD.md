@@ -1,8 +1,9 @@
 # snapocr PRD
 
-> 状态：**草稿 v1.9**（2026-10-29）。标 `【待确认】` 的条目需要 Jeremy 决定后才能进入 TDD 计划。
+> 状态：**草稿 v1.10**（2026-10-29）。标 `【待确认】` 的条目需要 Jeremy 决定后才能进入 TDD 计划。
 >
 > 变更记录
+> - v1.10：Jeremy 看了私有仓库的 Release 后（2026-10-29）指出：源码包小白不会用。按推荐定：新增 F22 Windows 免安装版（解压后双击 `snapocr.exe`），由 GitHub Actions 打包并放进 Release；还没公开的 v0.1.0 标签和 Release 删掉，免安装版做完后重新发 v0.1.0（F21-10 随之改）。
 > - v1.9：私有仓库推送后（2026-10-29）Jeremy 定：`.claude/`（tdd-guardian 的计划、总结、测试矩阵）不公开，只留在本地，并从提交历史里去掉；GitHub 仓库删掉重建（F21-9）。发第一个版本 v0.1.0（F21-10）。
 > - v1.8：M7 验收后（2026-10-29）Jeremy 定：snapocr 作为自己用 AI 定制的第一款软件公开发布（GitHub，MIT 许可证，README 英文加中文版）。新增 M8 可发布化（F21）：配置文件和运行数据改到用户目录、去掉写死的开发机路径、首次运行自建目录、许可证、README、CI、提交邮箱。F9-1、F12-1、§8 隐私的路径随之改。非目标里“不做跨平台”改为 M9 再做 macOS（Jeremy 有 M1 Pro MacBook，细节另定）。界面仍只有中文。
 > - v1.7：M7 验收时（2026-10-28）Jeremy 提出：截图标注工具栏也换成“浅色实底”的样子（F20-7）。固定用浅色实底，不跟“窗口风格”设置和系统深浅色变。设置窗口、托盘菜单仍不变。
@@ -137,7 +138,7 @@ GUI 外壳 (snapocr.gui, PySide6) ── 托盘 / 热键 / 框选遮罩 / 翻译
 - F20 翻译窗口的无边框圆角样式，三种风格加“跟随系统”，设置里选
 
 ### M8：可发布化（2026-10-29 Jeremy 定）
-- F21 用户目录、去掉开发机路径、首次运行、许可证、README、CI、提交邮箱，先推私有仓库再公开；`.claude/` 不公开；发 v0.1.0
+- F21 用户目录、去掉开发机路径、首次运行、许可证、README、CI、提交邮箱，先推私有仓库再公开；`.claude/` 不公开；F22 Windows 免安装版；发 v0.1.0
 
 ### M9：macOS（2026-10-29 记下，细节另定）
 - 在 Jeremy 的 M1 Pro MacBook 上运行；`snapocr.gui.platform` 的 Mac 实现、权限、热键默认值、打包
@@ -385,7 +386,20 @@ GUI 外壳 (snapocr.gui, PySide6) ── 托盘 / 热键 / 框选遮罩 / 翻译
 | F21-7 | GitHub Actions：推送到 `main` 和 PR 时，在 `windows-latest` 上用 Python 3.12 跑 unit 和 engine 两条车道；integration（要 Ollama）和 gui（要真实桌面）不在 CI 跑。 |
 | F21-8 | 公开前，提交历史里的作者邮箱换成 GitHub 的 noreply 地址 `348469911+Jeremy-creater@users.noreply.github.com`（以后的提交也用它）；提交号因此改变，当前版本文档里引用的旧提交号换成新号。先推到私有仓库，Jeremy 检查后再改成公开。改历史和推送前各问 Jeremy 一次。 |
 | F21-9 | `.claude/` 不进 Git（`.gitignore`），只留在 Jeremy 本地；提交历史里也去掉它，只剩它的提交一并去掉。README 不再提它。旧提交号在 GitHub 上还能直接打开（包括 CI 记录里的），所以 GitHub 仓库删掉重建，再推送。v1.9 |
-| F21-10 | 第一个版本 `v0.1.0`：`pyproject.toml` 的版本号改成 `0.1.0`，`CHANGELOG.md` 写明这一版有什么，打标签 `v0.1.0`，在 GitHub 上建 Release（只有源码，不打包 exe）。README 的安装命令另写一条装固定版本的：`uv tool install git+https://github.com/Jeremy-creater/snapocr@v0.1.0`。v1.9 |
+| F21-10 | 第一个版本 `v0.1.0`：`pyproject.toml` 的版本号改成 `0.1.0`，`CHANGELOG.md` 写明这一版有什么，打标签 `v0.1.0`，在 GitHub 上建 Release，附 F22 的免安装 zip（v1.10；v1.9 时只有源码，那次的标签和 Release 已删）。README 的安装命令另写一条装固定版本的：`uv tool install git+https://github.com/Jeremy-creater/snapocr@v0.1.0`。v1.9 |
+
+### F22 Windows 免安装版（M8，v1.10）
+
+给不装 Python 的人用：下载 zip，解压，双击 `snapocr.exe`。
+
+| ID | 验收标准 |
+|---|---|
+| F22-1 | 用 PyInstaller 打成一个文件夹（onedir，不是单个 exe：启动快，Qt 的 DLL 是单独的文件，用户可以替换，符合 LGPL），没有控制台窗口，用 snapocr 的图标。压缩成 `snapocr-<版本>-windows-x64.zip`，解压后最外层是 `snapocr\` 文件夹，里面有 `snapocr.exe`、`LICENSE`、`THIRD_PARTY_NOTICES.md` 和一份中英文的简短说明 `README.txt`。OCR 模型在包里，不用联网。PyInstaller 只是打包时用的开发依赖（`pyproject.toml` 的 `build` 额外依赖），不是运行时依赖。 |
+| F22-2 | 打包后的程序（`sys.frozen`）开机自启动写进注册表的命令是 `snapocr.exe` 本身加 `--config <配置文件>`，不是 `pythonw -m snapocr`。判断是纯逻辑，测试不需要真的打包。 |
+| F22-3 | 打包后的程序 OCR 模型缺失或损坏时，提示“重新下载 snapocr 并解压”，不出现 pip 命令；从 Python 安装的仍按 F21-4 给 pip 命令。纯逻辑。 |
+| F22-4 | 自检：`snapocr --self-check <图片> <报告文件>` 不启动托盘和热键，加载 OCR 引擎识别这张图片，把识别出的文字和版本号以 JSON 写进报告文件后退出（成功退出码 0，失败非 0，原因也写进报告）。打包版没有控制台，所以结果写文件。CI 用它检查打包好的 exe 真的能离线识别。 |
+| F22-5 | GitHub Actions：推送 `v*` 标签时（也可手动触发）先跑 unit、engine，再打包、用 F22-4 自检（识别 `tests/fixtures` 里的一张样例图，文字要对），通过后把 zip 传到这个标签的 Release（草稿，Jeremy 看过再发布）。手动触发时只把 zip 存成 Actions 的构建产物，不建 Release。 |
+| F22-6 | README（中英文）最前面写给普通用户：到 Releases 下载 zip → 解压到任意文件夹 → 双击 `snapocr.exe`；第一次运行 Windows 可能提示“Windows 已保护你的电脑”（没有代码签名），点“更多信息 → 仍要运行”；翻译需要另装 Ollama 和模型；卸载 = 先在设置里关掉开机自启动，再删文件夹和 `%APPDATA%\snapocr`、`%LOCALAPPDATA%\snapocr`。uv / pip 安装挪到“从源码安装”一节。`THIRD_PARTY_NOTICES.md` 补上免安装版里多出来的 Python 运行时（PSF 许可证）和 PyInstaller 引导程序（GPL 加例外，可随闭源或任何许可证分发）。 |
 
 ## 8. 非功能需求
 
