@@ -37,6 +37,10 @@ dev = [
     "hypothesis>=6",
     "pytest-qt>=4.5",
 ]
+# Windows portable build (PRD F22-1); packaging only, never imported by snapocr.
+build = [
+    "pyinstaller>=6.11,<7",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/snapocr"]
