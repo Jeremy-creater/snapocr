@@ -22,6 +22,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtGui import QCursor, QGuiApplication, QImage
+from PySide6.QtWidgets import QWidget
 
 from snapocr.actions import messages
 from snapocr.actions.debug import DEBUG_DIR, DebugDump
@@ -103,6 +104,7 @@ class AppController(QObject):
         startup_issues: Sequence[ConfigIssue] = (),
         debug_dir: Path = DEBUG_DIR,
         glass: Glass | None = None,
+        prepare_overlay: Callable[[QWidget], None] = lambda overlay: None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -131,6 +133,7 @@ class AppController(QObject):
         self._quitting = False
         self._paused = False  # hotkeys released while the settings window is open (plan D5)
         self._glass = glass or NoGlass()
+        self._prepare_overlay = prepare_overlay  # F23-4: on a Mac, above the menu bar and Dock
         self._glass_problem: str | None = None  # why the last look could not use acrylic (F20-4)
         hints = QGuiApplication.styleHints()
         self._dark = hints.colorScheme() == Qt.ColorScheme.Dark  # F20-3; Unknown (offscreen) is light
@@ -230,7 +233,7 @@ class AppController(QObject):
         )
         for overlay in overlays:
             overlay.style_changed.connect(self._remember_style)
-        session = OverlaySession(list(overlays), self)
+        session = OverlaySession(list(overlays), self, prepare=self._prepare_overlay)
         session.result.connect(lambda rect: self._on_selection(command, cap, rect))
         self._session, self._overlays = session, overlays
         session.start()

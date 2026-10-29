@@ -635,11 +635,18 @@ class OverlaySession(QObject):
 
     result = Signal(object)  # Rect, or None when cancelled
 
-    def __init__(self, overlays: list[SelectionOverlay], parent: QObject | None = None) -> None:
+    def __init__(
+        self,
+        overlays: list[SelectionOverlay],
+        parent: QObject | None = None,
+        *,
+        prepare: Callable[[QWidget], None] = lambda overlay: None,
+    ) -> None:
         super().__init__(parent)
         if not overlays:
             raise ValueError("a session needs at least one overlay")
         self._overlays = list(overlays)
+        self._prepare = prepare  # the platform's touch on each shown overlay (M9 WI-18)
         self._started = False
         self._finished = False
         self.marks: tuple[Mark, ...] = ()
@@ -661,6 +668,7 @@ class OverlaySession(QObject):
         self._started = True
         for overlay in self._overlays:
             overlay.show()
+            self._prepare(overlay)  # after show: the native window exists and Qt has set its level
         self._overlays[0].activateWindow()
         self._overlays[0].setFocus()
 

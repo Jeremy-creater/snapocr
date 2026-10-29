@@ -30,6 +30,7 @@ _ax.AXIsProcessTrusted.argtypes = []
 _cf.CFRelease.argtypes = [ctypes.c_void_p]
 
 kCGHIDEventTap = 0
+kVK_Escape = 0x35
 # CGEventFlags
 _FLAGS = {MOD_SHIFT: 0x00020000, MOD_CONTROL: 0x00040000, MOD_ALT: 0x00080000, MOD_CMD: 0x00100000}
 # A real keyboard sets SecondaryFn on F-keys and the navigation keys; without it
@@ -56,6 +57,12 @@ def press_combo(mods: int, vk: int) -> None:
     flags = sum(bit for mod, bit in _FLAGS.items() if mods & mod)
     if vk in _FN_VKS:
         flags |= kCGEventFlagMaskSecondaryFn
+    press_key(code, flags)
+
+
+def press_key(code: int, flags: int = 0) -> None:
+    """Press and release the Mac key ``code`` (kVK_*), for keys no hotkey uses such as Esc."""
+    require_accessibility()
     for down in (True, False):
         event = _cg.CGEventCreateKeyboardEvent(None, code, down)
         _cg.CGEventSetFlags(event, flags)

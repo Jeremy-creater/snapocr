@@ -392,6 +392,17 @@ def test_session_rejects_empty_overlay_list():
         OverlaySession([])
 
 
+def test_prepare_sees_each_overlay_once_already_shown(qtbot):
+    """M9 WI-18 (F23-4): the Mac raises the shown native window above the menu bar."""
+    overlays = [SelectionOverlay(frozen_for(s), s) for s in (ONE, SMALL_B)]
+    for o in overlays:
+        qtbot.addWidget(o)
+    seen = []
+    session = OverlaySession(overlays, prepare=lambda o: seen.append((o, o.isVisible())))
+    session.start()
+    assert seen == [(overlays[0], True), (overlays[1], True)]
+
+
 def test_start_twice_is_rejected(session_of):
     session, _, _ = session_of(ONE)
     with pytest.raises(RuntimeError):

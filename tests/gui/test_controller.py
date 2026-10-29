@@ -86,7 +86,7 @@ class Harness:
     def __init__(self, qtbot, tmp_path, *, engine=RESULT, load_error=None, holder=None, translator=None,
                  capture_error=None, capture_denied=False, issues=(), preoccupy=(), config_path=None, make_translator=None,
                  autostart=None, list_models=None, show_text=True, debug=False, save_dir=None, glass=None,
-                 theme="system"):
+                 theme="system", prepare_overlay=None):
         self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error,
                                    denied=capture_denied)
         self.notifier = RecordingNotifier()
@@ -118,6 +118,7 @@ class Harness:
             startup_issues=list(issues),
             debug_dir=self.debug_dir,
             **({} if glass is None else {"glass": glass}),  # M7 WI-6
+            **({} if prepare_overlay is None else {"prepare_overlay": prepare_overlay}),  # M9 WI-18
         )
         self.qtbot = qtbot
 
@@ -249,6 +250,15 @@ def test_capture_commands_are_ignored_while_a_session_is_open(make):
     h.controller.run(Command.CAPTURE)
     assert h.controller.overlays == first
     assert len(h.capture.taken) == 1
+
+
+def test_every_overlay_is_prepared_once_shown(make):
+    """M9 WI-18 (F23-4): the platform's ``prepare_overlay`` gets each overlay of the session after it is shown."""
+    seen = []
+    h = make(prepare_overlay=lambda o: seen.append((o, o.isVisible())))
+    h.controller.run(Command.OCR)
+    assert len(h.controller.overlays) == 2
+    assert seen == [(o, True) for o in h.controller.overlays]
 
 
 def test_capture_error_is_reported(make, clipboard):
