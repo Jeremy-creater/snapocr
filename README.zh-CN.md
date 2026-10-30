@@ -140,7 +140,7 @@ uv pip install -e ".[dev]"
 | gui | `python -m pytest -m "gui and not perf" --qt-desktop` | 真实的 Windows 桌面；会注册测试用热键、动剪贴板 |
 | integration | `python -m pytest -m "integration and not perf"` | Ollama 在运行，并且有配置里的模型 |
 
-CI 在 Windows 上跑 unit 和 engine 两条车道。
+CI 在 Windows 和 macOS 上跑 unit 和 engine 两条车道。
 
 ## 许可证
 

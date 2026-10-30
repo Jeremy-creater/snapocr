@@ -140,7 +140,7 @@ Tests are split into lanes:
 | gui | `python -m pytest -m "gui and not perf" --qt-desktop` | a real Windows desktop; registers test hotkeys and touches the clipboard |
 | integration | `python -m pytest -m "integration and not perf"` | Ollama running with the configured model |
 
-CI runs the unit and engine lanes on Windows.
+CI runs the unit and engine lanes on Windows and macOS.
 
 ## License
 

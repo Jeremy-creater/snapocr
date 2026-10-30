@@ -116,8 +116,8 @@ def test_runtime_dir_without_localappdata(tmp_path):
 
 
 def test_an_absolute_runtime_variable_is_used_as_is(tmp_path):
-    env = local(tmp_path) | {"SNAPOCR_RUNTIME_DIR": str(tmp_path / "runtime")}
-    assert runtime_dir(env, home=HOME) == (tmp_path / "runtime", None)
+    env = local(tmp_path) | {"SNAPOCR_RUNTIME_DIR": "D:/logs/runtime"}  # a Windows path on any host
+    assert runtime_dir(env, home=HOME) == (Path("D:/logs/runtime"), None)
 
 
 @pytest.mark.parametrize("blank", ["", "  "])
