@@ -56,3 +56,10 @@ _TEXT = st.text(st.characters(blacklist_categories=("Cs", "Cc")), min_size=1)
 def test_any_arguments_round_trip(args):
     """S5: spaces, quotes, Chinese, ampersands come back unchanged."""
     assert plistlib.loads(launch_agent_plist(LAUNCH_AGENT_LABEL, args))["ProgramArguments"] == args
+
+
+def test_the_packaged_app_runs_its_own_executable(tmp_path):
+    # F24-3: a packaged app has no Python, and its executable takes --config directly.
+    app = Path("/Applications/snapocr.app/Contents/MacOS/snapocr")
+    config = tmp_path / "config.toml"
+    assert launch_agent_args(app, config, frozen=True) == [str(app), "--config", str(config.resolve())]

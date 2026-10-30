@@ -3,6 +3,7 @@
 > 状态：**草稿 v1.12**（2026-10-30）。标 `【待确认】` 的条目需要 Jeremy 决定后才能进入 TDD 计划。
 >
 > 变更记录
+> - v1.13：F23 验收通过后（2026-10-31）细化 F24 Mac 免安装版的验收标准（F24-1～F24-6）。Jeremy 定：F24 在 `mac-support` 上接着做，做完一次合并进 `main`，再发 v0.2.0。
 > - v1.12：M9 在 Windows 上核对时（2026-10-30）发现打包版启动就崩、自检却报成功（M9 改成按名字加载平台模块，打包时漏了）。F22-4 自检改为同时加载当前平台的界面模块（不启动托盘和热键）。
 > - v1.11：M9 macOS 开工（2026-10-30，Jeremy 在 MacBook 上提出：快捷键用 Option+1～6）。新增 F23 macOS 版（从源码运行）：同一份代码、同一个版本号，Windows 行为不变；默认热键仍写作 `Alt+1`～`Alt+6`，在 Mac 上就是 Option+1～6（本机 macOS 26.5 实测能注册），菜单里显示成 `⌥1`；截图要“屏幕录制”权限；Mac 第一版翻译窗口用实底，不做毛玻璃。Mac 免安装版（.app）另列 F24，F23 验收后再做；两者做完发 v0.2.0。非目标“只支持 Windows 11”“不做安装包”两条随之改。
 > - v1.10：Jeremy 看了私有仓库的 Release 后（2026-10-29）指出：源码包小白不会用。按推荐定：新增 F22 Windows 免安装版（解压后双击 `snapocr.exe`），由 GitHub Actions 打包并放进 Release；还没公开的 v0.1.0 标签和 Release 删掉，免安装版做完后重新发 v0.1.0（F21-10 随之改）。
@@ -425,9 +426,18 @@ GUI 外壳 (snapocr.gui, PySide6) ── 托盘 / 热键 / 框选遮罩 / 翻译
 | F23-10 | 测试车道：unit、engine 两条车道在 Mac 和 Windows 上都能跑、都要全绿（覆盖率规则不变，按各自平台算）；只属于一个平台的测试在另一个平台上**明确**不收集（例如用 `windows`、`macos` 标记），不能靠失败或静默跳过。gui 车道在 Mac 上覆盖 Mac 的 `snapocr.gui.platform` 实现，同样要求 100%（只算本平台的文件）。CI（F21-7）加一个 `macos-latest` 跑 unit、engine（改 CI 前先问 Jeremy）。 |
 | F23-11 | README（中英文）加 Mac 一节：系统要求、从源码安装、屏幕录制权限、默认热键 Option+1～6、配置和运行数据目录、Ollama 在 Mac 上的准备。 |
 
-### F24 Mac 免安装版（M9，v1.11，F23 验收后再细化）
+### F24 Mac 免安装版（M9，v1.13）
 
-给不装 Python 的 Mac 用户：下载、解压，把 `snapocr.app` 拖进“应用程序”。PyInstaller 生成 `.app`（Apple Silicon），图标 `.icns`，`LSUIElement`（不在程序坞出现）；没有 Apple 开发者签名，README 写明第一次打开要在“系统设置 → 隐私与安全性”里点“仍要打开”；屏幕录制权限给的是 `snapocr.app`；开机自启动的命令是 app 里的可执行文件。GitHub Actions 在 `macos-latest` 上打包、用 F22-4 自检，和 Windows zip 一起放进同一个草稿 Release。细节在 F23 验收后定。
+给不装 Python 的 Mac 用户：下载、解压，把 `snapocr.app` 拖进“应用程序”。
+
+| ID | 验收标准 |
+|---|---|
+| F24-1 | PyInstaller 生成 `snapocr.app`（Apple Silicon），带 snapocr 图标，`LSUIElement`（不在程序坞出现），版本号和 `pyproject.toml` 一致。压缩成 `snapocr-<版本>-macos-arm64.zip`，解压后最外层是 `snapocr.app` 和中英文说明 `README.txt`；`LICENSE`、`THIRD_PARTY_NOTICES.md`、各依赖的许可证在 app 的 `Contents/Resources` 里。OCR 模型在包里，不用联网。 |
+| F24-2 | 没有 Apple 开发者签名，只有本机生成的临时签名（ad-hoc）；放进许可证文件后重新签名，`codesign --verify --deep --strict` 要通过。打包用 `ditto` 压缩，保留 app 里的符号链接。 |
+| F24-3 | 打包后的程序（`sys.frozen`）开机自启动写进 LaunchAgent 的命令是 app 里的可执行文件本身加 `--config <配置文件>`，不是 `python -m snapocr`。纯逻辑，测试不需要真的打包。 |
+| F24-4 | `snapocr.app/Contents/MacOS/snapocr --self-check <图片> <报告文件>` 按 F22-4 工作：能加载 Mac 的界面模块，离线识别样例图。 |
+| F24-5 | GitHub Actions 在 `macos-latest` 上打包、用 F24-4 自检，和 Windows zip 一起放进同一个草稿 Release；手动触发时只存成构建产物（同 F22-5）。 |
+| F24-6 | README（中英文）的下载一节写 Mac：下载、解压、拖进“应用程序”；第一次打开被拦时到“系统设置 → 隐私与安全性”点“仍要打开”；屏幕录制权限给的是 `snapocr.app`，换新版本后可能要重新授权（临时签名每次打包都变）；开机自启动记录的是当前 app 的位置，移动 app 后要在设置里重新勾选；卸载方法。 |
 
 ## 8. 非功能需求
 

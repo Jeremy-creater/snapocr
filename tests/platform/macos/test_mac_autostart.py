@@ -11,6 +11,7 @@ Pinned here (beyond the plan text):
 - ``launchctl`` is never run: the file takes effect at the next login.
 """
 
+import plistlib
 import subprocess
 from pathlib import Path
 
@@ -88,8 +89,6 @@ def test_another_label_is_another_file(tmp_path):
 def test_the_kit_runs_this_python_on_the_config(tmp_path):
     agent = kit.make_autostart(Path("/Users/x/venv/bin/python"), tmp_path / "config.toml", False, directory=tmp_path)
     agent.set_enabled(True)
-    import plistlib
-
     written = plistlib.loads((tmp_path / f"{LAUNCH_AGENT_LABEL}.plist").read_bytes())
     assert written["ProgramArguments"] == launch_agent_args(Path("/Users/x/venv/bin/python"), tmp_path / "config.toml")
 
@@ -97,3 +96,11 @@ def test_the_kit_runs_this_python_on_the_config(tmp_path):
 def test_the_kit_defaults_to_the_users_launch_agents():
     """Read-only: whether it says on matches whether the real file is there."""
     assert kit.make_autostart(Path("/usr/bin/python3"), Path("c.toml"), False).is_enabled() is REAL.exists()
+
+
+def test_kit_gives_the_packaged_app_a_command_without_python(tmp_path):
+    app = Path("/Applications/snapocr.app/Contents/MacOS/snapocr")
+    agent = kit.make_autostart(app, tmp_path / "config.toml", True, directory=tmp_path)
+    agent.set_enabled(True)
+    written = plistlib.loads((tmp_path / f"{LAUNCH_AGENT_LABEL}.plist").read_bytes())
+    assert written["ProgramArguments"] == [str(app), "--config", str((tmp_path / "config.toml").resolve())]

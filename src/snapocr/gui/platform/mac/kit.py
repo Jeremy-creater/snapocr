@@ -32,8 +32,8 @@ def acquire(config: Path, lock_dir: Path | None = None) -> single_instance.Insta
 
 def make_autostart(executable: Path, config: Path, frozen: bool,
                    directory: Path | None = None) -> LaunchAgentAutostart:
-    """F23-7: a LaunchAgent running this Python on ``config``. A packaged Mac build (``frozen``) is F24."""
-    return LaunchAgentAutostart(launch_agent_args(executable, config), directory=directory)
+    """F23-7: a LaunchAgent running this Python, or the packaged app (F24-3), on ``config``."""
+    return LaunchAgentAutostart(launch_agent_args(executable, config, frozen), directory=directory)
 
 
 def glass() -> NoGlass:

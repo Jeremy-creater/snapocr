@@ -25,9 +25,13 @@ def autostart_command(executable: Path, config_path: Path, frozen: bool = False)
 LAUNCH_AGENT_LABEL = "io.github.jeremy-creater.snapocr"
 
 
-def launch_agent_args(executable: Path, config_path: Path) -> list[str]:
-    """``executable`` exactly as given (a venv's python is a symlink; resolving it loses the venv)."""
-    return [str(executable), "-m", "snapocr", "--config", str(Path(config_path).resolve())]
+def launch_agent_args(executable: Path, config_path: Path, frozen: bool = False) -> list[str]:
+    """``executable`` exactly as given (a venv's python is a symlink; resolving it loses the venv).
+
+    The packaged app (``frozen``, PRD F24-3) has no Python: ``executable`` is the app's own binary.
+    """
+    module = [] if frozen else ["-m", "snapocr"]
+    return [str(executable), *module, "--config", str(Path(config_path).resolve())]
 
 
 def launch_agent_plist(label: str, args: list[str]) -> bytes:
