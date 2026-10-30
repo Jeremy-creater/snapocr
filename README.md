@@ -2,7 +2,7 @@
 
 [中文说明](README.zh-CN.md)
 
-A tray-resident screenshot tool for Windows and macOS ([from source](#macos-from-source)): **one hotkey, one job, result on the clipboard.** Capture a region, OCR it, or translate it — fully local. OCR runs in-process (RapidOCR / PP-OCR models); translation uses a model server on your own machine (Ollama by default). snapocr only ever talks to `127.0.0.1`.
+A tray-resident screenshot tool for Windows and macOS: **one hotkey, one job, result on the clipboard.** Capture a region, OCR it, or translate it — fully local. OCR runs in-process (RapidOCR / PP-OCR models); translation uses a model server on your own machine (Ollama by default). snapocr only ever talks to `127.0.0.1`.
 
 This is the first piece of software I (Jeremy) built by working with an AI coding assistant ([Claude Code](https://claude.com/claude-code)), test-first from the start.
 
@@ -39,6 +39,17 @@ Screenshots and OCR work right away. Translation needs Ollama and a model; see [
 
 To update, quit snapocr and unzip the new version over the old folder; your settings are kept. To uninstall, turn off 开机自启动 (start with Windows) in Settings, quit snapocr, then delete the `snapocr` folder, `%APPDATA%\snapocr` and `%LOCALAPPDATA%\snapocr`.
 
+## macOS app (no Python needed)
+
+Needs an Apple Silicon Mac. It has only been tested on macOS 26.
+
+1. On the [Releases page](https://github.com/Jeremy-creater/snapocr/releases/latest), download `snapocr-<version>-macos-arm64.zip` (about 130 MB) and unzip it.
+2. Drag `snapocr.app` to Applications and double-click it. No window opens; the icon appears in the menu bar. The hotkeys are Option+1 to Option+6.
+3. If macOS blocks the first start, go to System Settings → Privacy & Security, find snapocr and click **Open Anyway**. snapocr has no Apple developer signature.
+4. Screenshots need the Screen Recording permission: turn on snapocr under System Settings → Privacy & Security → Screen & System Audio Recording, then restart it. A new version may need the permission again, because each build has a new temporary signature.
+
+Start at login remembers where the app is, so tick it again in Settings after moving the app. To uninstall, turn off 开机自启动 in Settings, quit snapocr, move the app to the Trash, then delete `~/Library/Application Support/snapocr` and `~/Library/Logs/snapocr`. See [macOS (from source)](#macos-from-source) for more about hotkeys and window style.
+
 ## Requirements
 
 - Windows 11 (64-bit). Windows 10 should work but is untested; the glass window style needs Windows 11 and falls back to a solid style elsewhere.
@@ -70,7 +81,7 @@ py -3.12 -m venv %USERPROFILE%\snapocr-env
 
 ## macOS (from source)
 
-Needs an Apple Silicon Mac and Python 3.12. It has only been tested on macOS 26. There is no `.app` download yet.
+Needs an Apple Silicon Mac and Python 3.12. It has only been tested on macOS 26. For the app without Python, see [macOS app](#macos-app-no-python-needed).
 
 ```sh
 git clone https://github.com/Jeremy-creater/snapocr

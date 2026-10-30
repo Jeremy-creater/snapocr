@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-Windows 和 macOS（[从源码运行](#macos从源码运行)）上常驻托盘的截图工具：**一个热键做一件事，结果直接进剪贴板。** 框选截图、OCR、翻译，全程在本机完成。OCR 在程序内部运行（RapidOCR，PP-OCR 模型）；翻译调用你自己电脑上的模型服务（默认 Ollama）。snapocr 只访问 `127.0.0.1`。
+Windows 和 macOS 上常驻托盘的截图工具：**一个热键做一件事，结果直接进剪贴板。** 框选截图、OCR、翻译，全程在本机完成。OCR 在程序内部运行（RapidOCR，PP-OCR 模型）；翻译调用你自己电脑上的模型服务（默认 Ollama）。snapocr 只访问 `127.0.0.1`。
 
 这是我（Jeremy）和 AI 编程助手（[Claude Code](https://claude.com/claude-code)）一起做的第一款软件，从第一天起就是先写测试再写代码。
 
@@ -39,6 +39,17 @@ Windows 和 macOS（[从源码运行](#macos从源码运行)）上常驻托盘�
 
 升级：退出 snapocr，把新版本解压覆盖旧文件夹，设置会保留。卸载：先在设置里关掉“开机自启动”，退出 snapocr，再删除 `snapocr` 文件夹、`%APPDATA%\snapocr` 和 `%LOCALAPPDATA%\snapocr`。
 
+## macOS 免安装版（不用装 Python）
+
+需要 Apple 芯片的 Mac，只在 macOS 26 上测试过。
+
+1. 到 [Releases 页面](https://github.com/Jeremy-creater/snapocr/releases/latest)下载 `snapocr-<版本>-macos-arm64.zip`（约 130 MB），解压。
+2. 把 `snapocr.app` 拖进“应用程序”，双击打开。没有窗口弹出，图标在菜单栏里。热键是 Option+1～6。
+3. 第一次打开被 macOS 拦下时，到“系统设置 → 隐私与安全性”，找到 snapocr，点“仍要打开”。这是因为 snapocr 没有 Apple 开发者签名。
+4. 截图需要屏幕录制权限：在“系统设置 → 隐私与安全性 → 屏幕与系统录音”里打开 snapocr，然后重启它。换新版本后可能要重新授权，因为每次打包的临时签名都不同。
+
+开机自启动记录的是 app 当前的位置，移动 app 后要在设置里重新勾选。卸载：先在设置里关掉“开机自启动”，退出 snapocr，把 app 移到废纸篓，再删除 `~/Library/Application Support/snapocr` 和 `~/Library/Logs/snapocr`。热键、窗口样式等更多说明见 [macOS（从源码运行）](#macos从源码运行)。
+
 ## 系统要求
 
 - Windows 11（64 位）。Windows 10 应该能用，但没测过；毛玻璃风格需要 Windows 11，其他系统自动改用实底。
@@ -70,7 +81,7 @@ py -3.12 -m venv %USERPROFILE%\snapocr-env
 
 ## macOS（从源码运行）
 
-需要 Apple Silicon 的 Mac 和 Python 3.12，只在 macOS 26 上测试过。暂时没有 `.app` 下载。
+需要 Apple Silicon 的 Mac 和 Python 3.12，只在 macOS 26 上测试过。不想装 Python 可以用 [macOS 免安装版](#macos-免安装版不用装-python)。
 
 ```sh
 git clone https://github.com/Jeremy-creater/snapocr
