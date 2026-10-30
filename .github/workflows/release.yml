@@ -1,6 +1,6 @@
-# PRD F22-5: build the Windows portable zip. On a v* tag: lanes, build, self-check the
-# unzipped exe, then attach the zip to a draft Release that Jeremy publishes by hand.
-# Run by hand (workflow_dispatch): the same, but the zip only becomes a build artifact.
+# PRD F22-5, F24-5: build the Windows and Mac portable zips. On a v* tag: lanes, build, self-check
+# the unzipped program, then attach both zips to one draft Release that Jeremy publishes by hand.
+# Run by hand (workflow_dispatch): the same, but the zips only become build artifacts.
 name: release
 
 on:
@@ -66,15 +66,75 @@ jobs:
           compression-level: 0
           retention-days: 14
 
-      - name: Draft release
+  macos-zip:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[dev,build]"
+
+      - name: Tag matches the version
         if: github.ref_type == 'tag'
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          test "v$version" = "${{ github.ref_name }}" || { echo "tag ${{ github.ref_name }} but pyproject.toml says $version"; exit 1; }
+
+      - name: unit lane
+        run: python -m pytest -m "not integration and not engine and not perf and not gui" -q
+      - name: engine lane
+        run: python -m pytest -m "engine and not perf and not gui" -q
+
+      - name: Build
+        id: build
+        run: |
+          python packaging/build.py --out "$RUNNER_TEMP/build"
+          zip=$(ls "$RUNNER_TEMP"/build/*.zip | head -n 1)
+          echo "zip=$zip" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$zip")" >> "$GITHUB_OUTPUT"
+
+      - name: Self-check the unzipped app (F24-4)
+        run: |
+          dir="$RUNNER_TEMP/unzipped"
+          ditto -x -k "${{ steps.build.outputs.zip }}" "$dir"
+          for name in README.txt snapocr.app/Contents/Resources/LICENSE snapocr.app/Contents/Resources/THIRD_PARTY_NOTICES.md; do
+            test -e "$dir/$name" || { echo "missing $name in the zip"; exit 1; }
+          done
+          codesign --verify --deep --strict "$dir/snapocr.app"
+          report="$RUNNER_TEMP/selfcheck.json"
+          "$dir/snapocr.app/Contents/MacOS/snapocr" --self-check "$GITHUB_WORKSPACE/tests/fixtures/en.png" "$report"
+          cat "$report"
+          python -c "import json, sys; r = json.load(open(sys.argv[1], encoding='utf-8')); sys.exit(not (r['ok'] and r['frozen'] and 'quick brown fox' in r['text']))" "$report"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.name }}
+          path: ${{ steps.build.outputs.zip }}
+          compression-level: 0
+          retention-days: 14
+
+  # One job after both builds, so a Release never holds only one of the zips.
+  draft-release:
+    if: github.ref_type == 'tag'
+    needs: [windows-zip, macos-zip]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: zips
+          merge-multiple: true
+      - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "${{ github.ref_name }}"
-          gh release view $tag 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag "${{ steps.build.outputs.zip }}" --clobber
-          } else {
-            gh release create $tag "${{ steps.build.outputs.zip }}" --draft --verify-tag --title "snapocr $($tag.TrimStart('v'))" --notes "See CHANGELOG.md."
-          }
+          tag="${{ github.ref_name }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" zips/*.zip --clobber
+          else
+            gh release create "$tag" zips/*.zip --draft --verify-tag --title "snapocr ${tag#v}" --notes "See CHANGELOG.md."
+          fi
