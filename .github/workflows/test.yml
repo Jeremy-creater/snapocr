@@ -1,4 +1,4 @@
-# PRD F21-7: the unit and engine lanes on Windows. integration (needs Ollama),
+# PRD F21-7, F23-10: the unit and engine lanes on Windows and macOS. integration (needs Ollama),
 # gui (needs a real desktop) and perf stay manual on the developer's machine (CLAUDE.md).
 name: test
 
@@ -16,7 +16,11 @@ concurrency:
 
 jobs:
   lanes:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
