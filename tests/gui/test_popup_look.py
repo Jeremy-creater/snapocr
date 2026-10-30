@@ -10,8 +10,11 @@ Pinned here (beyond the plan text):
   A new window starts with the light solid look.
 """
 
+import sys
+
 import pytest
 from PySide6.QtCore import QPoint, QRect, Qt
+from PySide6.QtGui import QFontDatabase
 
 from snapocr.gui.popup import TranslationPopup
 from snapocr.gui.segmented import SegmentedControl
@@ -73,6 +76,15 @@ def test_copy_buttons_and_translate_row(window):
 
 def test_font_families(window):
     assert window.font().families()[:3] == list(FONT_FAMILIES)
+
+
+def test_font_families_on_a_mac(qtbot):
+    """M9 WI-4 (plan D21): PingFang, then the system UI font; nothing from Windows."""
+    w = TranslationPopup(platform="darwin")
+    qtbot.addWidget(w)
+    system = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont).family()
+    assert w.font().families()[:2] == ["PingFang SC", system]
+    assert not any("Segoe" in f or "YaHei" in f for f in w.font().families())
 
 
 def pixel(window, x, y):
@@ -138,10 +150,22 @@ def _fit_viewport(qtbot, window, view, height):
     pytest.fail(f"viewport stuck at {view.viewport().height()} px, wanted {height}")
 
 
+@pytest.fixture
+def host_window(qtbot):
+    """Built for the platform the tests run on: the scrollbar tests measure real font layout (M9 WI-4)."""
+    w = TranslationPopup(platform=sys.platform)
+    qtbot.addWidget(w)
+    w.setGeometry(QRect(200, 150, 420, 260))
+    w.show()
+    qtbot.waitExposed(w)
+    return w
+
+
 @pytest.mark.parametrize("theme", ["light_solid", "dark_glass"])
 @pytest.mark.parametrize("box", ["source_view", "translation_view"])
-def test_no_scrollbar_while_the_lines_fit(qtbot, window, theme, box):
+def test_no_scrollbar_while_the_lines_fit(qtbot, host_window, theme, box):
     """M7 WI-10: the stylesheet padding is the only inset, so lines that fit the viewport do not scroll."""
+    window = host_window
     window.set_look(Look(PALETTES[theme], theme.endswith("glass")))
     view = getattr(window, box)
     lines = 2

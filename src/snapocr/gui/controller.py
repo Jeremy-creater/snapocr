@@ -22,6 +22,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtGui import QCursor, QGuiApplication, QImage
+from PySide6.QtWidgets import QWidget
 
 from snapocr.actions import messages
 from snapocr.actions.debug import DEBUG_DIR, DebugDump
@@ -52,6 +53,7 @@ from snapocr.gui.boundaries import (
     Autostart,
     Capture,
     CaptureError,
+    CapturePermissionError,
     CaptureProvider,
     Glass,
     HotkeyBackend,
@@ -102,6 +104,8 @@ class AppController(QObject):
         startup_issues: Sequence[ConfigIssue] = (),
         debug_dir: Path = DEBUG_DIR,
         glass: Glass | None = None,
+        prepare_overlay: Callable[[QWidget], None] = lambda overlay: None,
+        platform: str = "win32",  # the kit's PLATFORM (M9)
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -130,6 +134,8 @@ class AppController(QObject):
         self._quitting = False
         self._paused = False  # hotkeys released while the settings window is open (plan D5)
         self._glass = glass or NoGlass()
+        self._prepare_overlay = prepare_overlay  # F23-4: on a Mac, above the menu bar and Dock
+        self._platform = platform  # config text and template (M9 WI-5)
         self._glass_problem: str | None = None  # why the last look could not use acrylic (F20-4)
         hints = QGuiApplication.styleHints()
         self._dark = hints.colorScheme() == Qt.ColorScheme.Dark  # F20-3; Unknown (offscreen) is light
@@ -140,11 +146,11 @@ class AppController(QObject):
         self._debug_dir = debug_dir
         on_record = DebugDump(debug_dir) if config.debug else None  # F12: read once at start
         self.runner = JobRunner(self.bridge.post, on_record)
-        self.popup = TranslationPopup()
+        self.popup = TranslationPopup(platform=platform)
         self.popup.translate_requested.connect(self._translate_text)
         self._apply_look()
-        self.menu = build_tray_menu(config.hotkeys, self._on_menu)
-        self.settings_window = SettingsWindow()
+        self.menu = build_tray_menu(config.hotkeys, self._on_menu, platform=platform)
+        self.settings_window = SettingsWindow(platform=platform)
         self.settings_window.save_requested.connect(self._save_settings)
         self.settings_window.advanced_requested.connect(lambda: self.run(Command.OPEN_CONFIG))
         self.settings_window.closed.connect(self._settings_closed)
@@ -167,11 +173,11 @@ class AppController(QObject):
 
     def start(self) -> None:
         """Register hotkeys, report start-up problems (F9-3, F5-3) and debug mode (F12-2), warm up (D2)."""
-        self._report = register_all(self._config.hotkeys, self._hotkeys.register)
+        self._report = register_all(self._config.hotkeys, self._hotkeys.register, platform=self._platform)
         if self._startup_issues:
             self._notifier.notify(messages.config_issues_notice(self._startup_issues))
         if self._report.failed:
-            self._notifier.notify(messages.hotkey_failed_notice(self._report.failed))
+            self._notifier.notify(messages.hotkey_failed_notice(self._report.failed, platform=self._platform))
         if self._config.debug:
             self._notifier.notify(messages.debug_on_notice(self._debug_dir))
         self.runner.submit_warmup(self._deps.engine)
@@ -210,6 +216,9 @@ class AppController(QObject):
             return
         try:
             cap = self._capture_provider.capture()
+        except CapturePermissionError:  # F23-3
+            self._notifier.notify(messages.screen_permission_notice())
+            return
         except CaptureError as err:
             self._notifier.notify(messages.capture_failed_notice(str(err)))
             return
@@ -221,12 +230,13 @@ class AppController(QObject):
                 annotate=annotate,
                 style=self._style,
                 save_target=self._save_target,
+                platform=self._platform,
             )
             for s in cap.screens
         )
         for overlay in overlays:
             overlay.style_changed.connect(self._remember_style)
-        session = OverlaySession(list(overlays), self)
+        session = OverlaySession(list(overlays), self, prepare=self._prepare_overlay)
         session.result.connect(lambda rect: self._on_selection(command, cap, rect))
         self._session, self._overlays = session, overlays
         session.start()
@@ -422,12 +432,12 @@ class AppController(QObject):
         window = self.settings_window
         problems = check(new)
         if problems:
-            window.show_problems([messages.settings_problem_text(p) for p in problems])
+            window.show_problems([messages.settings_problem_text(p, platform=self._platform) for p in problems])
             return
-        trial = register_all(new.hotkeys, self._hotkeys.register)
+        trial = register_all(new.hotkeys, self._hotkeys.register, platform=self._platform)
         if trial.failed:
             unregister_all(trial, self._hotkeys.unregister)
-            window.show_problems([messages.hotkey_failure_line(f) for f in trial.failed])
+            window.show_problems([messages.hotkey_failure_line(f, platform=self._platform) for f in trial.failed])
             return
         was_on = self._autostart_enabled()
         try:
@@ -437,10 +447,10 @@ class AppController(QObject):
             unregister_all(trial, self._hotkeys.unregister)
             window.show_problems([messages.autostart_failed_text(err)])
             return
-        delta = changes(settings_of(self._config), new)
+        delta = changes(settings_of(self._config), new, platform=self._platform)
         try:
             if delta:
-                write_changes(self._config_path, delta)
+                write_changes(self._config_path, delta, platform=self._platform)
         except ConfigWriteError as err:
             unregister_all(trial, self._hotkeys.unregister)
             if autostart != was_on:
@@ -455,7 +465,7 @@ class AppController(QObject):
         self._translator = self._make_translator(self._config.translator)
         self._report = trial
         self._paused = False
-        update_tray_menu(self.menu, self._config.hotkeys)
+        update_tray_menu(self.menu, self._config.hotkeys, platform=self._platform)
         self._apply_look()  # F20-2: no restart
         self._notifier.notify(messages.settings_saved_notice())
         window.finish()
@@ -465,16 +475,16 @@ class AppController(QObject):
         if not self._paused or self._quitting:
             return
         self._paused = False
-        self._report = register_all(self._config.hotkeys, self._hotkeys.register)
+        self._report = register_all(self._config.hotkeys, self._hotkeys.register, platform=self._platform)
         if self._report.failed:
-            self._notifier.notify(messages.hotkey_failed_notice(self._report.failed))
+            self._notifier.notify(messages.hotkey_failed_notice(self._report.failed, platform=self._platform))
 
     # --- config and quit ----------------------------------------------------------------
 
     def _open_config(self) -> None:
         path = self._config_path
         if not path.exists():
-            result = load_config_file(path)  # creates the template, never overwrites
+            result = load_config_file(path, platform=self._platform)  # creates the template, never overwrites
             if not result.created:
                 self._notifier.notify(messages.config_issues_notice(result.issues))
                 return

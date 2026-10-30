@@ -2,7 +2,7 @@
 
 [中文说明](README.zh-CN.md)
 
-A tray-resident screenshot tool for Windows: **one hotkey, one job, result on the clipboard.** Capture a region, OCR it, or translate it — fully local. OCR runs in-process (RapidOCR / PP-OCR models); translation uses a model server on your own machine (Ollama by default). snapocr only ever talks to `127.0.0.1`.
+A tray-resident screenshot tool for Windows and macOS: **one hotkey, one job, result on the clipboard.** Capture a region, OCR it, or translate it — fully local. OCR runs in-process (RapidOCR / PP-OCR models); translation uses a model server on your own machine (Ollama by default). snapocr only ever talks to `127.0.0.1`.
 
 This is the first piece of software I (Jeremy) built by working with an AI coding assistant ([Claude Code](https://claude.com/claude-code)), test-first from the start.
 
@@ -39,6 +39,17 @@ Screenshots and OCR work right away. Translation needs Ollama and a model; see [
 
 To update, quit snapocr and unzip the new version over the old folder; your settings are kept. To uninstall, turn off 开机自启动 (start with Windows) in Settings, quit snapocr, then delete the `snapocr` folder, `%APPDATA%\snapocr` and `%LOCALAPPDATA%\snapocr`.
 
+## macOS app (no Python needed)
+
+Needs an Apple Silicon Mac. It has only been tested on macOS 26.
+
+1. On the [Releases page](https://github.com/Jeremy-creater/snapocr/releases/latest), download `snapocr-<version>-macos-arm64.zip` (about 130 MB) and unzip it.
+2. Drag `snapocr.app` to Applications and double-click it. No window opens; the icon appears in the menu bar. The hotkeys are Option+1 to Option+6.
+3. If macOS blocks the first start, go to System Settings → Privacy & Security, find snapocr and click **Open Anyway**. snapocr has no Apple developer signature.
+4. Screenshots need the Screen Recording permission: turn on snapocr under System Settings → Privacy & Security → Screen & System Audio Recording, then restart it. A new version may need the permission again, because each build has a new temporary signature. If snapocr keeps asking although the switch is on, quit it, run `tccutil reset ScreenCapture io.github.jeremy-creater.snapocr` in Terminal, then open snapocr, grant the permission again and restart it.
+
+Start at login remembers where the app is, so tick it again in Settings after moving the app. To uninstall, turn off 开机自启动 in Settings, quit snapocr, move the app to the Trash, then delete `~/Library/Application Support/snapocr` and `~/Library/Logs/snapocr`. See [macOS (from source)](#macos-from-source) for more about hotkeys and window style.
+
 ## Requirements
 
 - Windows 11 (64-bit). Windows 10 should work but is untested; the glass window style needs Windows 11 and falls back to a solid style elsewhere.
@@ -56,7 +67,7 @@ uv tool update-shell   # once, so that `snapocr` is on PATH (open a new terminal
 snapocr
 ```
 
-This installs the latest code on `main`. For a fixed release, add the tag: `git+https://github.com/Jeremy-creater/snapocr@v0.1.0` (see [CHANGELOG.md](CHANGELOG.md) and the Releases page).
+This installs the latest code on `main`. For a fixed release, add the tag: `git+https://github.com/Jeremy-creater/snapocr@v0.2.0` (see [CHANGELOG.md](CHANGELOG.md) and the Releases page).
 
 Or with pip, into a virtual environment:
 
@@ -67,6 +78,29 @@ py -3.12 -m venv %USERPROFILE%\snapocr-env
 ```
 
 `snapocr` starts without a console window; look for its icon in the tray. Only one instance runs at a time. To start it with Windows, tick 开机自启动 in Settings.
+
+## macOS (from source)
+
+Needs an Apple Silicon Mac and Python 3.12. It has only been tested on macOS 26. For the app without Python, see [macOS app](#macos-app-no-python-needed).
+
+```sh
+git clone https://github.com/Jeremy-creater/snapocr
+cd snapocr
+uv venv --python 3.12
+uv pip install -e .
+.venv/bin/python -m snapocr
+```
+
+The icon appears in the menu bar, not in the Dock.
+
+- **Screen Recording permission:** screenshots need it (System Settings → Privacy & Security → Screen & System Audio Recording). When you start snapocr from a terminal, the permission goes to that terminal app. When it starts at login, it goes to the Python interpreter, so you may have to grant it again. Restart snapocr after granting it.
+- **Hotkeys:** `Alt` in this README means Option on a Mac, so the defaults are Option+1 to Option+6. While snapocr runs, those keys no longer type `¡ ™ £ ¢ ∞ §`. On macOS 15.0 and 15.1, Option-only global hotkeys are blocked; use Ctrl+Option+number there.
+- **Hotkey clashes:** if another app uses the same combination, both apps respond and snapocr shows no warning. macOS gives it no way to find out.
+- **Shortcuts in windows:** `⌘Enter` translates, `⌘Z` undoes and `⌘S` saves.
+- **Start at login:** tick 开机自启动 in Settings. macOS then says a background item was added.
+- **Window style:** the translation window is always solid; the glass styles are Windows only.
+- **Files:** the config file is `~/Library/Application Support/snapocr/config.toml`; logs and debug output are in `~/Library/Logs/snapocr`.
+- **Translation:** install [Ollama for Mac](https://ollama.com/) and follow the steps below; they are the same.
 
 ## Set up translation (optional)
 
@@ -117,7 +151,7 @@ Tests are split into lanes:
 | gui | `python -m pytest -m "gui and not perf" --qt-desktop` | a real Windows desktop; registers test hotkeys and touches the clipboard |
 | integration | `python -m pytest -m "integration and not perf"` | Ollama running with the configured model |
 
-CI runs the unit and engine lanes on Windows.
+CI runs the unit and engine lanes on Windows and macOS.
 
 ## License
 

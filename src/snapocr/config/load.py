@@ -28,7 +28,7 @@ from snapocr.config.schema import (
     default_save_dir,
 )
 from snapocr.engines.config import OcrEngineConfig
-from snapocr.hotkeys import Hotkey, HotkeyError, format_hotkey, parse_hotkey
+from snapocr.hotkeys import Hotkey, HotkeyError, check_platform, format_hotkey, parse_hotkey
 from snapocr.postprocess import PostprocessOptions, ReplacementError, Replacements
 from snapocr.translators.config import TranslatorConfig
 from snapocr.translators.errors import TranslatorConfigError
@@ -68,7 +68,7 @@ def _section(data: Mapping, name: str, issues: _Issues) -> Mapping:
     return {k: table[k] for k in known if k in table}
 
 
-def _hotkeys(table: Mapping, issues: _Issues) -> Mapping[Command, Hotkey]:
+def _hotkeys(table: Mapping, issues: _Issues, platform: str) -> Mapping[Command, Hotkey]:
     chosen: dict[Command, Hotkey] = {}
     owner: dict[Hotkey, Command] = {}
     for command in HOTKEY_COMMANDS:
@@ -82,16 +82,17 @@ def _hotkeys(table: Mapping, issues: _Issues) -> Mapping[Command, Hotkey]:
                                  f"got {type(text).__name__}; using {DEFAULT_HOTKEY_TEXT[command]}")
             else:
                 try:
-                    hotkey = parse_hotkey(text)
+                    hotkey = parse_hotkey(text, platform=platform)
                 except HotkeyError as e:
                     issues.add(path, f"{e}; using {DEFAULT_HOTKEY_TEXT[command]}")
                 else:
                     if hotkey in owner:
-                        issues.add(path, f"{format_hotkey(hotkey)} is already used by "
+                        issues.add(path, f"{format_hotkey(hotkey, platform=platform)} is already used by "
                                          f"hotkeys.{owner[hotkey].value}; using {DEFAULT_HOTKEY_TEXT[command]}")
                         hotkey = default
         if hotkey in owner:
-            issues.add(path, f"default {format_hotkey(hotkey)} is used by hotkeys.{owner[hotkey].value}; "
+            issues.add(path, f"default {format_hotkey(hotkey, platform=platform)} is used by "
+                             f"hotkeys.{owner[hotkey].value}; "
                              "this hotkey is disabled")
             continue
         chosen[command] = hotkey
@@ -193,7 +194,9 @@ def _translator(table: Mapping, issues: _Issues) -> TranslatorConfig:
             del kwargs[e.key]
 
 
-def build_config(data: object, *, source: Path) -> tuple[AppConfig, list[ConfigIssue]]:
+def build_config(data: object, *, source: Path, platform: str = "win32") -> tuple[AppConfig, list[ConfigIssue]]:
+    """``platform`` decides which hotkey names are valid (M9 plan D9); ValueError for an unknown one."""
+    check_platform(platform)
     issues = _Issues(source)
     if not isinstance(data, Mapping):
         issues.add("", f"the file must hold TOML tables, got {type(data).__name__}; using defaults")
@@ -201,7 +204,7 @@ def build_config(data: object, *, source: Path) -> tuple[AppConfig, list[ConfigI
     for name in data:
         if name not in KNOWN_KEYS:
             _unknown(issues, str(name), name, tuple(KNOWN_KEYS), "section")
-    hotkeys = _hotkeys(_section(data, "hotkeys", issues), issues)
+    hotkeys = _hotkeys(_section(data, "hotkeys", issues), issues, platform)
     save_dir = _save_dir(_section(data, "capture", issues), issues)
     ocr = _ocr(_section(data, "ocr", issues), issues, source)
     postprocess, replacements = _postprocess(_section(data, "postprocess", issues), issues)

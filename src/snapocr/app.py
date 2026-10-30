@@ -20,7 +20,7 @@ from snapocr.config.files import default_config_path
 from snapocr.config.schema import ConfigIssue
 from snapocr.paths import RUNTIME_ENV, runtime_dir
 
-DEFAULT_LOG_DIR = runtime_dir(os.environ, home=Path.home())[0]  # read once, at import (F21-2)
+DEFAULT_LOG_DIR = runtime_dir(os.environ, home=Path.home(), platform=sys.platform)[0]  # read once, at import (F21-2)
 LOG_FILE_NAME = "snapocr.log"
 _FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 _log = logging.getLogger("snapocr")
@@ -87,5 +87,16 @@ def install_excepthook() -> None:
 
 def runtime_issues() -> list[ConfigIssue]:
     """F21-2: a refused ``SNAPOCR_RUNTIME_DIR``, for the start-up notice (F9-3)."""
-    problem = runtime_dir(os.environ, home=Path.home())[1]
+    problem = runtime_dir(os.environ, home=Path.home(), platform=sys.platform)[1]
     return [ConfigIssue(Path(RUNTIME_ENV), "", problem)] if problem else []
+
+
+_KITS = {"win32": "snapocr.gui.platform.win", "darwin": "snapocr.gui.platform.mac.kit"}
+
+
+def kit_module(platform: str) -> str:
+    """The module with the platform's desktop pieces (F23-1, M9 plan D12); exits on any other system."""
+    try:
+        return _KITS[platform]
+    except KeyError:
+        raise SystemExit(f"snapocr 只支持 Windows 和 macOS（当前系统：{platform!r}）") from None

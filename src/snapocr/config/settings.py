@@ -103,8 +103,9 @@ def check(s: Settings) -> list[Problem]:
     return problems
 
 
-def _values(s: Settings) -> dict[str, bool | str]:
-    out: dict[str, bool | str] = {f"hotkeys.{c.value}": format_hotkey(h) for c, h in s.hotkeys.items()}
+def _values(s: Settings, platform: str) -> dict[str, bool | str]:
+    out: dict[str, bool | str] = {f"hotkeys.{c.value}": format_hotkey(h, platform=platform)
+                                  for c, h in s.hotkeys.items()}
     out["capture.save_dir"] = str(s.save_dir)
     out |= {f"postprocess.{name}": getattr(s, name) for name in _SWITCHES}
     out["notify.show_text"] = s.show_text
@@ -113,8 +114,9 @@ def _values(s: Settings) -> dict[str, bool | str]:
     return out
 
 
-def changes(old: Settings, new: Settings) -> dict[str, bool | str]:
-    before, after = _values(old), _values(new)
+def changes(old: Settings, new: Settings, *, platform: str = "win32") -> dict[str, bool | str]:
+    """The keys to write back; hotkeys in ``platform``'s config text (Cmd on a Mac, M9 WI-5)."""
+    before, after = _values(old, platform), _values(new, platform)
     order = [f"{section}.{key}" for section, keys in KNOWN_KEYS.items() for key in keys]
     return {k: after[k] for k in order if k in after and before.get(k) != after[k]}
 

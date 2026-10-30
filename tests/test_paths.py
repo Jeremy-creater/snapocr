@@ -12,6 +12,8 @@ Pinned here (beyond the plan text):
 from pathlib import Path
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from snapocr.paths import find_config, runtime_dir, source_root
 
@@ -114,8 +116,8 @@ def test_runtime_dir_without_localappdata(tmp_path):
 
 
 def test_an_absolute_runtime_variable_is_used_as_is(tmp_path):
-    env = local(tmp_path) | {"SNAPOCR_RUNTIME_DIR": str(tmp_path / "runtime")}
-    assert runtime_dir(env, home=HOME) == (tmp_path / "runtime", None)
+    env = local(tmp_path) | {"SNAPOCR_RUNTIME_DIR": "D:/logs/runtime"}  # a Windows path on any host
+    assert runtime_dir(env, home=HOME) == (Path("D:/logs/runtime"), None)
 
 
 @pytest.mark.parametrize("blank", ["", "  "])
@@ -128,3 +130,72 @@ def test_a_relative_runtime_variable_is_refused_with_a_reason(tmp_path):
     env = local(tmp_path) | {"SNAPOCR_RUNTIME_DIR": "logs"}
     default = tmp_path / "Local" / "snapocr"
     assert runtime_dir(env, home=HOME) == (default, f"不是绝对路径（logs），日志和 debug 文件改放 {default}")
+
+
+# --- a Mac (M9 WI-9, PRD F23-6) ------------------------------------------------------------
+
+MAC_HOME = Path("/Users/someone")
+MAC_FILE = MAC_HOME / "Library" / "Application Support" / "snapocr" / "config.toml"
+MAC_LOGS = MAC_HOME / "Library" / "Logs" / "snapocr"
+WINDOWS_ENV = {"APPDATA": "/elsewhere/Roaming", "LOCALAPPDATA": "/elsewhere/Local"}  # set by hand, say
+
+
+def mac_find(arg=None, env=WINDOWS_ENV, root=ROOT, exists=nothing_exists):
+    return find_config(arg, env, source_root=root, exists=exists, home=MAC_HOME, platform="darwin")
+
+
+def test_a_mac_keeps_the_user_file_in_application_support():
+    assert mac_find() == MAC_FILE
+    assert mac_find(env={}, root=None) == MAC_FILE
+
+
+def test_a_mac_looks_in_the_same_order():
+    assert mac_find(Path("/a/arg.toml"), WINDOWS_ENV | {"SNAPOCR_CONFIG": "/a/env.toml"}) == Path("/a/arg.toml")
+    assert mac_find(None, {"SNAPOCR_CONFIG": "/a/env.toml"}, exists=everything_exists) == Path("/a/env.toml")
+    assert mac_find(exists=everything_exists) == ROOT / "config.local.toml"
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [
+        (WINDOWS_ENV, (MAC_LOGS, None)),
+        (WINDOWS_ENV | {"SNAPOCR_RUNTIME_DIR": " "}, (MAC_LOGS, None)),
+        (WINDOWS_ENV | {"SNAPOCR_RUNTIME_DIR": "/Users/someone/DevLocal/runtime/snapocr"},
+         (Path("/Users/someone/DevLocal/runtime/snapocr"), None)),
+        (WINDOWS_ENV | {"SNAPOCR_RUNTIME_DIR": "logs"}, (MAC_LOGS, f"不是绝对路径（logs），日志和 debug 文件改放 {MAC_LOGS}")),
+    ],
+)
+def test_a_mac_keeps_runtime_data_in_library_logs(env, expected):
+    assert runtime_dir(env, home=MAC_HOME, platform="darwin") == expected
+
+
+def test_windows_is_the_default_platform():
+    assert find_config(None, {}, source_root=None, exists=nothing_exists, home=HOME, platform="win32") == \
+        find_config(None, {}, source_root=None, exists=nothing_exists, home=HOME)
+    assert runtime_dir({}, home=HOME, platform="win32") == runtime_dir({}, home=HOME)
+
+
+@pytest.mark.parametrize("call", [
+    lambda: find_config(None, {}, source_root=None, exists=nothing_exists, home=HOME, platform="linux"),
+    lambda: runtime_dir({}, home=HOME, platform="linux"),
+])
+def test_unknown_platform(call):
+    with pytest.raises(ValueError, match="unknown platform"):
+        call()
+
+
+_SOURCES = st.sampled_from(["arg", "env", "root"])
+
+
+@given(st.sets(_SOURCES), st.sampled_from(["win32", "darwin"]))
+def test_the_first_available_source_wins(available, platform):
+    """S4: whatever is given, the result is the first of argument, variable, checkout file, user file."""
+    arg = Path("/a/arg.toml") if "arg" in available else None
+    env = {"SNAPOCR_CONFIG": "/a/env.toml"} if "env" in available else {}
+    exists = everything_exists if "root" in available else nothing_exists
+    home = MAC_HOME if platform == "darwin" else HOME
+    got = find_config(arg, env, source_root=ROOT, exists=exists, home=home, platform=platform)
+    first = next((s for s in ("arg", "env", "root") if s in available), "user")
+    user = MAC_FILE if platform == "darwin" else HOME / "AppData" / "Roaming" / "snapocr" / "config.toml"
+    assert got == {"arg": Path("/a/arg.toml"), "env": Path("/a/env.toml"), "root": ROOT / "config.local.toml",
+                   "user": user}[first]

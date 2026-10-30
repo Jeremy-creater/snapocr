@@ -1,8 +1,11 @@
 # snapocr PRD
 
-> 状态：**草稿 v1.10**（2026-10-29）。标 `【待确认】` 的条目需要 Jeremy 决定后才能进入 TDD 计划。
+> 状态：**草稿 v1.12**（2026-10-30）。标 `【待确认】` 的条目需要 Jeremy 决定后才能进入 TDD 计划。
 >
 > 变更记录
+> - v1.13：F23 验收通过后（2026-10-31）细化 F24 Mac 免安装版的验收标准（F24-1～F24-6）。Jeremy 定：F24 在 `mac-support` 上接着做，做完一次合并进 `main`，再发 v0.2.0。
+> - v1.12：M9 在 Windows 上核对时（2026-10-30）发现打包版启动就崩、自检却报成功（M9 改成按名字加载平台模块，打包时漏了）。F22-4 自检改为同时加载当前平台的界面模块（不启动托盘和热键）。
+> - v1.11：M9 macOS 开工（2026-10-30，Jeremy 在 MacBook 上提出：快捷键用 Option+1～6）。新增 F23 macOS 版（从源码运行）：同一份代码、同一个版本号，Windows 行为不变；默认热键仍写作 `Alt+1`～`Alt+6`，在 Mac 上就是 Option+1～6（本机 macOS 26.5 实测能注册），菜单里显示成 `⌥1`；截图要“屏幕录制”权限；Mac 第一版翻译窗口用实底，不做毛玻璃。Mac 免安装版（.app）另列 F24，F23 验收后再做；两者做完发 v0.2.0。非目标“只支持 Windows 11”“不做安装包”两条随之改。
 > - v1.10：Jeremy 看了私有仓库的 Release 后（2026-10-29）指出：源码包小白不会用。按推荐定：新增 F22 Windows 免安装版（解压后双击 `snapocr.exe`），由 GitHub Actions 打包并放进 Release；还没公开的 v0.1.0 标签和 Release 删掉，免安装版做完后重新发 v0.1.0（F21-10 随之改）。
 > - v1.9：私有仓库推送后（2026-10-29）Jeremy 定：`.claude/`（tdd-guardian 的计划、总结、测试矩阵）不公开，只留在本地，并从提交历史里去掉；GitHub 仓库删掉重建（F21-9）。发第一个版本 v0.1.0（F21-10）。
 > - v1.8：M7 验收后（2026-10-29）Jeremy 定：snapocr 作为自己用 AI 定制的第一款软件公开发布（GitHub，MIT 许可证，README 英文加中文版）。新增 M8 可发布化（F21）：配置文件和运行数据改到用户目录、去掉写死的开发机路径、首次运行自建目录、许可证、README、CI、提交邮箱。F9-1、F12-1、§8 隐私的路径随之改。非目标里“不做跨平台”改为 M9 再做 macOS（Jeremy 有 M1 Pro MacBook，细节另定）。界面仍只有中文。
@@ -41,8 +44,8 @@ snapocr 是一个**独立运行**、托盘常驻的 GUI 小工具：**一个热�
 - 不 fork 或修改 Umi-OCR 源码。
 - 不做录屏、长截图。（截图标注、贴图 v0.8 起移入范围，见 F14、F15。）
 - 默认不调用云端大模型；以后若要接云端，必须显式开启。
-- 只支持 Windows 11，不做跨平台。（v1.8：M9 计划支持 macOS，细节另定。）
-- 不做安装包 / 打包分发（先用 venv 启动）。
+- ~~只支持 Windows 11，不做跨平台。~~（v1.11：M9 支持 macOS，见 F23；只支持 Apple Silicon 的 Mac，不支持 Linux。）
+- ~~不做安装包 / 打包分发（先用 venv 启动）。~~（v1.10 起有 Windows 免安装版 F22；Mac 版见 F24。仍不做安装程序和代码签名。）
 
 ## 3. 使用者与场景
 
@@ -94,7 +97,7 @@ GUI 外壳 (snapocr.gui, PySide6) ── 托盘 / 热键 / 框选遮罩 / 翻译
 **新增运行时依赖及理由**
 - `rapidocr` + `onnxruntime`：内置 OCR 引擎。使用 PaddleOCR 的 PP-OCR 模型（与 Umi-OCR 同一模型家族，中英混排效果好），Apache-2.0，pip 即装，支持 Python 3.12，在进程内调用，不需要外部 exe 或服务。
 - `PySide6`：一个依赖同时覆盖托盘、多屏高 DPI 框选遮罩、剪贴板图片、浮窗，是 Qt 官方 LGPL 绑定。代价是体积大（约 200 MB，只装在 venv 里）。
-- 全局热键用 Win32 `RegisterHotKey`（`ctypes`，标准库），不引入第三方热键库。
+- 全局热键用 Win32 `RegisterHotKey`（`ctypes`，标准库），不引入第三方热键库。Mac 上（F23，v1.11）用 Carbon `RegisterEventHotKey`（`ctypes`），同样不引入第三方库。Mac 的其他系统调用（截图、权限、程序坞图标）也先试 `ctypes`；必须引入新依赖（如 `pyobjc`）时先在计划里写明理由。
 - 屏幕截取用 Win32 GDI（`BitBlt` 进 `CreateDIBSection`，`ctypes`；2026-10-27 M3 WI-8 起，原为 `BitBlt` + `GetDIBits`）一次截下整个虚拟桌面的物理像素，不用 `QScreen.grabWindow`（混合 DPI 多屏下坐标不可靠），不引入 mss / Pillow。单实例用 Win32 命名互斥量（`CreateMutexW`，`ctypes`）。（2026-10-26，M2 计划 D4、D5）
 - 翻译窗口的毛玻璃（F20，v1.6）用 `user32.SetWindowCompositionAttribute`（`ACCENT_ENABLE_ACRYLICBLURBEHIND`，`ctypes`），圆角用 `DwmSetWindowAttribute`（`DWMWA_WINDOW_CORNER_PREFERENCE`），不引入第三方库。不用文档化的 `DWMWA_SYSTEMBACKDROP_TYPE`：2026-10-28 实测，Qt 的透明无边框窗口是 layered window，DWM 只画出灰色后备色，没有透底效果；`SetWindowCompositionAttribute` 没有公开文档，Windows 更新后可能失效，失效时按 F20-4 改用实底。
 - HTTP（翻译）用标准库 `http.client`，不引入 requests/httpx。不用 `urllib.request`：它会读取系统代理（环境变量、Windows 注册表）并自动跟随 3xx 跳转，可能把请求带出 127.0.0.1（2026-10-25 定，F4 D3）。
@@ -140,8 +143,10 @@ GUI 外壳 (snapocr.gui, PySide6) ── 托盘 / 热键 / 框选遮罩 / 翻译
 ### M8：可发布化（2026-10-29 Jeremy 定）
 - F21 用户目录、去掉开发机路径、首次运行、许可证、README、CI、提交邮箱，先推私有仓库再公开；`.claude/` 不公开；F22 Windows 免安装版；发 v0.1.0
 
-### M9：macOS（2026-10-29 记下，细节另定）
-- 在 Jeremy 的 M1 Pro MacBook 上运行；`snapocr.gui.platform` 的 Mac 实现、权限、热键默认值、打包
+### M9：macOS（2026-10-29 记下，2026-10-30 开工）
+- F23 macOS 版：在 Jeremy 的 M1 Pro MacBook（macOS 26）上从源码运行；`snapocr.gui.platform` 的 Mac 实现、热键 Option+1～6、屏幕录制权限、菜单栏图标、开机自启动、测试车道在 Mac 上也能跑
+- F24 Mac 免安装版（.app）：F23 验收后再做
+- 两者做完发 v0.2.0（Windows zip 和 Mac 包放在同一个 Release）；开发在 `mac-support` 分支，合进 `main` 前在 Windows 上把 unit、engine、gui 车道都跑一遍
 
 ## 7. 功能需求与验收标准
 
@@ -397,9 +402,42 @@ GUI 外壳 (snapocr.gui, PySide6) ── 托盘 / 热键 / 框选遮罩 / 翻译
 | F22-1 | 用 PyInstaller 打成一个文件夹（onedir，不是单个 exe：启动快，Qt 的 DLL 是单独的文件，用户可以替换，符合 LGPL），没有控制台窗口，用 snapocr 的图标。压缩成 `snapocr-<版本>-windows-x64.zip`，解压后最外层是 `snapocr\` 文件夹，里面有 `snapocr.exe`、`LICENSE`、`THIRD_PARTY_NOTICES.md` 和一份中英文的简短说明 `README.txt`。OCR 模型在包里，不用联网。PyInstaller 只是打包时用的开发依赖（`pyproject.toml` 的 `build` 额外依赖），不是运行时依赖。 |
 | F22-2 | 打包后的程序（`sys.frozen`）开机自启动写进注册表的命令是 `snapocr.exe` 本身加 `--config <配置文件>`，不是 `pythonw -m snapocr`。判断是纯逻辑，测试不需要真的打包。 |
 | F22-3 | 打包后的程序 OCR 模型缺失或损坏时，提示“重新下载 snapocr 并解压”，不出现 pip 命令；从 Python 安装的仍按 F21-4 给 pip 命令。纯逻辑。 |
-| F22-4 | 自检：`snapocr --self-check <图片> <报告文件>` 不启动托盘和热键，加载 OCR 引擎识别这张图片，把识别出的文字和版本号以 JSON 写进报告文件后退出（成功退出码 0，失败非 0，原因也写进报告）。打包版没有控制台，所以结果写文件。CI 用它检查打包好的 exe 真的能离线识别。 |
+| F22-4 | 自检：`snapocr --self-check <图片> <报告文件>` 不启动托盘和热键，先加载当前平台的界面模块（只加载，不启动；缺模块算失败），再加载 OCR 引擎识别这张图片，把识别出的文字和版本号以 JSON 写进报告文件后退出（成功退出码 0，失败非 0，原因也写进报告）。打包版没有控制台，所以结果写文件。CI 用它检查打包好的 exe 真的能离线识别。 |
 | F22-5 | GitHub Actions：推送 `v*` 标签时（也可手动触发）先跑 unit、engine，再打包、用 F22-4 自检（识别 `tests/fixtures` 里的一张样例图，文字要对），通过后把 zip 传到这个标签的 Release（草稿，Jeremy 看过再发布）。手动触发时只把 zip 存成 Actions 的构建产物，不建 Release。 |
 | F22-6 | README（中英文）最前面写给普通用户：到 Releases 下载 zip → 解压到任意文件夹 → 双击 `snapocr.exe`；第一次运行 Windows 可能提示“Windows 已保护你的电脑”（没有代码签名），点“更多信息 → 仍要运行”；翻译需要另装 Ollama 和模型；卸载 = 先在设置里关掉开机自启动，再删文件夹和 `%APPDATA%\snapocr`、`%LOCALAPPDATA%\snapocr`。uv / pip 安装挪到“从源码安装”一节。`THIRD_PARTY_NOTICES.md` 补上免安装版里多出来的 Python 运行时（PSF 许可证）和 PyInstaller 引导程序（GPL 加例外，可随闭源或任何许可证分发）。 |
+
+### F23 macOS 版（M9，v1.11）
+
+2026-10-30 Jeremy 定：Mac 版和 Windows 版是同一份代码、同一个版本号；平台差别只放在 `snapocr.gui.platform`（按 `sys.platform` 选实现）和纯函数的参数里，业务规则不分平台。Windows 上的行为一条都不改。先从源码运行（和 Jeremy 在 Windows 上的用法一样），打包见 F24。
+
+**热键评估（2026-10-30，Jeremy 的 M1 Pro，macOS 26.5.2）**：Mac 的 Option 键就是 Alt 键（键帽上也印着 alt），所以 Windows 的 `Alt+1`～`Alt+6` 在 Mac 上对应 Option+1～6。用系统的全局热键接口（Carbon `RegisterEventHotKey`，不需要“辅助功能”或“输入监控”权限）实测：Option、Option+Shift、Ctrl+Option、Cmd+Option、Ctrl、Ctrl+Shift、Cmd+Shift 加 1～6 都能注册成功。需要知道的三点：① macOS 15.0、15.1 曾经禁止只用 Option（或 Option+Shift）的全局热键，15.2 起恢复；网上有人反映之后偶尔失效，失效时在设置里改成 Ctrl+Option+数字即可（F5-3 会提示哪个没注册上）。② snapocr 运行时，Option+1～6 原来打出的 `¡ ™ £ ¢ ∞ §` 打不出来了（被 snapocr 拿走）。③ macOS 自带的截图是 Cmd+Shift+3/4/5，Cmd+数字常被浏览器、编辑器占用，Option+数字基本没有冲突。结论：可行，默认就用 Option+1～6。
+
+| ID | 验收标准 |
+|---|---|
+| F23-1 | 在 Apple Silicon 的 Mac 上从源码运行（`uv venv --python 3.12`、`pip install -e .`，启动 `python -m snapocr`）：菜单栏右侧出现 snapocr 图标，菜单和 Windows 托盘菜单相同（F5-1）；不在程序坞（Dock）里出现图标，不占用屏幕顶部的应用菜单。只在 macOS 26 上验收；README 写明这一点。 |
+| F23-2 | 热键：默认配置不变（`Alt+1`～`Alt+6`），在 Mac 上 `Alt` 指 Option 键，配置里也可以写 `Option`（同义）。Mac 上另有 `Cmd`（同义 `Command`）；`Win` 在 Mac 上、`Cmd` 在 Windows 上都按非法热键报出（F5-2）。热键字符串仍是纯逻辑，不分平台的部分不变；主键到 Mac 键码的对照也是纯逻辑。菜单、设置窗口、通知里按 Mac 习惯显示：`⌥1`、`⌃⌥Q`、`⇧⌘S`（顺序 ⌃⌥⇧⌘）；设置窗口保存时仍写 `Alt+1` 这样的文字，同一份配置两个系统都能读。注册失败、释放、设置窗口开着时暂停，规则同 F5-3、F5-5、F11-2；设置窗口的录入框在 Mac 上能录 Option、Cmd、Ctrl（Control）。 |
+| F23-3 | 截图权限：截图要 macOS 的“屏幕录制”权限（系统设置 → 隐私与安全性 → 屏幕与系统录音）。从源码运行时，权限给的是启动 snapocr 的终端程序。没有权限时截图类动作不显示遮罩，通知说明去哪里打开、打开后要重启 snapocr；不能把只有桌面背景的截图当结果。第一次没有权限时由系统弹出申请。 |
+| F23-4 | 截图：按热键冻结所有显示器（含 Retina 和外接屏、不同缩放），遮罩盖住整个屏幕，包括顶部菜单栏和程序坞；框选、调整、标注、贴图、保存、OCR、翻译的行为同 F6、F14～F18。输出的图片是物理像素（Retina 屏上 2 倍）。 |
+| F23-5 | 程序内的快捷键按 Mac 习惯用 Command：翻译窗口 `⌘Enter` 翻译（Windows 仍是 `Ctrl+Enter`，旁边的灰字提示随之显示 `⌘Enter`），截图标注里撤销 `⌘Z`、保存 `⌘S`；Esc、Enter、双击不变。 |
+| F23-6 | 位置：配置文件按 F21-1 查找，最后一项在 Mac 上是 `~/Library/Application Support/snapocr/config.toml`；运行数据（F21-2）默认 `~/Library/Logs/snapocr`，`SNAPOCR_RUNTIME_DIR` 照旧有效（Jeremy 的 Mac 设成 `~/DevLocal/runtime/snapocr`）。查找仍是纯逻辑，测试传入平台参数。“高级设置”用系统默认的程序打开配置文件。 |
+| F23-7 | 开机自启动（F11-6）：在 Mac 上写当前用户的登录项 `~/Library/LaunchAgents/<标识>.plist`，命令是当前的 Python 加 `-m snapocr --config <配置文件>`，关掉时删除这个文件；不需要管理员权限。plist 的内容由纯函数生成（标准库 `plistlib`）；gui 车道只写测试用的目录，不碰真实的 LaunchAgents。 |
+| F23-8 | 单实例（F5-4）：同一个配置文件只能运行一个 snapocr，用文件锁（标准库 `fcntl`），进程退出（包括崩溃）后锁自动释放。 |
+| F23-9 | 外观：翻译窗口在 Mac 上用无边框圆角窗口和实底（三种风格里选毛玻璃时也按 F20-4 改用实底；毛玻璃以后再说）；字体用系统字体（苹方 / San Francisco），不找 Segoe UI。通知用 macOS 的通知；失败类和其余通知的图标区分（F18-3）在 Mac 上不要求。剪贴板里的截图在 snapocr 退出后仍在（F7-1）。 |
+| F23-10 | 测试车道：unit、engine 两条车道在 Mac 和 Windows 上都能跑、都要全绿（覆盖率规则不变，按各自平台算）；只属于一个平台的测试在另一个平台上**明确**不收集（例如用 `windows`、`macos` 标记），不能靠失败或静默跳过。gui 车道在 Mac 上覆盖 Mac 的 `snapocr.gui.platform` 实现，同样要求 100%（只算本平台的文件）。CI（F21-7）加一个 `macos-latest` 跑 unit、engine（改 CI 前先问 Jeremy）。 |
+| F23-11 | README（中英文）加 Mac 一节：系统要求、从源码安装、屏幕录制权限、默认热键 Option+1～6、配置和运行数据目录、Ollama 在 Mac 上的准备。 |
+
+### F24 Mac 免安装版（M9，v1.13）
+
+给不装 Python 的 Mac 用户：下载、解压，把 `snapocr.app` 拖进“应用程序”。
+
+| ID | 验收标准 |
+|---|---|
+| F24-1 | PyInstaller 生成 `snapocr.app`（Apple Silicon），带 snapocr 图标，`LSUIElement`（不在程序坞出现），版本号和 `pyproject.toml` 一致。压缩成 `snapocr-<版本>-macos-arm64.zip`，解压后最外层是 `snapocr.app` 和中英文说明 `README.txt`；`LICENSE`、`THIRD_PARTY_NOTICES.md`、各依赖的许可证在 app 的 `Contents/Resources` 里。OCR 模型在包里，不用联网。 |
+| F24-2 | 没有 Apple 开发者签名，只有本机生成的临时签名（ad-hoc）；放进许可证文件后重新签名，`codesign --verify --deep --strict` 要通过。打包用 `ditto` 压缩，保留 app 里的符号链接。 |
+| F24-3 | 打包后的程序（`sys.frozen`）开机自启动写进 LaunchAgent 的命令是 app 里的可执行文件本身加 `--config <配置文件>`，不是 `python -m snapocr`。纯逻辑，测试不需要真的打包。 |
+| F24-4 | `snapocr.app/Contents/MacOS/snapocr --self-check <图片> <报告文件>` 按 F22-4 工作：能加载 Mac 的界面模块，离线识别样例图。 |
+| F24-5 | GitHub Actions 在 `macos-latest` 上打包、用 F24-4 自检，和 Windows zip 一起放进同一个草稿 Release；手动触发时只存成构建产物（同 F22-5）。 |
+| F24-6 | README（中英文）的下载一节写 Mac：下载、解压、拖进“应用程序”；第一次打开被拦时到“系统设置 → 隐私与安全性”点“仍要打开”；屏幕录制权限给的是 `snapocr.app`，换新版本后可能要重新授权（临时签名每次打包都变）；开机自启动记录的是当前 app 的位置，移动 app 后要在设置里重新勾选；卸载方法。 |
 
 ## 8. 非功能需求
 
@@ -429,6 +467,9 @@ GUI 外壳 (snapocr.gui, PySide6) ── 托盘 / 热键 / 框选遮罩 / 翻译
 | HY-MT2 在 Ollama 中无法加载（架构 `hunyuan-dense`、模板需手写） | 先实测导入；不行就改用 LM Studio 或 llama.cpp server，接口相同，只改配置 |
 | 本地模型首次加载慢（实测 hy-mt2:7b 冷启动 14.7 s，已加载后单句 0.2–0.3 s，显存约 10 GB） | 超时可配置；冷启动期间浮窗显示“翻译中”；模型可换。M2 不做启动预热、也不带 `keep_alive`（2026-10-26，M2 计划 D13：每次启动都把模型拉进显存代价大，翻译不一定会用；OpenAI 兼容接口也不一定支持 `keep_alive`），放到以后 |
 | 毛玻璃用的是没有公开文档的 `SetWindowCompositionAttribute`（F20） | 只在 `snapocr.gui.platform` 的薄封装里调用；调用失败或系统条件不满足时改用实底（F20-4），功能不受影响 |
+| Mac 上只用 Option 的全局热键被系统禁止（macOS 15.0、15.1 出现过，15.2 恢复，有人反映偶尔失效）（F23） | 注册失败按 F5-3 通知；改成 Ctrl+Option+数字；macOS 26.5 实测能注册 |
+| Mac 截图接口：系统在收紧旧的截屏接口，新接口（ScreenCaptureKit）要 Objective-C 异步调用；没有“屏幕录制”权限时只截到桌面背景（F23-3、F23-4） | 计划第一步先做实验，选定能在 macOS 26 上截到真实画面的接口；权限检查放在截图之前，没权限明确通知 |
+| 改平台层时把 Windows 弄坏（F23） | Windows 实现不动，只加分支；合进 `main` 前在 Windows 上跑 unit、engine、gui 车道 |
 | 范围膨胀 | 严格按里程碑做，M1 验收完再开 M2 |
 
 ## 11. 待确认问题

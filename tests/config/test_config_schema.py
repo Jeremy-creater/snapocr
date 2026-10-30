@@ -13,6 +13,7 @@ Rules pinned here (beyond the plan text):
 
 import dataclasses
 import datetime
+import sys
 from pathlib import Path
 from types import MappingProxyType
 
@@ -122,10 +123,19 @@ def test_full_valid_config():
     )
 
 
+@pytest.mark.windows
 def test_model_dir_absolute_kept():
     cfg, issues = build({"ocr": {"model_dir": "E:/models/rapid"}})
     assert issues == []
     assert cfg.ocr.model_dir == Path("E:/models/rapid")
+
+
+@pytest.mark.macos
+def test_model_dir_absolute_kept_mac():
+    """M9 WI-1 (plan D8): the Mac spelling of an absolute folder."""
+    cfg, issues = build({"ocr": {"model_dir": "/Volumes/models/rapid"}})
+    assert issues == []
+    assert cfg.ocr.model_dir == Path("/Volumes/models/rapid")
 
 
 def test_min_score_int_accepted():
@@ -313,6 +323,12 @@ def test_total(data):
     assert len(set(cfg.hotkeys.values())) == len(cfg.hotkeys)
 
 
+# Absolute on this host (M9 plan D8): with spaces, CJK and a network share.
+VALID_SAVE_DIRS = {
+    "win32": ["E:/shots", "D:\\a b\\截图", "\\\\nas\\share\\s"],
+    "darwin": ["/Users/x/shots", "/Users/x/a b/截图", "/Volumes/nas/s"],
+}[sys.platform]
+
 # Valid values; hotkeys avoid Alt+1..4 so a key's fallback never collides.
 HK_POOL = ["Ctrl+Alt+Q", "Ctrl+Shift+F5", "Win+X", "Alt+F12", "Ctrl+9", "Shift+Insert"]
 
@@ -323,7 +339,7 @@ def valid_configs(draw):
     hk_keys = draw(st.lists(st.sampled_from(KNOWN_KEYS["hotkeys"]), unique=True))
     data = {
         "hotkeys": {k: hk_texts[i] for i, k in enumerate(hk_keys)},
-        "capture": {"save_dir": draw(st.sampled_from(["E:/shots", "D:\\a b\\截图", "\\\\nas\\share\\s"]))},
+        "capture": {"save_dir": draw(st.sampled_from(VALID_SAVE_DIRS))},
         "ocr": {"min_score": draw(st.floats(0, 1)), "model_dir": draw(st.sampled_from(["m", "a/b", "E:/x"]))},
         "postprocess": {
             "paragraphs": draw(st.booleans()), "spacing": draw(st.booleans()),
@@ -504,14 +520,24 @@ def test_save_dir_defaults_to_pictures_snapocr():
     assert issues == [] and cfg == AppConfig()
 
 
-@pytest.mark.parametrize("text", ["E:/shots/snap", "D:\\a b\\截图", "\\\\nas\\share\\shots"])
+@pytest.mark.parametrize("text", [
+    pytest.param("E:/shots/snap", marks=pytest.mark.windows),
+    pytest.param("D:\\a b\\截图", marks=pytest.mark.windows),
+    pytest.param("\\\\nas\\share\\shots", marks=pytest.mark.windows),
+    pytest.param("/Users/x/Pictures/snap", marks=pytest.mark.macos),
+    pytest.param("/Users/x/a b/截图", marks=pytest.mark.macos),
+    pytest.param("/Volumes/nas/shots", marks=pytest.mark.macos),
+])
 def test_save_dir_absolute_kept(text):
     cfg, issues = build({"capture": {"save_dir": text}})
     assert issues == []
     assert cfg == dataclasses.replace(AppConfig(), save_dir=Path(text))
 
 
-@pytest.mark.parametrize("value", ["", "  ", "shots", "./shots", "/shots", "C:shots", 3, True, ["E:/x"]])
+@pytest.mark.parametrize("value", [
+    "", "  ", "shots", "./shots", pytest.param("/shots", marks=pytest.mark.windows), "C:shots", 3, True, ["E:/x"],
+    "~/shots",  # M9 WI-1: "~" is not expanded, on either system
+])
 def test_save_dir_not_absolute_falls_back(value):
     cfg, issues = build({"capture": {"save_dir": value}})
     issue = only_issue(issues, "capture.save_dir")

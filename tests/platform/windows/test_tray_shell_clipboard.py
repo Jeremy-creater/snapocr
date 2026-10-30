@@ -38,7 +38,7 @@ from support.qimages import gradient, pixels
 
 pytestmark = pytest.mark.gui
 
-TESTS = Path(__file__).resolve().parents[1]
+TESTS = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture

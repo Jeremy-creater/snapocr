@@ -27,6 +27,7 @@ from snapocr.theme import (
     Look,
     abgr,
     contrast,
+    font_families,
     glass_note,
     glass_problem,
     over,
@@ -133,6 +134,37 @@ def test_no_glass_note_for_the_solid_theme():
     assert glass_note("light_solid", "节电模式开着") is None
 
 
+# --- M9 WI-20: no glass on a Mac (PRD F23-9, F20-4) -----------------------------------------
+
+MAC_SOLID = {"system": ("light_solid", "dark_solid"), "light_glass": ("light_solid", "light_solid"),
+             "dark_glass": ("dark_solid", "dark_solid"), "light_solid": ("light_solid", "light_solid")}
+
+
+def test_glass_facts_default_to_windows():
+    assert GlassFacts(26200, True, False).platform == "win32"
+    assert glass_problem(GlassFacts(26200, True, False, platform="win32")) is None
+
+
+@pytest.mark.parametrize("facts", [GlassFacts(0, False, False, platform="darwin"),
+                                   GlassFacts(26200, True, False, platform="darwin")])
+def test_a_mac_has_no_glass_whatever_else_it_says(facts):
+    assert glass_problem(facts) == "macOS 版暂不支持"
+
+
+@pytest.mark.parametrize("dark", [False, True])
+@pytest.mark.parametrize("theme", THEMES)
+def test_every_theme_is_solid_on_a_mac(theme, dark):
+    problem = glass_problem(GlassFacts(0, False, False, platform="darwin"))
+    assert resolve(theme, dark=dark, problem=problem) == Look(PALETTES[MAC_SOLID[theme][dark]], False)
+    note = glass_note(theme, problem)
+    assert note == (None if theme == "light_solid" else "macOS 版暂不支持，毛玻璃改用实底显示。")
+
+
+def test_unknown_glass_platform_is_an_error():
+    with pytest.raises(ValueError, match="linux"):
+        glass_problem(GlassFacts(0, False, False, platform="linux"))
+
+
 # --- colours -----------------------------------------------------------------------------
 
 
@@ -216,3 +248,23 @@ def test_stylesheets_differ_between_palettes():
 
 def test_font_families():
     assert FONT_FAMILIES == ("Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI")
+
+
+def test_font_families_by_platform():
+    """M9 WI-4 (plan D21): PingFang first on a Mac, so the main font's line height is the CJK one."""
+    assert font_families(".AppleSystemUIFont") == FONT_FAMILIES
+    assert font_families(".AppleSystemUIFont", platform="win32") == FONT_FAMILIES
+    mac = font_families(".AppleSystemUIFont", platform="darwin")
+    assert mac == ("PingFang SC", ".AppleSystemUIFont")
+    assert not any("Segoe" in f or "YaHei" in f for f in mac)
+    with pytest.raises(ValueError, match="linux"):
+        font_families("x", platform="linux")
+
+
+def test_stylesheet_names_the_font_families():
+    """M9 WI-4: a restyle must not put the app's default families back on the text boxes."""
+    p = PALETTES["light_solid"]
+    assert 'font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI";' in stylesheet(p)
+    mac = stylesheet(p, ("PingFang SC", ".AppleSystemUIFont"))
+    assert 'font-family: "PingFang SC", ".AppleSystemUIFont";' in mac
+    assert "Segoe" not in mac

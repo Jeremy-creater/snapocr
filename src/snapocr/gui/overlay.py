@@ -131,6 +131,7 @@ class SelectionOverlay(QWidget):
         annotate: bool = False,
         style: Style = DEFAULT_STYLE,
         save_target: Callable[[], Path] | None = None,
+        platform: str = "win32",
     ) -> None:
         super().__init__(parent)
         self._save_target = save_target
@@ -158,7 +159,7 @@ class SelectionOverlay(QWidget):
         self._editor_at: Point = (0, 0)  # physical top-left of the text being typed
         self.toolbar: AnnotateToolbar | None = None
         if annotate:
-            self.toolbar = AnnotateToolbar(style, self, show_pin=True)
+            self.toolbar = AnnotateToolbar(style, self, show_pin=True, platform=platform)
             self.toolbar.hide()
             self.toolbar.tool_changed.connect(self._tool_changed)
             self.toolbar.style_changed.connect(self.style_changed)
@@ -635,11 +636,18 @@ class OverlaySession(QObject):
 
     result = Signal(object)  # Rect, or None when cancelled
 
-    def __init__(self, overlays: list[SelectionOverlay], parent: QObject | None = None) -> None:
+    def __init__(
+        self,
+        overlays: list[SelectionOverlay],
+        parent: QObject | None = None,
+        *,
+        prepare: Callable[[QWidget], None] = lambda overlay: None,
+    ) -> None:
         super().__init__(parent)
         if not overlays:
             raise ValueError("a session needs at least one overlay")
         self._overlays = list(overlays)
+        self._prepare = prepare  # the platform's touch on each shown overlay (M9 WI-18)
         self._started = False
         self._finished = False
         self.marks: tuple[Mark, ...] = ()
@@ -661,6 +669,7 @@ class OverlaySession(QObject):
         self._started = True
         for overlay in self._overlays:
             overlay.show()
+            self._prepare(overlay)  # after show: the native window exists and Qt has set its level
         self._overlays[0].activateWindow()
         self._overlays[0].setFocus()
 

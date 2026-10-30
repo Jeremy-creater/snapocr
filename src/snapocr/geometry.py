@@ -19,7 +19,7 @@ _SIZE_SLACK = 1.0
 
 
 class ScreenMismatch(ValueError):
-    """Qt's screens and the Win32 monitors cannot be paired."""
+    """Qt's screens and the system's monitors (Win32 or CoreGraphics) cannot be paired."""
 
 
 def _is_int(value: object) -> bool:
@@ -83,6 +83,52 @@ def match_screens(
         if abs(p.w / dpr - logical.w) > _SIZE_SLACK or abs(p.h / dpr - logical.h) > _SIZE_SLACK:
             raise ScreenMismatch(f"{name}: physical {p.w}x{p.h} at dpr {dpr} != logical {logical.w}x{logical.h}")
         result.append(screen)
+    return result
+
+
+def stack_physical(qt_screens: Sequence[tuple[str, Rect, float]]) -> list[ScreenInfo]:
+    """The Mac's screens side by side in Qt's order, one image each (F23-4, M9 plan D14).
+
+    A selection stays on its screen (F6-4), so only the order matters: ``x``
+    adds up, ``y`` is 0, and each physical size is the logical size times dpr.
+    """
+    result, x = [], 0
+    for name, logical, dpr in qt_screens:
+        physical = Rect(x, 0, _round(logical.w * dpr), _round(logical.h * dpr))
+        result.append(ScreenInfo(name, logical, dpr, physical))
+        x += physical.w
+    return result
+
+
+def pair_displays(
+    qt_screens: Sequence[tuple[str, Rect, float]], displays: Sequence[tuple[int, Rect]]
+) -> list[int]:
+    """The CoreGraphics display id for each Qt screen, in Qt's order (F23-4).
+
+    Both describe a screen by its origin and size in the same global points.
+    Mirrored screens share an origin and cannot be told apart.
+    """
+
+    def fail(why: str) -> ScreenMismatch:
+        qt = [f"{name} {r}" for name, r, _ in qt_screens]
+        cg = [f"{display} {r}" for display, r in displays]
+        return ScreenMismatch(f"{why}: Qt {qt}, displays {cg}")
+
+    if len(qt_screens) != len(displays):
+        raise fail(f"screen count differs ({len(qt_screens)} vs {len(displays)})")
+    origins = [(r.x, r.y) for _, r, _ in qt_screens]
+    if len(set(origins)) != len(origins):
+        raise fail("screens share the same origin (mirrored?)")
+    by_origin = {(r.x, r.y): (display, r) for display, r in displays}
+    result = []
+    for name, logical, _ in qt_screens:
+        found = by_origin.get((logical.x, logical.y))
+        if found is None:
+            raise fail(f"no display at {name}'s origin")
+        display, r = found
+        if abs(r.w - logical.w) > _SIZE_SLACK or abs(r.h - logical.h) > _SIZE_SLACK:
+            raise fail(f"{name}: size {logical.w}x{logical.h} != display {r.w}x{r.h}")
+        result.append(display)
     return result
 
 

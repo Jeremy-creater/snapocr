@@ -41,7 +41,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QToolButton
 
 from snapocr.actions.flows import FlowDeps
-from snapocr.actions.messages import preview
+from snapocr.actions.messages import preview, screen_permission_notice
 from snapocr.actions.outcomes import Done, Failed, Translating
 from snapocr.annotate import DEFAULT_STYLE, PALETTE, Mark, Style, Tool
 from snapocr.commands import Command
@@ -84,14 +84,15 @@ def clipboard(qapp):
 
 class Harness:
     def __init__(self, qtbot, tmp_path, *, engine=RESULT, load_error=None, holder=None, translator=None,
-                 capture_error=None, issues=(), preoccupy=(), config_path=None, make_translator=None,
+                 capture_error=None, capture_denied=False, issues=(), preoccupy=(), config_path=None, make_translator=None,
                  autostart=None, list_models=None, show_text=True, debug=False, save_dir=None, glass=None,
-                 theme="system"):
-        self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error)
+                 theme="system", prepare_overlay=None, platform=None):
+        self.capture = FakeCapture(desktop_image(1400, 600), (0, 0), (MAIN, SIDE), dict(WORK), capture_error,
+                                   denied=capture_denied)
         self.notifier = RecordingNotifier()
-        self.table = FakeHotkeyTable()
+        self.table = FakeHotkeyTable(taken_code=-9878 if platform == "darwin" else 1409)  # Carbon / Win32 (M9 WI-7)
         for text in preoccupy:
-            hk = parse_hotkey(text)
+            hk = parse_hotkey(text, platform=platform or "win32")
             self.table.preoccupy(hk.mods, hk.vk)
         self.opened: list[Path] = []
         self.open_error: OSError | None = None
@@ -117,6 +118,8 @@ class Harness:
             startup_issues=list(issues),
             debug_dir=self.debug_dir,
             **({} if glass is None else {"glass": glass}),  # M7 WI-6
+            **({} if prepare_overlay is None else {"prepare_overlay": prepare_overlay}),  # M9 WI-18
+            **({} if platform is None else {"platform": platform}),  # M9 WI-4
         )
         self.qtbot = qtbot
 
@@ -250,6 +253,15 @@ def test_capture_commands_are_ignored_while_a_session_is_open(make):
     assert len(h.capture.taken) == 1
 
 
+def test_every_overlay_is_prepared_once_shown(make):
+    """M9 WI-18 (F23-4): the platform's ``prepare_overlay`` gets each overlay of the session after it is shown."""
+    seen = []
+    h = make(prepare_overlay=lambda o: seen.append((o, o.isVisible())))
+    h.controller.run(Command.OCR)
+    assert len(h.controller.overlays) == 2
+    assert seen == [(o, True) for o in h.controller.overlays]
+
+
 def test_capture_error_is_reported(make, clipboard):
     h = make(capture_error="BitBlt failed")
     h.controller.run(Command.CAPTURE)
@@ -257,6 +269,19 @@ def test_capture_error_is_reported(make, clipboard):
     assert h.titles() == ["截图失败"]
     assert "BitBlt failed" in h.notifier.notices[0].body
     assert clipboard.text() == SENTINEL
+
+
+@pytest.mark.parametrize(
+    "command", [Command.CAPTURE, Command.OCR, Command.TRANSLATE, Command.CODE_OCR, Command.TABLE_OCR]
+)
+def test_no_screen_recording_permission_is_its_own_notice(make, clipboard, command):
+    """M9 WI-15 (F23-3): no overlay, clipboard kept, only the permission notice."""
+    h = make(capture_error="no permission", capture_denied=True)
+    h.controller.run(command)
+    assert h.controller.overlays == ()
+    assert h.notifier.notices == [screen_permission_notice()]
+    assert clipboard.text() == SENTINEL
+    assert h.capture.taken == []
 
 
 # --- OCR (F7-2 to F7-4) --------------------------------------------------------------------
@@ -1257,6 +1282,7 @@ def test_two_saves_keep_both_files(make):
     assert h.titles() == []
 
 
+@pytest.mark.windows  # takes the dialog's preset; Qt's non-native dialog on a Mac mangles it when the folder is missing
 def test_failed_save_still_copies(make, clipboard, tmp_path):
     blocker = tmp_path / "taken"
     blocker.write_bytes(b"a file, not a folder")
@@ -1267,6 +1293,21 @@ def test_failed_save_still_copies(make, clipboard, tmp_path):
     assert notice.title == "保存失败"
     assert str(blocker / "shots") in notice.body
     assert blocker.read_bytes() == b"a file, not a folder"
+
+
+def test_failed_save_to_a_picked_file_still_copies(make, clipboard, tmp_path):
+    """M9 WI-1: the same failure on any system, with the file picked in the dialog."""
+    blocker = tmp_path / "taken"
+    blocker.write_bytes(b"a file, not a folder")
+    target = blocker / "shots" / "snap.png"
+    h = make(save_dir=tmp_path / "shots")
+    save_capture_to(h, target)
+    assert decode_png(bytes(clipboard.mimeData().data("image/png"))).size().toTuple() == (200, 150)
+    (notice,) = h.notifier.notices
+    assert notice.title == "保存失败" and notice.warning
+    assert notice.body.endswith(f"\n{target}")
+    assert blocker.read_bytes() == b"a file, not a folder"
+    assert h.controller.overlays == ()
 
 
 def test_ocr_overlay_has_no_save(make):
@@ -1465,4 +1506,63 @@ def test_a_request_after_quit_does_nothing(make, clipboard):
     h.qtbot.wait(50)
     assert h.controller.popup.state is None
     assert clipboard.text() == SENTINEL
+
+
+# --- M9 WI-4: the translation window's font follows the platform (plan D21) -------------------
+
+
+def test_a_mac_writes_cmd_back_and_creates_the_mac_template(make):
+    """M9 WI-5: the controller passes its platform to the config file code."""
+    from snapocr.config.template import template
+
+    h = make(platform="darwin")
+    h.controller.run(Command.OPEN_CONFIG)
+    assert h.config_path.read_text(encoding="utf-8") == template("darwin")
+    window = open_settings(h)
+    # ⌘ arrives as Qt's ControlModifier on a Mac (measured in M9 WI-8; WI-5 sent Meta, which is ⌃)
+    record(window.hotkey_edits[Command.CAPTURE], Qt.Key.Key_Q, M.ControlModifier | M.ShiftModifier)
+    window.save_button.click()
+    assert not window.isVisible()
+    text = h.config_path.read_text(encoding="utf-8")
+    assert 'capture = "Shift+Cmd+Q"' in text and "Win" not in text
+    assert load_config_file(h.config_path, platform="darwin").config.hotkeys[Command.CAPTURE] == parse_hotkey("Shift+Win+Q")
+
+
+def test_a_mac_shows_hotkeys_with_mac_symbols(make):
+    """M9 WI-7: menu, start-up notice and the settings window write ⌥3, never Alt or Win."""
+    h = make(platform="darwin", preoccupy=["Alt+3"])
+    assert h.menu_action(Command.CAPTURE).text() == "截图\t⌥1"
+    (notice,) = h.notifier.notices
+    assert notice.body.splitlines()[0] == "⌥3（截图翻译）：已被其他软件占用"
+    window = open_settings(h)
+    window.hotkey_edits[Command.OCR].set_hotkey(parse_hotkey("Alt+1"))
+    window.save_button.click()
+    assert window.problems_label.text() == "「截图」和「OCR」用了同一个热键 ⌥1。"
+    taken = parse_hotkey("Shift+Cmd+Q", platform="darwin")
+    h.table.preoccupy(taken.mods, taken.vk)
+    window.hotkey_edits[Command.OCR].set_hotkey(taken)
+    window.save_button.click()
+    assert window.problems_label.text().splitlines() == ["⇧⌘Q（OCR）：已被其他软件占用", "⌥3（截图翻译）：已被其他软件占用"]
+    window.hotkey_edits[Command.OCR].set_hotkey(parse_hotkey("Ctrl+Alt+2"))
+    window.hotkey_edits[Command.TRANSLATE].set_hotkey(parse_hotkey("Ctrl+Alt+3"))
+    window.save_button.click()
+    assert not window.isVisible()
+    assert h.menu_action(Command.OCR).text() == "OCR\t⌃⌥2"
+    assert 'ocr = "Ctrl+Alt+2"' in h.config_path.read_text(encoding="utf-8")
+
+
+def test_a_mac_capture_toolbar_says_command(make):
+    """M9 WI-19: the controller passes its platform to the overlays and their toolbars."""
+    from PySide6.QtWidgets import QToolButton
+
+    h = make(platform="darwin")
+    h.controller.run(Command.CAPTURE)
+    tips = {o.toolbar.findChild(QToolButton, "undo").toolTip() for o in h.controller.overlays}
+    assert tips == {"撤销（⌘Z）"}
+    assert h.controller.popup.hint_label.text() == "⌘Enter"
+
+
+def test_translation_window_font_follows_the_platform(make):
+    assert make().controller.popup.font().families()[:3] == ["Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI"]
+    assert make(platform="darwin").controller.popup.font().families()[0] == "PingFang SC"
 

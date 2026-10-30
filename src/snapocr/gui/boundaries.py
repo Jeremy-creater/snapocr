@@ -21,6 +21,10 @@ class CaptureError(Exception):
     """The screen could not be captured; the message is shown to the user."""
 
 
+class CapturePermissionError(CaptureError):
+    """macOS has not given the screen-recording permission (F23-3); nothing was captured."""
+
+
 @dataclass(frozen=True)
 class Capture:
     """The whole virtual desktop in physical pixels, taken when a capture command fires."""
@@ -56,10 +60,13 @@ class Glass(Protocol):
 
 
 class NoGlass:
-    """No acrylic anywhere: reports a pre-Windows 11 build, so every look is solid."""
+    """No acrylic anywhere: reports a pre-Windows 11 build, or a Mac, so every look is solid."""
+
+    def __init__(self, platform: str = "win32") -> None:
+        self._platform = platform
 
     def facts(self) -> GlassFacts:
-        return GlassFacts(build=0, transparency=False, battery_saver=False)
+        return GlassFacts(build=0, transparency=False, battery_saver=False, platform=self._platform)
 
     def apply(self, widget: QWidget, tint: Color | None) -> bool:
         return tint is None

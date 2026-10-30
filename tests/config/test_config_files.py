@@ -7,6 +7,7 @@ settings whose default is "not set": ``ocr.model_dir`` and one replacement.
 """
 
 import dataclasses
+import os
 import tomllib
 from pathlib import Path
 
@@ -54,6 +55,7 @@ def test_template_as_written_is_defaults():
     assert cfg == AppConfig()
 
 
+@pytest.mark.windows
 def test_template_uncommented_is_defaults_plus_examples():
     data = tomllib.loads(uncomment(DEFAULT_TEMPLATE))
     cfg, issues = build_config(data, source=REPO / "config.local.toml")
@@ -61,6 +63,20 @@ def test_template_uncommented_is_defaults_plus_examples():
     assert cfg == dataclasses.replace(
         AppConfig(),
         ocr=OcrEngineConfig(model_dir=EXAMPLE_MODEL_DIR),
+        replacements=Replacements.from_mapping({"0CR": "OCR"}),
+    )
+
+
+@pytest.mark.macos
+def test_template_uncommented_is_defaults_plus_examples_mac():
+    """M9 WI-1 (plan D8): the example folder is a Windows spelling, so on a Mac it is
+    relative and, like any relative ``model_dir``, read next to the config file."""
+    data = tomllib.loads(uncomment(DEFAULT_TEMPLATE))
+    cfg, issues = build_config(data, source=REPO / "config.local.toml")
+    assert issues == []
+    assert cfg == dataclasses.replace(
+        AppConfig(),
+        ocr=OcrEngineConfig(model_dir=REPO / EXAMPLE_MODEL_DIR),
         replacements=Replacements.from_mapping({"0CR": "OCR"}),
     )
 
@@ -85,12 +101,24 @@ def test_default_config_path_follows_snapocr_config(monkeypatch, tmp_path):
     assert default_config_path() == tmp_path / "env.toml"
 
 
+@pytest.mark.windows
 def test_default_config_path_without_the_variable(monkeypatch, tmp_path):
     """F21-1: this checkout is a source root, so its config.local.toml is used only when present."""
     monkeypatch.delenv("SNAPOCR_CONFIG", raising=False)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     source_file = REPO / "config.local.toml"
     expected = source_file if source_file.exists() else tmp_path / "snapocr" / "config.toml"
+    assert default_config_path() == expected
+
+
+@pytest.mark.macos
+def test_default_config_path_without_the_variable_on_a_mac(monkeypatch, tmp_path):
+    """M9 WI-9 (F23-6): Application Support, even with APPDATA set."""
+    monkeypatch.delenv("SNAPOCR_CONFIG", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
+    source_file = REPO / "config.local.toml"
+    expected = source_file if source_file.exists() else tmp_path / "Library" / "Application Support" / "snapocr" / "config.toml"
     assert default_config_path() == expected
 
 
@@ -201,10 +229,18 @@ def test_instance_name_format(tmp_path):
     assert re.fullmatch(r"Local\\snapocr-[0-9a-f]{12}", name)
 
 
+@pytest.mark.windows
 def test_instance_name_ignores_case_and_relative_spelling(tmp_path, monkeypatch):
     path = tmp_path / "Config.Local.TOML"
     monkeypatch.chdir(tmp_path)
     assert instance_name(path) == instance_name(Path(str(path).upper())) == instance_name(Path("Config.Local.TOML"))
+
+
+def test_instance_name_ignores_relative_spelling(tmp_path, monkeypatch):
+    """M9 WI-1: the half of the rule above that holds on every system."""
+    path = tmp_path / "config.local.toml"
+    monkeypatch.chdir(tmp_path)
+    assert instance_name(path) == instance_name(Path("config.local.toml")) == instance_name(Path("./x/../config.local.toml"))
 
 
 def test_instance_name_differs_per_file(tmp_path):
@@ -213,6 +249,48 @@ def test_instance_name_differs_per_file(tmp_path):
 
 def test_default_config_gets_a_stable_name():
     assert instance_name(default_config_path()) == instance_name(default_config_path())
+
+
+# --- M9 WI-11: the Mac lock file uses the same key (F23-8, plan D18) ---------------------
+
+from hypothesis import given  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+from snapocr.config.files import instance_key, lock_path  # noqa: E402
+
+
+def test_instance_name_is_unchanged_by_the_key_refactor(tmp_path):
+    """The Windows mutex name stays exactly what M2 produced (hash of the case-folded resolved path)."""
+    import hashlib
+
+    path = tmp_path / "config.local.toml"
+    key = os.path.normcase(str(path.resolve()))
+    assert instance_name(path) == "Local\\snapocr-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+
+
+def test_lock_path_is_in_the_given_dir(tmp_path):
+    path = tmp_path / "config.local.toml"
+    lock = lock_path(path, tmp_path / "locks")
+    assert lock == tmp_path / "locks" / f"snapocr-{instance_key(path)}.lock"
+    assert re.fullmatch(r"snapocr-[0-9a-f]{12}\.lock", lock.name)
+
+
+def test_lock_path_differs_per_file(tmp_path):
+    assert lock_path(tmp_path / "a.toml", tmp_path) != lock_path(tmp_path / "b.toml", tmp_path)
+
+
+def test_lock_path_ignores_relative_spelling(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert lock_path(tmp_path / "c.toml", tmp_path) == lock_path(Path("./x/../c.toml"), tmp_path)
+
+
+@given(st.text(alphabet=st.characters(categories=["L", "N"]), min_size=1, max_size=20))
+def test_mutex_name_and_lock_file_share_one_key(name):
+    path = Path("/cfg") / f"{name}.toml"
+    key = instance_key(path)
+    assert re.fullmatch(r"[0-9a-f]{12}", key)
+    assert instance_name(path) == f"Local\\snapocr-{key}"
+    assert lock_path(path, Path("/locks")).name == f"snapocr-{key}.lock"
 
 
 # --- M4 WI-22: [capture] save_dir (F17-2) ------------------------------------------------
@@ -226,6 +304,7 @@ def test_template_capture_section_after_hotkeys_with_its_help():
     assert tomllib.loads(uncomment(section)) == {"save_dir": str(AppConfig().save_dir)}
 
 
+@pytest.mark.windows
 def test_cannot_create_the_file_in_an_existing_directory(tmp_path):
     """The directory is fine but the file cannot be made ("?" is not allowed in Windows names)."""
     path = tmp_path / "bad?name.toml"
@@ -234,3 +313,21 @@ def test_cannot_create_the_file_in_an_existing_directory(tmp_path):
     (issue,) = result.issues
     assert issue.file == path and issue.reason.startswith("could not create the default config file")
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.macos
+def test_cannot_create_the_file_in_an_existing_directory_mac(tmp_path):
+    """M9 WI-1: "?" is a fine Mac file name, so here the folder itself refuses new files."""
+    folder = tmp_path / "read-only"
+    folder.mkdir()
+    folder.chmod(0o555)
+    try:
+        path = folder / "config.local.toml"
+        result = load_config_file(path)
+        listing = list(folder.iterdir())
+    finally:
+        folder.chmod(0o755)
+    assert result.config == AppConfig() and result.created is False
+    (issue,) = result.issues
+    assert issue.file == path and issue.reason.startswith("could not create the default config file")
+    assert listing == []

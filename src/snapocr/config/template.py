@@ -12,12 +12,33 @@ import json
 
 from snapocr.config.schema import DEFAULT_HOTKEY_TEXT, HOTKEY_COMMANDS, AppConfig, default_save_dir
 from snapocr.engines.config import OcrEngineConfig
+from snapocr.hotkeys import check_platform
 from snapocr.postprocess import PostprocessOptions
 from snapocr.translators.config import SAMPLING_KEYS, TranslatorConfig
 
 # Shown for settings whose default is "not set"; enabling them is a real choice.
 EXAMPLE_MODEL_DIR = "D:/LLM/models/rapidocr"
+EXAMPLE_MODEL_DIR_MAC = "/Users/Shared/models/rapidocr"
 EXAMPLE_REPLACEMENT = ("0CR", "OCR")
+
+# The lines that differ between the systems (M9 WI-5, PRD F23-2, F23-9).
+_PLATFORM_TEXT = {
+    "win32": {
+        "hotkeys": "## 全局热键：Ctrl、Alt、Shift、Win 至少一个，加一个主键（A–Z、0–9、F1–F24、Space、方向键等）。",
+        "save_dir": ["## 路径里用 / 分隔（如 D:/截图），或用单引号包起来；双引号里的 \\ 要写两个。"],
+        "model_dir": EXAMPLE_MODEL_DIR,
+        "theme": ["## 翻译窗口的风格：system（跟随 Windows 的深浅色）、light_glass（浅色毛玻璃）、",
+                  "## dark_glass（深色毛玻璃）、light_solid（浅色实底）。毛玻璃用不了时自动改用实底。"],
+    },
+    "darwin": {
+        "hotkeys": "## 全局热键：Ctrl、Option、Shift、Cmd 至少一个，加一个主键（A–Z、0–9、F1–F20、Space、方向键等）。"
+                   "Option 也可以写成 Alt。",
+        "save_dir": [],
+        "model_dir": EXAMPLE_MODEL_DIR_MAC,
+        "theme": ["## 翻译窗口的风格：system（跟随系统的深浅色）、light_glass（浅色毛玻璃）、",
+                  "## dark_glass（深色毛玻璃）、light_solid（浅色实底）。macOS 版暂不支持毛玻璃，都用实底。"],
+    },
+}
 
 
 def _toml(value: bool | int | float | str) -> str:
@@ -38,7 +59,9 @@ _HOTKEY_HELP = {
 }
 
 
-def _build() -> str:
+def template(platform: str = "win32") -> str:
+    """The default config file for ``platform``; ValueError for an unknown one."""
+    text = _PLATFORM_TEXT[check_platform(platform)]
     ocr = OcrEngineConfig()
     pp = PostprocessOptions()
     tr = TranslatorConfig()
@@ -48,7 +71,7 @@ def _build() -> str:
         "## 以“## ”开头的行是说明。修改后重启 snapocr 生效。",
         "",
         "[hotkeys]",
-        "## 全局热键：Ctrl、Alt、Shift、Win 至少一个，加一个主键（A–Z、0–9、F1–F24、Space、方向键等）。",
+        text["hotkeys"],
         "## 被其他软件占用时，启动通知会指出是哪一个，其余照常工作。",
     ]
     for command in HOTKEY_COMMANDS:
@@ -58,14 +81,14 @@ def _build() -> str:
         "",
         "[capture]",
         "## 截图工具栏“保存”存到这个文件夹，必须是绝对路径；不存在时保存那一刻创建。",
-        "## 路径里用 / 分隔（如 D:/截图），或用单引号包起来；双引号里的 \\ 要写两个。",
+        *text["save_dir"],
         f"# save_dir = {_toml(str(default_save_dir()))}",
         "",
         "[ocr]",
         "## 置信度低于这个值的文本块丢弃，范围 0 到 1。",
         f"# min_score = {_toml(ocr.min_score)}",
         "## 模型目录。不写时用 rapidocr 自带的模型；相对路径按本文件所在的目录计算。下面只是示例。",
-        f"# model_dir = {_toml(EXAMPLE_MODEL_DIR)}",
+        f"# model_dir = {_toml(text['model_dir'])}",
         "",
         "[postprocess]",
         "## 把自动折行的行合并回段落。",
@@ -84,8 +107,7 @@ def _build() -> str:
         f"# show_text = {_toml(AppConfig.show_text)}",
         "",
         "[ui]",
-        "## 翻译窗口的风格：system（跟随 Windows 的深浅色）、light_glass（浅色毛玻璃）、",
-        "## dark_glass（深色毛玻璃）、light_solid（浅色实底）。毛玻璃用不了时自动改用实底。",
+        *text["theme"],
         f"# theme = {_toml(AppConfig.theme)}",
         "",
         "[debug]",
@@ -114,4 +136,4 @@ def _build() -> str:
     return "\n".join(out) + "\n"
 
 
-DEFAULT_TEMPLATE: str = _build()
+DEFAULT_TEMPLATE: str = template("win32")

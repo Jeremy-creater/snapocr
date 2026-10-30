@@ -21,6 +21,7 @@ from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QRectF, QSize, Qt, Si
 from PySide6.QtGui import (
     QColor,
     QFont,
+    QFontDatabase,
     QIcon,
     QKeyEvent,
     QMouseEvent,
@@ -36,7 +37,8 @@ from snapocr.actions.outcomes import Done, Failed, PopupState, Translating
 from snapocr.geometry import Rect, place_popup, resize_edges, resized
 from snapocr.gui import clipboard
 from snapocr.gui.segmented import SegmentedControl
-from snapocr.theme import FONT_FAMILIES, PALETTES, Color, Look, stylesheet
+from snapocr.hotkeys import shortcut_text
+from snapocr.theme import PALETTES, Color, Look, font_families, stylesheet
 
 TRANSLATING_TEXT = "翻译中…"
 DEFAULT_SIZE = (420, 260)
@@ -78,12 +80,14 @@ def _copy_icon(color: Color) -> QIcon:
 class TranslationPopup(QWidget):
     translate_requested = Signal(str, object)  # (source text, target: None | "zh" | "en")
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *, platform: str = "win32") -> None:
         super().__init__(parent)
         self._job_id: int | None = None
         self._state: PopupState | None = None
         self._shown_source = ""  # the source box as last filled, to tell whether it was edited
         self._look = Look(PALETTES["light_solid"], False)
+        system = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont).family()
+        self._families = font_families(system, platform=platform)  # M9 plan D21
         # (start global mouse position, start geometry, grabbed edges; no edges = move)
         self._grab: tuple[QPoint, QRect, frozenset[str]] | None = None
         self.setWindowTitle("snapocr 翻译")
@@ -91,6 +95,7 @@ class TranslationPopup(QWidget):
             Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)  # stays while another app is active (M9)
         self.setMouseTracking(True)
         self.setMinimumSize(*MIN_SIZE)
 
@@ -114,8 +119,9 @@ class TranslationPopup(QWidget):
             self.target_box.addItem(text, target)
         self.translate_button = QPushButton("翻译", objectName="translate")
         self.translate_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.hint_label = QLabel("Ctrl+Enter", objectName="hint")
-        self.translate_button.setToolTip("翻译原文（Ctrl+Enter）")
+        enter = shortcut_text("translate", platform=platform)  # ⌘Enter on a Mac (F23-5)
+        self.hint_label = QLabel(enter, objectName="hint")
+        self.translate_button.setToolTip(f"翻译原文（{enter}）")
         # Copy the translation from the state: QPlainTextEdit may normalise line breaks.
         self.copy_source_button.clicked.connect(lambda: clipboard.set_text(self.source_text()))
         self.copy_translation_button.clicked.connect(lambda: clipboard.set_text(self._state.translation))
@@ -153,7 +159,7 @@ class TranslationPopup(QWidget):
         layout.addLayout(row)
         layout.addWidget(self.translation_view, 1)
         font = QFont(self.font())
-        font.setFamilies(list(FONT_FAMILIES))
+        font.setFamilies(list(self._families))
         self.setFont(font)
         self.resize(*DEFAULT_SIZE)
         self.set_look(self._look)
@@ -174,7 +180,7 @@ class TranslationPopup(QWidget):
     def set_look(self, look: Look) -> None:
         """F20: restyle now; turning acrylic on or off is the controller's part (``Glass``)."""
         self._look = look
-        self.setStyleSheet(stylesheet(look.palette))
+        self.setStyleSheet(stylesheet(look.palette, self._families))
         icon = _copy_icon(look.palette.link)
         for button in (self.copy_source_button, self.copy_translation_button):
             button.setIcon(icon)

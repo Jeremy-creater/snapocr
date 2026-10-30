@@ -11,32 +11,34 @@ from snapocr.actions.outcomes import Notice
 from snapocr.actions.messages import COMMAND_LABELS
 from snapocr.commands import Command
 from snapocr.config.schema import HOTKEY_COMMANDS
-from snapocr.hotkeys import Hotkey, format_hotkey
+from snapocr.hotkeys import Hotkey, display_hotkey
 
 
-def _text(command: Command, bindings: Mapping[Command, Hotkey]) -> str:
+def _text(command: Command, bindings: Mapping[Command, Hotkey], platform: str) -> str:
+    """On a Mac the native menu reads the text after the tab as the shortcut column (M9 WI-7)."""
     text = COMMAND_LABELS[command]
     if command in bindings:
-        text = f"{text}\t{format_hotkey(bindings[command])}"
+        text = f"{text}\t{display_hotkey(bindings[command], platform=platform)}"
     return text
 
 
 def build_tray_menu(
-    bindings: Mapping[Command, Hotkey], on_command: Callable[[Command], None], parent: QWidget | None = None
+    bindings: Mapping[Command, Hotkey], on_command: Callable[[Command], None], parent: QWidget | None = None,
+    *, platform: str = "win32",
 ) -> QMenu:
     menu = QMenu(parent)
     for command in HOTKEY_COMMANDS:
-        menu.addAction(_text(command, bindings)).triggered.connect(lambda _=False, c=command: on_command(c))
+        menu.addAction(_text(command, bindings, platform)).triggered.connect(lambda _=False, c=command: on_command(c))
     menu.addSeparator()
     for command in (Command.SETTINGS, Command.QUIT):
         menu.addAction(COMMAND_LABELS[command]).triggered.connect(lambda _=False, c=command: on_command(c))
     return menu
 
 
-def update_tray_menu(menu: QMenu, bindings: Mapping[Command, Hotkey]) -> None:
+def update_tray_menu(menu: QMenu, bindings: Mapping[Command, Hotkey], *, platform: str = "win32") -> None:
     """Show new hotkeys on the menu built by ``build_tray_menu`` (F11-3)."""
     for action, command in zip(menu.actions(), HOTKEY_COMMANDS, strict=False):
-        action.setText(_text(command, bindings))
+        action.setText(_text(command, bindings, platform))
 
 
 def notice_icon(notice: Notice) -> QSystemTrayIcon.MessageIcon:

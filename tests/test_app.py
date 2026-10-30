@@ -66,14 +66,26 @@ def test_bad_arguments_are_usage_errors(args, capsys):
 
 def test_default_log_dir_is_the_runtime_dir_of_this_environment():
     """F21-2: read once at import from the real environment (Jeremy's machine sets SNAPOCR_RUNTIME_DIR)."""
-    assert DEFAULT_LOG_DIR == runtime_dir(os.environ, home=Path.home())[0]
+    assert DEFAULT_LOG_DIR == runtime_dir(os.environ, home=Path.home(), platform=sys.platform)[0]
     assert LOG_FILE_NAME == "snapocr.log"
 
 
+@pytest.mark.windows
 def test_runtime_issues_name_a_relative_variable(monkeypatch, tmp_path):
     monkeypatch.setenv("SNAPOCR_RUNTIME_DIR", "logs")
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     default = tmp_path / "snapocr"
+    assert [str(i) for i in runtime_issues()] == [
+        f"SNAPOCR_RUNTIME_DIR: 不是绝对路径（logs），日志和 debug 文件改放 {default}"
+    ]
+
+
+@pytest.mark.macos
+def test_runtime_issues_name_a_relative_variable_on_a_mac(monkeypatch, tmp_path):
+    """M9 WI-9 (F23-6): the default it falls back to is ~/Library/Logs/snapocr."""
+    monkeypatch.setenv("SNAPOCR_RUNTIME_DIR", "logs")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    default = tmp_path / "Library" / "Logs" / "snapocr"
     assert [str(i) for i in runtime_issues()] == [
         f"SNAPOCR_RUNTIME_DIR: 不是绝对路径（logs），日志和 debug 文件改放 {default}"
     ]
@@ -204,3 +216,23 @@ def test_importing_snapocr_main_does_not_run_it():
 
     module = importlib.import_module("snapocr.__main__")
     assert callable(module.main)
+
+
+# --- M9 WI-22: the platform kit (PRD F23-1, plan D12) -----------------------------------
+
+from snapocr.app import kit_module  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("platform", "module"),
+    [("win32", "snapocr.gui.platform.win"), ("darwin", "snapocr.gui.platform.mac.kit")],
+)
+def test_kit_module_per_platform(platform, module):
+    assert kit_module(platform) == module
+
+
+@pytest.mark.parametrize("platform", ["linux", "cygwin", "", "Darwin"])
+def test_other_platforms_exit_with_a_reason(platform):
+    with pytest.raises(SystemExit) as info:
+        kit_module(platform)
+    assert str(info.value) == f"snapocr 只支持 Windows 和 macOS（当前系统：{platform!r}）"

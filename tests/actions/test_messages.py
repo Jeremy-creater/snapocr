@@ -250,6 +250,19 @@ def test_capture_failed_notice():
     assert n.body == "BitBlt failed\n剪贴板没有改动。"
 
 
+def test_screen_permission_notice():
+    """M9 WI-15 (F23-3): where to turn it on, the terminal case, and the restart."""
+    from snapocr.actions.messages import screen_permission_notice
+
+    n = screen_permission_notice()
+    assert n.title == "没有屏幕录制权限"
+    assert n.body == (
+        "到“系统设置 → 隐私与安全性 → 屏幕与系统录音”打开 snapocr"
+        "（从终端运行时，打开的是那个终端），然后重启 snapocr。\n剪贴板没有改动。"
+    )
+    assert n.warning
+
+
 def test_job_crashed_texts():
     assert job_crashed_text("RuntimeError") == "内部错误（RuntimeError），详情见日志"
     n = job_crashed_notice("RuntimeError")

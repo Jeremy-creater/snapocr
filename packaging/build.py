@@ -1,10 +1,15 @@
-"""Build the Windows portable zip (PRD F22-1).
+"""Build the portable zip of this platform (PRD F22-1, F24-1).
 
     python packaging/build.py --out D:\\DevLocal\\build\\snapocr
 
-Runs PyInstaller with ``packaging/snapocr.spec`` (work files under ``<out>/work``), adds the
-license files and ``README.txt`` next to ``snapocr.exe``, and writes
+Runs PyInstaller with ``packaging/snapocr.spec`` (work files under ``<out>/work``).
+
+Windows: adds the license files and ``README.txt`` next to ``snapocr.exe``, and writes
 ``<out>/snapocr-<version>-windows-x64.zip`` whose top level is the ``snapocr`` folder.
+
+macOS: adds the license files to ``Contents/Resources``, signs the app again (ad-hoc), and
+writes ``<out>/snapocr-<version>-macos-arm64.zip`` holding ``snapocr.app`` and ``README.txt``.
+
 Prints the zip path on the last line.
 """
 
@@ -21,7 +26,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXTRA_FILES = [ROOT / "LICENSE", ROOT / "THIRD_PARTY_NOTICES.md", ROOT / "packaging" / "README.txt"]
+LICENSE_FILES = [ROOT / "LICENSE", ROOT / "THIRD_PARTY_NOTICES.md"]
 LICENSE_FILE = re.compile(r"^(LICEN[CS]E|COPYING|NOTICE|AUTHORS|ThirdPartyNotices)", re.IGNORECASE)
 
 
@@ -67,6 +72,12 @@ def _license_files(dist: importlib.metadata.Distribution):
                 yield Path(file.name), file
 
 
+def python_license() -> Path:
+    """Next to the interpreter on Windows, in the standard library folder on macOS."""
+    windows = Path(sys.base_prefix) / "LICENSE.txt"
+    return windows if windows.exists() else Path(sys.base_prefix) / "lib" / "python3.12" / "LICENSE.txt"
+
+
 def copy_licenses(dest: Path) -> int:
     """Each bundled package's license files, Python's, the PyInstaller bootloader's, and the
     (L)GPL texts that PySide6's wheels leave out. Returns the number of files copied."""
@@ -79,7 +90,7 @@ def copy_licenses(dest: Path) -> int:
             copied[-1].parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(file.locate(), copied[-1])
     for source, target in [
-        (Path(sys.base_prefix) / "LICENSE.txt", dest / "python" / "LICENSE.txt"),
+        (python_license(), dest / "python" / "LICENSE.txt"),
         *[(text, dest / "pyside6" / text.name) for text in sorted((ROOT / "packaging" / "licenses").glob("*.txt"))],
     ]:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -88,8 +99,7 @@ def copy_licenses(dest: Path) -> int:
     return len(copied)
 
 
-def build(out: Path) -> Path:
-    dist, work = out / "dist", out / "work"
+def run_pyinstaller(dist: Path, work: Path) -> None:
     subprocess.run(
         [
             sys.executable, "-m", "PyInstaller", str(ROOT / "packaging" / "snapocr.spec"),
@@ -97,8 +107,13 @@ def build(out: Path) -> Path:
         ],
         check=True,
     )
+
+
+def build_windows(out: Path) -> Path:
+    dist = out / "dist"
+    run_pyinstaller(dist, out / "work")
     app = dist / "snapocr"
-    for extra in EXTRA_FILES:
+    for extra in [*LICENSE_FILES, ROOT / "packaging" / "README.txt"]:
         shutil.copy2(extra, app / extra.name)
     print(f"{copy_licenses(app / 'licenses')} license files")
 
@@ -111,10 +126,35 @@ def build(out: Path) -> Path:
     return archive
 
 
+def build_mac(out: Path) -> Path:
+    dist = out / "dist"
+    run_pyinstaller(dist, out / "work")
+    app = dist / "snapocr.app"
+    resources = app / "Contents" / "Resources"
+    for extra in LICENSE_FILES:
+        shutil.copy2(extra, resources / extra.name)
+    print(f"{copy_licenses(resources / 'licenses')} license files")
+    # New files break the seal PyInstaller signed (F24-2).
+    subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app)], check=True)
+    subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+
+    stage = out / "stage"
+    shutil.rmtree(stage, ignore_errors=True)
+    stage.mkdir()
+    # ditto keeps the symbolic links inside the app, which zipfile would turn into copies.
+    subprocess.run(["ditto", str(app), str(stage / "snapocr.app")], check=True)
+    shutil.copy2(ROOT / "packaging" / "README-mac.txt", stage / "README.txt")
+    archive = out / f"snapocr-{version()}-macos-arm64.zip"
+    archive.unlink(missing_ok=True)
+    subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", str(stage), str(archive)], check=True)
+    return archive
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, required=True, help="output folder (not inside the repository)")
-    archive = build(parser.parse_args().out.resolve())
+    out = parser.parse_args().out.resolve()
+    archive = build_mac(out) if sys.platform == "darwin" else build_windows(out)
     print(f"{archive.stat().st_size / 2**20:.0f} MB")
     print(archive)
     return 0

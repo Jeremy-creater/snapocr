@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "snapocr"
-version = "0.1.0"
+version = "0.2.0"
 description = "Personal tray screenshot tool: capture, OCR and local-LLM translation to clipboard"
 requires-python = ">=3.12,<3.13"
 license = "MIT"
@@ -37,7 +37,7 @@ dev = [
     "hypothesis>=6",
     "pytest-qt>=4.5",
 ]
-# Windows portable build (PRD F22-1); packaging only, never imported by snapocr.
+# Portable builds (PRD F22-1, F24-1); packaging only, never imported by snapocr.
 build = [
     "pyinstaller>=6.11,<7",
 ]
@@ -52,6 +52,8 @@ markers = [
     "engine: loads the real in-process RapidOCR models (no external service)",
     "perf: latency measurements; manual only, never part of a gate",
     "gui: needs a real Windows desktop (tray, hotkeys, screen capture); manual, run with --qt-desktop",
+    "windows: Windows only; deselected on macOS by tests/conftest.py (never skipped)",
+    "macos: macOS only; deselected on Windows by tests/conftest.py (never skipped)",
 ]
 addopts = "--strict-markers"
 

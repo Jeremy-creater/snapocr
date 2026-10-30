@@ -17,15 +17,27 @@ from dataclasses import dataclass
 from types import MappingProxyType
 
 from snapocr.config.schema import THEMES
+from snapocr.hotkeys import check_platform
 
 Color = tuple[int, int, int, int]
 
 FONT_FAMILIES = ("Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI")
+MAC_CJK_FAMILY = "PingFang SC"
 THEME_LABELS: Mapping[str, str] = MappingProxyType(
     dict(zip(THEMES, ("跟随系统", "浅色毛玻璃", "深色毛玻璃", "浅色实底"), strict=True))
 )
 WINDOWS_11_BUILD = 22000
 GLASS_REFUSED = "系统拒绝了毛玻璃效果"  # Glass.apply returned False
+MAC_NO_GLASS = "macOS 版暂不支持"  # F23-9; the note adds "，毛玻璃改用实底显示。"
+
+
+def font_families(system_family: str, *, platform: str = "win32") -> tuple[str, ...]:
+    """M9 plan D21: the window font. On a Mac PingFang comes first, so the main font's line
+    height is that of the CJK text and lines that fit do not scroll; ``system_family`` is
+    the system UI font the GUI layer reads from Qt."""
+    if check_platform(platform) == "darwin":
+        return (MAC_CJK_FAMILY, system_family)
+    return FONT_FAMILIES
 
 
 @dataclass(frozen=True)
@@ -104,6 +116,7 @@ class GlassFacts:
     build: int  # Windows build number
     transparency: bool  # Settings > Personalisation > Colours > Transparency effects
     battery_saver: bool
+    platform: str = "win32"  # M9: no glass on a Mac yet (F23-9)
 
 
 @dataclass(frozen=True)
@@ -114,6 +127,8 @@ class Look:
 
 def glass_problem(facts: GlassFacts) -> str | None:
     """F20-4: why acrylic cannot be used, or None."""
+    if check_platform(facts.platform) == "darwin":
+        return MAC_NO_GLASS
     if facts.build < WINDOWS_11_BUILD:
         return "需要 Windows 11"
     if not facts.transparency:
@@ -171,12 +186,17 @@ def _css(c: Color) -> str:
     return f"rgba({c[0]}, {c[1]}, {c[2]}, {c[3]})"
 
 
-def stylesheet(p: Palette) -> str:
-    """The translation window's QSS (object names set in ``snapocr.gui.popup``)."""
+def stylesheet(p: Palette, families: tuple[str, ...] = FONT_FAMILIES) -> str:
+    """The translation window's QSS (object names set in ``snapocr.gui.popup``).
+
+    The font families are in the QSS: a restyle with font-size rules otherwise puts the
+    app's default families back on the boxes (on a Mac the system font, shorter than the
+    CJK lines, so lines that fit scrolled; M9 WI-4)."""
     skip = ("name", "dark", "acrylic")
     c = {name: _css(getattr(p, name)) for name in Palette.__dataclass_fields__ if name not in skip}
+    family = ", ".join(f'"{f}"' for f in families)
     return f"""
-QWidget {{ color: {c['text']}; }}
+QWidget {{ color: {c['text']}; font-family: {family}; }}
 QLabel#title {{ font-size: 13px; font-weight: 600; background: transparent; }}
 QLabel#muted {{ font-size: 12px; color: {c['muted']}; background: transparent; }}
 QLabel#hint {{ font-size: 11px; color: {c['hint']}; background: transparent; }}

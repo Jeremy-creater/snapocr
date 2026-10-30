@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-Windows 托盘常驻的截图工具：**一个热键做一件事，结果直接进剪贴板。** 框选截图、OCR、翻译，全程在本机完成。OCR 在程序内部运行（RapidOCR，PP-OCR 模型）；翻译调用你自己电脑上的模型服务（默认 Ollama）。snapocr 只访问 `127.0.0.1`。
+Windows 和 macOS 上常驻托盘的截图工具：**一个热键做一件事，结果直接进剪贴板。** 框选截图、OCR、翻译，全程在本机完成。OCR 在程序内部运行（RapidOCR，PP-OCR 模型）；翻译调用你自己电脑上的模型服务（默认 Ollama）。snapocr 只访问 `127.0.0.1`。
 
 这是我（Jeremy）和 AI 编程助手（[Claude Code](https://claude.com/claude-code)）一起做的第一款软件，从第一天起就是先写测试再写代码。
 
@@ -39,6 +39,17 @@ Windows 托盘常驻的截图工具：**一个热键做一件事，结果直接�
 
 升级：退出 snapocr，把新版本解压覆盖旧文件夹，设置会保留。卸载：先在设置里关掉“开机自启动”，退出 snapocr，再删除 `snapocr` 文件夹、`%APPDATA%\snapocr` 和 `%LOCALAPPDATA%\snapocr`。
 
+## macOS 免安装版（不用装 Python）
+
+需要 Apple 芯片的 Mac，只在 macOS 26 上测试过。
+
+1. 到 [Releases 页面](https://github.com/Jeremy-creater/snapocr/releases/latest)下载 `snapocr-<版本>-macos-arm64.zip`（约 130 MB），解压。
+2. 把 `snapocr.app` 拖进“应用程序”，双击打开。没有窗口弹出，图标在菜单栏里。热键是 Option+1～6。
+3. 第一次打开被 macOS 拦下时，到“系统设置 → 隐私与安全性”，找到 snapocr，点“仍要打开”。这是因为 snapocr 没有 Apple 开发者签名。
+4. 截图需要屏幕录制权限：在“系统设置 → 隐私与安全性 → 屏幕与系统录音”里打开 snapocr，然后重启它。换新版本后可能要重新授权，因为每次打包的临时签名都不同。如果开关已打开却仍然反复提示，退出 snapocr，在“终端”里运行 `tccutil reset ScreenCapture io.github.jeremy-creater.snapocr`，再打开 snapocr 重新授权并重启它。
+
+开机自启动记录的是 app 当前的位置，移动 app 后要在设置里重新勾选。卸载：先在设置里关掉“开机自启动”，退出 snapocr，把 app 移到废纸篓，再删除 `~/Library/Application Support/snapocr` 和 `~/Library/Logs/snapocr`。热键、窗口样式等更多说明见 [macOS（从源码运行）](#macos从源码运行)。
+
 ## 系统要求
 
 - Windows 11（64 位）。Windows 10 应该能用，但没测过；毛玻璃风格需要 Windows 11，其他系统自动改用实底。
@@ -56,7 +67,7 @@ uv tool update-shell   # 只需一次，让 snapocr 进 PATH（之后开一个�
 snapocr
 ```
 
-上面装的是 `main` 上的最新代码。要装固定版本，在地址后面加标签：`git+https://github.com/Jeremy-creater/snapocr@v0.1.0`（见 [CHANGELOG.md](CHANGELOG.md) 和 Releases 页面）。
+上面装的是 `main` 上的最新代码。要装固定版本，在地址后面加标签：`git+https://github.com/Jeremy-creater/snapocr@v0.2.0`（见 [CHANGELOG.md](CHANGELOG.md) 和 Releases 页面）。
 
 或者用 pip 装进一个虚拟环境：
 
@@ -67,6 +78,29 @@ py -3.12 -m venv %USERPROFILE%\snapocr-env
 ```
 
 `snapocr` 启动后没有控制台窗口，图标在系统托盘里。同一时间只运行一个。要开机自动启动，在设置里勾选“开机自启动”。
+
+## macOS（从源码运行）
+
+需要 Apple Silicon 的 Mac 和 Python 3.12，只在 macOS 26 上测试过。不想装 Python 可以用 [macOS 免安装版](#macos-免安装版不用装-python)。
+
+```sh
+git clone https://github.com/Jeremy-creater/snapocr
+cd snapocr
+uv venv --python 3.12
+uv pip install -e .
+.venv/bin/python -m snapocr
+```
+
+图标在菜单栏，不在程序坞。
+
+- **屏幕录制权限**：截图需要这个权限（系统设置 → 隐私与安全性 → 屏幕与系统录音）。从终端启动时，权限给的是这个终端程序；开机自启动时，权限给的是 Python 解释器，可能要再开一次。开完权限后重启 snapocr。
+- **热键**：本文的 `Alt` 在 Mac 上就是 Option，所以默认热键是 Option+1～6。snapocr 运行时，这几个键原来打出的 `¡ ™ £ ¢ ∞ §` 打不出来了。macOS 15.0、15.1 禁止只用 Option 的全局热键，这两个版本上请改用 Ctrl+Option+数字。
+- **热键冲突**：别的程序用了同一组合时，两边都会响应，snapocr 也不会提示，因为 macOS 没有办法让它知道。
+- **窗口里的快捷键**：`⌘Enter` 翻译，`⌘Z` 撤销，`⌘S` 保存。
+- **开机自启动**：在设置里勾选“开机自启动”，之后系统会提示已添加后台项目。
+- **窗口风格**：翻译窗口都是实底，毛玻璃只有 Windows 版有。
+- **文件位置**：配置文件是 `~/Library/Application Support/snapocr/config.toml`；日志和 debug 输出在 `~/Library/Logs/snapocr`。
+- **翻译**：安装 [Mac 版 Ollama](https://ollama.com/)，再按下面的步骤做，步骤相同。
 
 ## 准备翻译（可选）
 
@@ -117,7 +151,7 @@ uv pip install -e ".[dev]"
 | gui | `python -m pytest -m "gui and not perf" --qt-desktop` | 真实的 Windows 桌面；会注册测试用热键、动剪贴板 |
 | integration | `python -m pytest -m "integration and not perf"` | Ollama 在运行，并且有配置里的模型 |
 
-CI 在 Windows 上跑 unit 和 engine 两条车道。
+CI 在 Windows 和 macOS 上跑 unit 和 engine 两条车道。
 
 ## 许可证
 

@@ -41,6 +41,8 @@ class PinWindow(QWidget):
         self._zoom = 100
         self._grab: QPointF | None = None  # mouse offset inside the window while dragging
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        # A Tool window on a Mac hides while another app is active; a pin is for looking at from there (M9).
+        self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)
         self.setCursor(Qt.CursorShape.SizeAllCursor)
         self.setGeometry(QRect(geometry.x, geometry.y, geometry.w, geometry.h))
         self.menu = QMenu(self)
