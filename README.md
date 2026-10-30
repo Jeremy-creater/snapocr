@@ -46,7 +46,7 @@ Needs an Apple Silicon Mac. It has only been tested on macOS 26.
 1. On the [Releases page](https://github.com/Jeremy-creater/snapocr/releases/latest), download `snapocr-<version>-macos-arm64.zip` (about 130 MB) and unzip it.
 2. Drag `snapocr.app` to Applications and double-click it. No window opens; the icon appears in the menu bar. The hotkeys are Option+1 to Option+6.
 3. If macOS blocks the first start, go to System Settings → Privacy & Security, find snapocr and click **Open Anyway**. snapocr has no Apple developer signature.
-4. Screenshots need the Screen Recording permission: turn on snapocr under System Settings → Privacy & Security → Screen & System Audio Recording, then restart it. A new version may need the permission again, because each build has a new temporary signature.
+4. Screenshots need the Screen Recording permission: turn on snapocr under System Settings → Privacy & Security → Screen & System Audio Recording, then restart it. A new version may need the permission again, because each build has a new temporary signature. If snapocr keeps asking although the switch is on, quit it, run `tccutil reset ScreenCapture io.github.jeremy-creater.snapocr` in Terminal, then open snapocr, grant the permission again and restart it.
 
 Start at login remembers where the app is, so tick it again in Settings after moving the app. To uninstall, turn off 开机自启动 in Settings, quit snapocr, move the app to the Trash, then delete `~/Library/Application Support/snapocr` and `~/Library/Logs/snapocr`. See [macOS (from source)](#macos-from-source) for more about hotkeys and window style.
 

@@ -46,7 +46,7 @@ Windows 和 macOS 上常驻托盘的截图工具：**一个热键做一件事，
 1. 到 [Releases 页面](https://github.com/Jeremy-creater/snapocr/releases/latest)下载 `snapocr-<版本>-macos-arm64.zip`（约 130 MB），解压。
 2. 把 `snapocr.app` 拖进“应用程序”，双击打开。没有窗口弹出，图标在菜单栏里。热键是 Option+1～6。
 3. 第一次打开被 macOS 拦下时，到“系统设置 → 隐私与安全性”，找到 snapocr，点“仍要打开”。这是因为 snapocr 没有 Apple 开发者签名。
-4. 截图需要屏幕录制权限：在“系统设置 → 隐私与安全性 → 屏幕与系统录音”里打开 snapocr，然后重启它。换新版本后可能要重新授权，因为每次打包的临时签名都不同。
+4. 截图需要屏幕录制权限：在“系统设置 → 隐私与安全性 → 屏幕与系统录音”里打开 snapocr，然后重启它。换新版本后可能要重新授权，因为每次打包的临时签名都不同。如果开关已打开却仍然反复提示，退出 snapocr，在“终端”里运行 `tccutil reset ScreenCapture io.github.jeremy-creater.snapocr`，再打开 snapocr 重新授权并重启它。
 
 开机自启动记录的是 app 当前的位置，移动 app 后要在设置里重新勾选。卸载：先在设置里关掉“开机自启动”，退出 snapocr，把 app 移到废纸篓，再删除 `~/Library/Application Support/snapocr` 和 `~/Library/Logs/snapocr`。热键、窗口样式等更多说明见 [macOS（从源码运行）](#macos从源码运行)。
 

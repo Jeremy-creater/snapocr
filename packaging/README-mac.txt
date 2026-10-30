@@ -9,7 +9,9 @@ snapocr — 截图 / OCR / 翻译，全程在本机
   2. 第一次打开 macOS 可能拦下它（程序没有 Apple 开发者签名）：到
      “系统设置 → 隐私与安全性”，往下找到 snapocr，点“仍要打开”。
   3. 截图要“屏幕录制”权限：按提示在“系统设置 → 隐私与安全性 → 屏幕与系统录音”里
-     打开 snapocr，再重启它。换新版本后可能要重新授权。
+     打开 snapocr，再重启它。换新版本后可能要重新授权。如果开关已打开却仍然反复提示，
+     退出 snapocr，在“终端”里运行下面这行，再打开 snapocr 重新授权并重启它：
+     tccutil reset ScreenCapture io.github.jeremy-creater.snapocr
   4. 热键：
      Option+1 截图（可标注、贴图、另存为）  Option+2 截图识别文字
      Option+3 截图翻译                      Option+4 输入文字翻译
@@ -42,7 +44,9 @@ Usage
      System Settings > Privacy & Security, find snapocr and click "Open Anyway".
   3. Screenshots need the Screen Recording permission: turn on snapocr under System Settings >
      Privacy & Security > Screen & System Audio Recording, then restart it. A new version may
-     need it again.
+     need it again. If it keeps asking although the switch is on, quit snapocr, run this in
+     Terminal, then open snapocr, grant the permission again and restart it:
+     tccutil reset ScreenCapture io.github.jeremy-creater.snapocr
   4. Hotkeys: Option+1 screenshot, Option+2 OCR, Option+3 screenshot translation,
      Option+4 text translation, Option+5 code OCR, Option+6 table OCR.
      Change them, and start at login, in Settings (menu bar icon). The interface is in Chinese.
