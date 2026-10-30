@@ -9,7 +9,7 @@ and ``APPDATA`` / ``LOCALAPPDATA`` mean nothing.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from snapocr.hotkeys import check_platform
 
@@ -68,11 +68,12 @@ def runtime_dir(env: Mapping[str, str], *, home: Path, platform: str = "win32") 
 
     The default is ``%LOCALAPPDATA%/snapocr`` on Windows, ``~/Library/Logs/snapocr`` on a Mac (F23-6).
     """
-    default = _user_dir(env, home, check_platform(platform), "LOCALAPPDATA", ("AppData", "Local"),
+    pure_path = PurePosixPath if check_platform(platform) == "darwin" else PureWindowsPath
+    default = _user_dir(env, home, platform, "LOCALAPPDATA", ("AppData", "Local"),
                         ("Library", "Logs")) / APP_DIR_NAME
     value = env.get(RUNTIME_ENV, "").strip()
     if not value:
         return default, None
-    if Path(value).is_absolute():
+    if pure_path(value).is_absolute():
         return Path(value), None
     return default, f"不是绝对路径（{value}），日志和 debug 文件改放 {default}"
