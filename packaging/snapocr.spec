@@ -22,6 +22,7 @@ a = Analysis(
     [str(ROOT / "packaging" / "entry.py")],
     pathex=[str(ROOT / "src")],
     datas=datas,
+    hiddenimports=["snapocr.gui.platform.win"],  # loaded by name (launch.platform_kit)
     excludes=["tkinter", "pytest", "hypothesis", "IPython"],
     noarchive=False,
 )

@@ -10,13 +10,14 @@ Pinned here:
 - The real engine path is in tests/engines/test_selfcheck_real.py (engine lane).
 """
 
+import ast
 import json
 from pathlib import Path
 
 import pytest
 
 import snapocr
-from snapocr.app import parse_args
+from snapocr.app import kit_module, parse_args
 from snapocr.engines.errors import EngineLoadError, InvalidImageError, InvalidImageReason
 from snapocr.engines.types import OcrResult, TextBlock
 from snapocr.selfcheck import run_self_check
@@ -114,3 +115,29 @@ def test_any_other_crash_is_reported_too(tmp_path):
     image.write_bytes(b"x")
     error = _failing(tmp_path, image, lambda: _Engine(error=RuntimeError("boom")))
     assert error == "RuntimeError: boom"
+
+
+def test_a_platform_module_that_will_not_load_fails_the_check(tmp_path, monkeypatch):
+    # The packaged app crashed at start while this check said ok (M9): nothing here loaded the GUI side.
+    from snapocr.__main__ import main  # imported late: runpy in test_app warns if collection imported it
+    from snapocr.gui.platform import launch
+
+    def missing():
+        raise ModuleNotFoundError("No module named 'snapocr.gui.platform.win'")
+
+    monkeypatch.setattr(launch, "platform_kit", missing)
+    image = tmp_path / "in.png"
+    image.write_bytes(b"x")
+    report = tmp_path / "r.json"
+
+    assert main(["snapocr", "--self-check", str(image), str(report)]) == 1
+    assert _report(report)["ok"] is False
+    assert _report(report)["error"] == "ModuleNotFoundError: No module named 'snapocr.gui.platform.win'"
+
+
+def test_the_windows_build_bundles_the_module_loaded_by_name():
+    # PyInstaller cannot see importlib.import_module(name), so the spec has to name it.
+    spec = ast.parse((Path(__file__).resolve().parent.parent / "packaging" / "snapocr.spec").read_text(encoding="utf-8"))
+    analysis = next(n for n in ast.walk(spec) if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "Analysis")
+    hidden = next(k.value for k in analysis.keywords if k.arg == "hiddenimports")
+    assert kit_module("win32") in ast.literal_eval(hidden)

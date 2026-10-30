@@ -1,8 +1,9 @@
 # snapocr PRD
 
-> 状态：**草稿 v1.11**（2026-10-30）。标 `【待确认】` 的条目需要 Jeremy 决定后才能进入 TDD 计划。
+> 状态：**草稿 v1.12**（2026-10-30）。标 `【待确认】` 的条目需要 Jeremy 决定后才能进入 TDD 计划。
 >
 > 变更记录
+> - v1.12：M9 在 Windows 上核对时（2026-10-30）发现打包版启动就崩、自检却报成功（M9 改成按名字加载平台模块，打包时漏了）。F22-4 自检改为同时加载当前平台的界面模块（不启动托盘和热键）。
 > - v1.11：M9 macOS 开工（2026-10-30，Jeremy 在 MacBook 上提出：快捷键用 Option+1～6）。新增 F23 macOS 版（从源码运行）：同一份代码、同一个版本号，Windows 行为不变；默认热键仍写作 `Alt+1`～`Alt+6`，在 Mac 上就是 Option+1～6（本机 macOS 26.5 实测能注册），菜单里显示成 `⌥1`；截图要“屏幕录制”权限；Mac 第一版翻译窗口用实底，不做毛玻璃。Mac 免安装版（.app）另列 F24，F23 验收后再做；两者做完发 v0.2.0。非目标“只支持 Windows 11”“不做安装包”两条随之改。
 > - v1.10：Jeremy 看了私有仓库的 Release 后（2026-10-29）指出：源码包小白不会用。按推荐定：新增 F22 Windows 免安装版（解压后双击 `snapocr.exe`），由 GitHub Actions 打包并放进 Release；还没公开的 v0.1.0 标签和 Release 删掉，免安装版做完后重新发 v0.1.0（F21-10 随之改）。
 > - v1.9：私有仓库推送后（2026-10-29）Jeremy 定：`.claude/`（tdd-guardian 的计划、总结、测试矩阵）不公开，只留在本地，并从提交历史里去掉；GitHub 仓库删掉重建（F21-9）。发第一个版本 v0.1.0（F21-10）。
@@ -400,7 +401,7 @@ GUI 外壳 (snapocr.gui, PySide6) ── 托盘 / 热键 / 框选遮罩 / 翻译
 | F22-1 | 用 PyInstaller 打成一个文件夹（onedir，不是单个 exe：启动快，Qt 的 DLL 是单独的文件，用户可以替换，符合 LGPL），没有控制台窗口，用 snapocr 的图标。压缩成 `snapocr-<版本>-windows-x64.zip`，解压后最外层是 `snapocr\` 文件夹，里面有 `snapocr.exe`、`LICENSE`、`THIRD_PARTY_NOTICES.md` 和一份中英文的简短说明 `README.txt`。OCR 模型在包里，不用联网。PyInstaller 只是打包时用的开发依赖（`pyproject.toml` 的 `build` 额外依赖），不是运行时依赖。 |
 | F22-2 | 打包后的程序（`sys.frozen`）开机自启动写进注册表的命令是 `snapocr.exe` 本身加 `--config <配置文件>`，不是 `pythonw -m snapocr`。判断是纯逻辑，测试不需要真的打包。 |
 | F22-3 | 打包后的程序 OCR 模型缺失或损坏时，提示“重新下载 snapocr 并解压”，不出现 pip 命令；从 Python 安装的仍按 F21-4 给 pip 命令。纯逻辑。 |
-| F22-4 | 自检：`snapocr --self-check <图片> <报告文件>` 不启动托盘和热键，加载 OCR 引擎识别这张图片，把识别出的文字和版本号以 JSON 写进报告文件后退出（成功退出码 0，失败非 0，原因也写进报告）。打包版没有控制台，所以结果写文件。CI 用它检查打包好的 exe 真的能离线识别。 |
+| F22-4 | 自检：`snapocr --self-check <图片> <报告文件>` 不启动托盘和热键，先加载当前平台的界面模块（只加载，不启动；缺模块算失败），再加载 OCR 引擎识别这张图片，把识别出的文字和版本号以 JSON 写进报告文件后退出（成功退出码 0，失败非 0，原因也写进报告）。打包版没有控制台，所以结果写文件。CI 用它检查打包好的 exe 真的能离线识别。 |
 | F22-5 | GitHub Actions：推送 `v*` 标签时（也可手动触发）先跑 unit、engine，再打包、用 F22-4 自检（识别 `tests/fixtures` 里的一张样例图，文字要对），通过后把 zip 传到这个标签的 Release（草稿，Jeremy 看过再发布）。手动触发时只把 zip 存成 Actions 的构建产物，不建 Release。 |
 | F22-6 | README（中英文）最前面写给普通用户：到 Releases 下载 zip → 解压到任意文件夹 → 双击 `snapocr.exe`；第一次运行 Windows 可能提示“Windows 已保护你的电脑”（没有代码签名），点“更多信息 → 仍要运行”；翻译需要另装 Ollama 和模型；卸载 = 先在设置里关掉开机自启动，再删文件夹和 `%APPDATA%\snapocr`、`%LOCALAPPDATA%\snapocr`。uv / pip 安装挪到“从源码安装”一节。`THIRD_PARTY_NOTICES.md` 补上免安装版里多出来的 Python 运行时（PSF 许可证）和 PyInstaller 引导程序（GPL 加例外，可随闭源或任何许可证分发）。 |
 

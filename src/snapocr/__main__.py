@@ -13,8 +13,14 @@ def main(argv: list[str] | None = None) -> int:
         from snapocr.engines.rapidocr_engine import RapidOcrEngine
         from snapocr.selfcheck import run_self_check
 
+        def load_engine() -> RapidOcrEngine:
+            from snapocr.gui.platform.launch import platform_kit
+
+            platform_kit()  # loaded by name: a build that left it out must fail here, not at the user's first start
+            return RapidOcrEngine(OcrEngineConfig()).load()
+
         image, report = parse_args(argv[1:]).self_check
-        return run_self_check(image, report, lambda: RapidOcrEngine(OcrEngineConfig()).load())
+        return run_self_check(image, report, load_engine)
 
     from snapocr.gui.platform.launch import main as gui_main
 
