@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-Windows 托盘常驻的截图工具：**一个热键做一件事，结果直接进剪贴板。** 框选截图、OCR、翻译，全程在本机完成。OCR 在程序内部运行（RapidOCR，PP-OCR 模型）；翻译调用你自己电脑上的模型服务（默认 Ollama）。snapocr 只访问 `127.0.0.1`。
+Windows 和 macOS（[从源码运行](#macos从源码运行)）上常驻托盘的截图工具：**一个热键做一件事，结果直接进剪贴板。** 框选截图、OCR、翻译，全程在本机完成。OCR 在程序内部运行（RapidOCR，PP-OCR 模型）；翻译调用你自己电脑上的模型服务（默认 Ollama）。snapocr 只访问 `127.0.0.1`。
 
 这是我（Jeremy）和 AI 编程助手（[Claude Code](https://claude.com/claude-code)）一起做的第一款软件，从第一天起就是先写测试再写代码。
 
@@ -67,6 +67,29 @@ py -3.12 -m venv %USERPROFILE%\snapocr-env
 ```
 
 `snapocr` 启动后没有控制台窗口，图标在系统托盘里。同一时间只运行一个。要开机自动启动，在设置里勾选“开机自启动”。
+
+## macOS（从源码运行）
+
+需要 Apple Silicon 的 Mac 和 Python 3.12，只在 macOS 26 上测试过。暂时没有 `.app` 下载。
+
+```sh
+git clone https://github.com/Jeremy-creater/snapocr
+cd snapocr
+uv venv --python 3.12
+uv pip install -e .
+.venv/bin/python -m snapocr
+```
+
+图标在菜单栏，不在程序坞。
+
+- **屏幕录制权限**：截图需要这个权限（系统设置 → 隐私与安全性 → 屏幕与系统录音）。从终端启动时，权限给的是这个终端程序；开机自启动时，权限给的是 Python 解释器，可能要再开一次。开完权限后重启 snapocr。
+- **热键**：本文的 `Alt` 在 Mac 上就是 Option，所以默认热键是 Option+1～6。snapocr 运行时，这几个键原来打出的 `¡ ™ £ ¢ ∞ §` 打不出来了。macOS 15.0、15.1 禁止只用 Option 的全局热键，这两个版本上请改用 Ctrl+Option+数字。
+- **热键冲突**：别的程序用了同一组合时，两边都会响应，snapocr 也不会提示，因为 macOS 没有办法让它知道。
+- **窗口里的快捷键**：`⌘Enter` 翻译，`⌘Z` 撤销，`⌘S` 保存。
+- **开机自启动**：在设置里勾选“开机自启动”，之后系统会提示已添加后台项目。
+- **窗口风格**：翻译窗口都是实底，毛玻璃只有 Windows 版有。
+- **文件位置**：配置文件是 `~/Library/Application Support/snapocr/config.toml`；日志和 debug 输出在 `~/Library/Logs/snapocr`。
+- **翻译**：安装 [Mac 版 Ollama](https://ollama.com/)，再按下面的步骤做，步骤相同。
 
 ## 准备翻译（可选）
 

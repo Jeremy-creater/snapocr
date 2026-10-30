@@ -2,7 +2,7 @@
 
 [中文说明](README.zh-CN.md)
 
-A tray-resident screenshot tool for Windows: **one hotkey, one job, result on the clipboard.** Capture a region, OCR it, or translate it — fully local. OCR runs in-process (RapidOCR / PP-OCR models); translation uses a model server on your own machine (Ollama by default). snapocr only ever talks to `127.0.0.1`.
+A tray-resident screenshot tool for Windows and macOS ([from source](#macos-from-source)): **one hotkey, one job, result on the clipboard.** Capture a region, OCR it, or translate it — fully local. OCR runs in-process (RapidOCR / PP-OCR models); translation uses a model server on your own machine (Ollama by default). snapocr only ever talks to `127.0.0.1`.
 
 This is the first piece of software I (Jeremy) built by working with an AI coding assistant ([Claude Code](https://claude.com/claude-code)), test-first from the start.
 
@@ -67,6 +67,29 @@ py -3.12 -m venv %USERPROFILE%\snapocr-env
 ```
 
 `snapocr` starts without a console window; look for its icon in the tray. Only one instance runs at a time. To start it with Windows, tick 开机自启动 in Settings.
+
+## macOS (from source)
+
+Needs an Apple Silicon Mac and Python 3.12. It has only been tested on macOS 26. There is no `.app` download yet.
+
+```sh
+git clone https://github.com/Jeremy-creater/snapocr
+cd snapocr
+uv venv --python 3.12
+uv pip install -e .
+.venv/bin/python -m snapocr
+```
+
+The icon appears in the menu bar, not in the Dock.
+
+- **Screen Recording permission:** screenshots need it (System Settings → Privacy & Security → Screen & System Audio Recording). When you start snapocr from a terminal, the permission goes to that terminal app. When it starts at login, it goes to the Python interpreter, so you may have to grant it again. Restart snapocr after granting it.
+- **Hotkeys:** `Alt` in this README means Option on a Mac, so the defaults are Option+1 to Option+6. While snapocr runs, those keys no longer type `¡ ™ £ ¢ ∞ §`. On macOS 15.0 and 15.1, Option-only global hotkeys are blocked; use Ctrl+Option+number there.
+- **Hotkey clashes:** if another app uses the same combination, both apps respond and snapocr shows no warning. macOS gives it no way to find out.
+- **Shortcuts in windows:** `⌘Enter` translates, `⌘Z` undoes and `⌘S` saves.
+- **Start at login:** tick 开机自启动 in Settings. macOS then says a background item was added.
+- **Window style:** the translation window is always solid; the glass styles are Windows only.
+- **Files:** the config file is `~/Library/Application Support/snapocr/config.toml`; logs and debug output are in `~/Library/Logs/snapocr`.
+- **Translation:** install [Ollama for Mac](https://ollama.com/) and follow the steps below; they are the same.
 
 ## Set up translation (optional)
 
