@@ -37,7 +37,7 @@ dev = [
     "hypothesis>=6",
     "pytest-qt>=4.5",
 ]
-# Windows portable build (PRD F22-1); packaging only, never imported by snapocr.
+# Portable builds (PRD F22-1, F24-1); packaging only, never imported by snapocr.
 build = [
     "pyinstaller>=6.11,<7",
 ]

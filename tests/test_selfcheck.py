@@ -135,9 +135,10 @@ def test_a_platform_module_that_will_not_load_fails_the_check(tmp_path, monkeypa
     assert _report(report)["error"] == "ModuleNotFoundError: No module named 'snapocr.gui.platform.win'"
 
 
-def test_the_windows_build_bundles_the_module_loaded_by_name():
+@pytest.mark.parametrize("platform", ["win32", "darwin"])
+def test_the_build_bundles_the_module_loaded_by_name(platform):
     # PyInstaller cannot see importlib.import_module(name), so the spec has to name it.
     spec = ast.parse((Path(__file__).resolve().parent.parent / "packaging" / "snapocr.spec").read_text(encoding="utf-8"))
     analysis = next(n for n in ast.walk(spec) if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "Analysis")
     hidden = next(k.value for k in analysis.keywords if k.arg == "hiddenimports")
-    assert kit_module("win32") in ast.literal_eval(hidden)
+    assert kit_module(platform) in ast.literal_eval(hidden)

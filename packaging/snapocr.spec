@@ -1,15 +1,19 @@
-# PyInstaller spec of the Windows portable build (PRD F22-1). Use packaging/build.py, which
+# PyInstaller spec of the portable builds (PRD F22-1, F24-1). Use packaging/build.py, which
 # runs it and zips the result.
 #
 # onedir, not onefile: starts fast, and the Qt DLLs stay separate files that users can
 # replace (LGPL). No UPX: compressed binaries trip antivirus heuristics.
 
+import sys
+import tomllib
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files
 
 ROOT = Path(SPECPATH).parent
-ICON = ROOT / "src" / "snapocr" / "gui" / "assets" / "snapocr.ico"
+MAC = sys.platform == "darwin"
+# PyInstaller converts the PNG to .icns with Pillow.
+ICON = ROOT / "src" / "snapocr" / "gui" / "assets" / ("snapocr-256.png" if MAC else "snapocr.ico")
 
 datas = [
     # The PP-OCR models and rapidocr's YAML configs: OCR works offline from the bundle.
@@ -22,7 +26,8 @@ a = Analysis(
     [str(ROOT / "packaging" / "entry.py")],
     pathex=[str(ROOT / "src")],
     datas=datas,
-    hiddenimports=["snapocr.gui.platform.win"],  # loaded by name (launch.platform_kit)
+    # Loaded by name (launch.platform_kit). Both are listed; the other platform's stays unused.
+    hiddenimports=["snapocr.gui.platform.win", "snapocr.gui.platform.mac.kit"],
     excludes=["tkinter", "pytest", "hypothesis", "IPython"],
     noarchive=False,
 )
@@ -43,3 +48,14 @@ exe = EXE(
     upx=False,
 )
 coll = COLLECT(exe, a.binaries, a.datas, name="snapocr", upx=False)
+
+if MAC:
+    VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+    app = BUNDLE(
+        coll,
+        name="snapocr.app",
+        icon=str(ICON),
+        bundle_identifier="io.github.jeremy-creater.snapocr",
+        version=VERSION,
+        info_plist={"LSUIElement": True, "NSHighResolutionCapable": True},
+    )
