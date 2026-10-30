@@ -2,6 +2,19 @@
 
 [中文说明见下方](#中文)
 
+## [0.2.0] - 2026-10-31
+
+macOS support. The Windows features are unchanged.
+
+Download `snapocr-0.2.0-macos-arm64.zip` from the Release, unzip it and drag `snapocr.app` to Applications: no Python needed. Needs an Apple Silicon Mac. The app has no Apple developer signature, so macOS blocks the first start; the README explains how to open it.
+
+### Added
+
+- Menu bar app for macOS with the same features as on Windows: `Option+1` to `Option+6`, `Cmd` shortcuts in the windows, and hotkeys that can be recorded with `Cmd`.
+- Screenshots on every display at physical pixels, also over full-screen apps, with a prompt for the Screen Recording permission.
+- Start at login on macOS, and a notice when snapocr is already running.
+- Install from source on macOS (see the README).
+
 ## [0.1.0] - 2026-10-29
 
 First public release. Windows 11 only; the user interface is in Chinese.
@@ -24,6 +37,17 @@ Download `snapocr-0.1.0-windows-x64.zip` from the Release, unzip it and run `sna
 ---
 
 ## 中文
+
+## [0.2.0] - 2026-10-31
+
+支持 macOS。Windows 上的功能没有变化。
+
+从 Release 下载 `snapocr-0.2.0-macos-arm64.zip`，解压后把 `snapocr.app` 拖进“应用程序”，不用装 Python。需要 Apple 芯片的 Mac。程序没有 Apple 开发者签名，第一次打开会被 macOS 拦下，打开方法见 README。
+
+- macOS 菜单栏程序，功能和 Windows 一样：`Option+1` 到 `Option+6`，窗口里用 `Cmd` 快捷键，录热键时可以用 `Cmd`。
+- 所有显示器都按物理像素截图，别的程序全屏时也能截，缺屏幕录制权限时会提示。
+- macOS 开机自启动；重复启动时提示已在运行。
+- 可以在 macOS 上从源码安装（见 README）。
 
 ## [0.1.0] - 2026-10-29
 

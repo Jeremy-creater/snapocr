@@ -12,7 +12,7 @@ from pathlib import Path
 import snapocr
 
 ROOT = Path(__file__).resolve().parents[1]
-RELEASE = "0.1.0"
+RELEASE = "0.2.0"
 
 
 def _text(name: str) -> str:

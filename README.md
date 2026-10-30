@@ -67,7 +67,7 @@ uv tool update-shell   # once, so that `snapocr` is on PATH (open a new terminal
 snapocr
 ```
 
-This installs the latest code on `main`. For a fixed release, add the tag: `git+https://github.com/Jeremy-creater/snapocr@v0.1.0` (see [CHANGELOG.md](CHANGELOG.md) and the Releases page).
+This installs the latest code on `main`. For a fixed release, add the tag: `git+https://github.com/Jeremy-creater/snapocr@v0.2.0` (see [CHANGELOG.md](CHANGELOG.md) and the Releases page).
 
 Or with pip, into a virtual environment:
 

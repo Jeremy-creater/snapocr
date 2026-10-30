@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "snapocr"
-version = "0.1.0"
+version = "0.2.0"
 description = "Personal tray screenshot tool: capture, OCR and local-LLM translation to clipboard"
 requires-python = ">=3.12,<3.13"
 license = "MIT"
